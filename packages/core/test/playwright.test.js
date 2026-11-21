@@ -436,12 +436,13 @@ test("with video on, the run pauses after each action, five times as long after 
   assert.equal(journeyRun({ pause: undefined, video: false }).run.pause, 0);
   const { run } = journeyRun({ pause: 40 });
   await run.page("you");
-  let start = Date.now();
+  // Node timers run on a clock rounded to whole ms, so a 40 ms wait can measure 39 ms. Allow that 1 ms.
+  let start = performance.now();
   await run.step(1, { by: "you" }, async () => {});
-  assert.ok(Date.now() - start >= 40);
-  start = Date.now();
+  assert.ok(performance.now() - start >= 39);
+  start = performance.now();
   await run.check("link-on", { by: "you" }, async () => ({ passed: false }));
-  assert.ok(Date.now() - start >= 200);
+  assert.ok(performance.now() - start >= 199);
 });
 
 test("each line's start and length, and each user's page start, are in the run, so a step can be found in a video", async () => {

@@ -1,0 +1,153 @@
+{
+  "$schema": "https://raw.githubusercontent.com/santorilabs/journeysfirst/main/spec/run-results-v1.schema.json",
+  "format": "journeysfirst-run/v1",
+  "id": "2026-11-08-1802-7d2e91fa",
+  "journey": { "name": "share-by-link", "version": "c14c5d28", "case": null },
+  "result": "failed",
+  "summary": "The viewer could still open the link after sharing was turned off.",
+  "started_at": "2026-11-08T18:02:11Z",
+  "finished_at": "2026-11-08T18:03:05Z",
+  "ran_by": { "agent": "claude-code", "model": "opus" },
+  "journeysfirst": "0.0.4",
+  "tags": { "environment": "staging", "device": "Chrome 131, desktop" },
+  "repos": [
+    { "repo": "acme/web", "commit": "abc123", "branch": "share-fix" },
+    { "repo": "acme/api", "commit": "def456", "branch": "main" }
+  ],
+  "users": {
+    "you": "owner-7d2e@example.test",
+    "viewer": null
+  },
+  "values": {
+    "viewer_email": { "value": "viewer-91fa@example.test" },
+    "link": { "value": "https://preview-12.example.test/view/q3-plan" }
+  },
+  "media": [
+    { "file": "you.webm", "kind": "video", "starts_at": 0, "tags": { "user": "you" } },
+    { "file": "viewer.webm", "kind": "video", "starts_at": 12.4, "tags": { "user": "viewer" } },
+    { "file": "trace.zip", "kind": "trace" }
+  ],
+  "verified": [
+    "Link sharing is still on after a reload.",
+    "The viewer sees \"Q3 plan\"."
+  ],
+  "not_verified": [
+    "The viewer can no longer see \"Q3 plan\": the link still works after sharing was turned off.",
+    "The viewer sees a message that the link was turned off, not an error: the viewer saw the presentation, not a message."
+  ],
+  "steps": [
+    {
+      "says": "Turn on link sharing and send the link to ${viewer_email}.",
+      "by": "you",
+      "status": "done",
+      "at": 3.2,
+      "took": 4.1,
+      "screenshots": [{ "file": "step-1.png", "url": "https://preview-12.example.test/p/q3-plan" }]
+    },
+    {
+      "check": "Link sharing is still on after a reload.",
+      "id": "link-on",
+      "by": "you",
+      "verdict": "passed",
+      "at": 7.3,
+      "took": 2.0,
+      "proof": "Reloaded the page and read the saved setting.",
+      "evidence": [
+        { "source": "api", "login": "you", "url": "https://preview-12.example.test/api/share", "got": { "linkSharing": true } }
+      ],
+      "screenshots": [{ "file": "step-2.png", "url": "https://preview-12.example.test/p/q3-plan" }]
+    },
+    {
+      "says": "The viewer opens the link.",
+      "by": "viewer",
+      "status": "done",
+      "at": 12.4,
+      "took": 1.8,
+      "screenshots": [{ "file": "step-3.png", "url": "https://preview-12.example.test/view/q3-plan" }]
+    },
+    {
+      "check": "The viewer sees \"Q3 plan\".",
+      "id": "viewer-sees-it",
+      "by": "viewer",
+      "verdict": "passed",
+      "at": 14.2,
+      "took": 0.6,
+      "proof": "Read the title on the viewer's page.",
+      "evidence": [
+        { "source": "page", "login": "viewer", "url": "https://preview-12.example.test/view/q3-plan", "saw": "the presentation \"Q3 plan\"" }
+      ],
+      "screenshots": [{ "file": "step-4.png", "url": "https://preview-12.example.test/view/q3-plan" }]
+    },
+    {
+      "says": "Turn off link sharing.",
+      "by": "you",
+      "status": "done",
+      "at": 20.1,
+      "took": 3.5,
+      "screenshots": ["step-5.png"]
+    },
+    {
+      "says": "The viewer opens the link again.",
+      "by": "viewer",
+      "status": "done",
+      "at": 38.7,
+      "took": 2.3,
+      "screenshots": [{ "file": "step-6.png", "url": "https://preview-12.example.test/view/q3-plan" }]
+    },
+    {
+      "check": "The viewer can no longer see \"Q3 plan\".",
+      "id": "viewer-blocked",
+      "by": "viewer",
+      "verdict": "failed",
+      "at": 41.0,
+      "took": 2.3,
+      "proof": "Opened the link again, signed out, as the viewer.",
+      "evidence": [
+        { "source": "page", "login": "viewer", "url": "https://preview-12.example.test/view/q3-plan", "saw": "the presentation, not an error" }
+      ],
+      "screenshots": [{ "file": "step-7.png", "url": "https://preview-12.example.test/view/q3-plan" }],
+      "cause": "product",
+      "reason": "The link still works after sharing was turned off."
+    },
+    {
+      "check": "The viewer sees a message that the link was turned off, not an error.",
+      "id": "viewer-told-why",
+      "added": true,
+      "by": "viewer",
+      "verdict": "failed",
+      "at": 43.3,
+      "took": 0.4,
+      "proof": "Read the viewer's page after opening the link again.",
+      "evidence": [
+        { "source": "page", "login": "viewer", "url": "https://preview-12.example.test/view/q3-plan", "saw": "the presentation, with no message" }
+      ],
+      "cause": "product",
+      "reason": "The viewer saw the presentation, not a message."
+    }
+  ],
+  "findings": [
+    {
+      "id": "intuitive-feedback-1",
+      "criterion": "intuitive-feedback",
+      "step": 1,
+      "says": "Nothing on the screen changes after \"Copy link\".",
+      "evidence": [
+        { "source": "page", "login": "you", "url": "https://preview-12.example.test/p/q3-plan", "saw": "the dialog is the same before and after the click" }
+      ]
+    },
+    {
+      "id": "foundation-values-3",
+      "criterion": "foundation-values",
+      "step": 3,
+      "says": "\"Download\" has a 4 px corner. The measured line has 10 and 16 px.",
+      "ask": "Is a 4 px corner right for this button?",
+      "evidence": [
+        { "source": "page", "login": "viewer", "url": "https://preview-12.example.test/view/q3-plan", "file": "measure-3.txt", "measured": { "radius": "4 px", "on": "button \"Download\"" } }
+      ]
+    }
+  ],
+  "reviews": [
+    { "by": "reviewer@example.test", "at": "2026-11-08T18:20:00Z", "on": "viewer-blocked", "says": "Confirmed bug." },
+    { "by": "ana@example.test", "at": "2026-11-08T18:25:00Z", "on": "foundation-values-3", "says": "Yes, 4 px is right for a small button." }
+  ]
+}

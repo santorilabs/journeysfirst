@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/santorilabs/journeysfirst/main/spec/journey-v1.schema.json
+format: journeysfirst/v1
+title: Turn on two-step sign-in
+promise: You can turn on two-step sign-in with your phone number, and it stays on.
+cases:
+  - name: Enter the number in the form
+    id: number-in-form
+    start: You're signed in. Two-step sign-in is off.
+    steps:
+      - In Security, choose "Turn on two-step sign-in".
+      - Enter ${phone} in the form.
+      - check: One text with a code is sent to ${phone}.
+        id: code-sent
+  - name: Tap "Not now"
+    id: not-now
+    start: You're signed in. Two-step sign-in is off.
+    added: true
+    steps:
+      - In Security, choose "Turn on two-step sign-in".
+      - Tap "Not now".
+      - check: No text is sent.
+        id: nothing-sent

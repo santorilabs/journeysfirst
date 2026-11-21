@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/santorilabs/journeysfirst/main/spec/journey-v1.schema.json
+format: journeysfirst/v1
+title: Share a presentation by link
+promise: You can share a presentation by link, and turn the link off again.
+users: [viewer]
+start: You have a presentation called "Q3 plan". Link sharing is off.
+setup: seed-presentation
+steps:
+  - Turn on link sharing and send the link to ${viewer_email}.
+  - check: Link sharing is still on after a reload.
+    id: link-on
+  - The viewer opens the link.
+  - check: The viewer sees "Q3 plan".
+    id: viewer-sees-it
+  - Turn off link sharing.
+  - The viewer opens the link again.
+  - check: The viewer can no longer see "Q3 plan".
+    id: viewer-blocked
+  - check: The viewer sees a message that the link was turned off, not an error.
+    id: viewer-told-why
+    added: true
+notes: The viewer has no account. They open the link signed out.

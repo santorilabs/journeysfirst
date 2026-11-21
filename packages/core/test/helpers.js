@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { parseJourney } from "../src/format/format.js";
 import { RunRecorder } from "../src/runner/recorder.js";
 
-// The example from spec/journey-format-v1.md.
+// A journey like spec/journey-v1.example.yaml.
 export const JOURNEY = `format: journeysfirst/v1
 title: Share a presentation by link
 promise: You can share a presentation by link, and turn the link off again.
@@ -22,7 +22,7 @@ steps:
     id: viewer-blocked
 `;
 
-// The cases example from spec/journey-format-v1.md.
+// The journey in spec/journey-v1.cases.example.yaml.
 export const CASES = `format: journeysfirst/v1
 title: Turn on two-step sign-in
 promise: You can turn on two-step sign-in with your phone number, and it stays on.
@@ -96,8 +96,8 @@ export function recordAllPassed(run) {
   return run;
 }
 
-/** The run in spec/run-results-v1.md. It shows two of the run's seven steps, so only parts of it are valid alone. */
-export const specRun = () => JSON.parse(readFileSync(new URL("../../../spec/run-results-v1.md", import.meta.url), "utf8").match(/## Example\n\n```json\n([\s\S]*?)\n```/)[1]);
+/** The example run in spec/: a full run of spec/journey-v1.example.yaml. */
+export const specRun = () => JSON.parse(readFileSync(new URL("../../../spec/run-results-v1.example.json", import.meta.url), "utf8"));
 
 /** The findings from the spec's example: one finding on step 1, and one question on step 3. */
 export const findings = () => specRun().findings;

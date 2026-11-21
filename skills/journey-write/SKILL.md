@@ -84,7 +84,7 @@ After:  Ask the assistant "Can you make me a quick line chart of weekly signups?
 The blurb is the minimum. Add what it implies, and mark each added check and case `added: true`.
 
 - A check for what the user would notice first if this broke, and for each "What good means" line that applies to this promise.
-- The cases a careful PM would worry about for this promise. The spec's [Cases](https://github.com/santorilabs/journeysfirst/blob/main/spec/journey-format-v1.md#cases) section shows the shape.
+- The cases a careful PM would worry about for this promise, each as a case (see the [cases example](https://github.com/santorilabs/journeysfirst/blob/main/spec/journey-v1.cases.example.yaml)): where you start (signed out, new account, already set up); each channel and device; wrong or missing input; saying no or changing your mind; doing it again; someone not allowed; limits like quota or an expired link; things going wrong, where the product must say so; 2 tabs or 2 users at once. Leave one out only with a reason in `notes`.
 
 The `promise` stays in the person's words. Added detail never changes it.
 

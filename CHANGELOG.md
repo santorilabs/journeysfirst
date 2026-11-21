@@ -2,6 +2,13 @@
 
 Each released version is on npm (`journeysfirst`). Newest first.
 
+## 0.0.5
+
+- The journey format has a JSON Schema, `spec/journey-v1.schema.json`, and 2 example files. Put `# yaml-language-server: $schema=https://raw.githubusercontent.com/santorilabs/journeysfirst/main/spec/journey-v1.schema.json` at the top of a journey to get checks and hover help in your editor. A test keeps the schema and `validate` in agreement.
+- `spec/journey-format-v1.md` is now short: links to the schema and examples, and the rules for writing steps.
+- `journey-write` lists the cases to think through, which used to be in the spec.
+- Run files have a JSON Schema too, `spec/run-results-v1.schema.json`, and a full example run, `spec/run-results-v1.example.json`. `spec/run-results-v1.md` is now short. A test keeps the schema and `validate-run` in agreement.
+
 ## 0.0.4
 
 - `journey-build` runs `npx journeysfirst init` after installing, so the reporter and the Journeys section in `AGENTS.md` are set up before the first run.

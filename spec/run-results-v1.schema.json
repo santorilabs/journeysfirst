@@ -1,0 +1,228 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/santorilabs/journeysfirst/main/spec/run-results-v1.schema.json",
+  "title": "Journeys First run, v1",
+  "description": "One run of a journey: what each user did, what was seen, and how each check was proven. The file is run.json in the run's folder. Tools keep any field they don't know. `npx journeysfirst validate-run` also checks what this schema cannot: steps match the journey line by line, result and verified match the steps, every by and login is in users, and ids are unique.",
+  "type": "object",
+  "required": ["format", "id", "journey", "result", "started_at", "steps"],
+  "properties": {
+    "format": { "description": "Always journeysfirst-run/v1.", "const": "journeysfirst-run/v1" },
+    "id": {
+      "description": "The run's id, and its folder name. Never changes. The recorder writes the start time in UTC, then 8 random hex, like 2026-11-08-1802-7d2e91fa.",
+      "$ref": "#/$defs/fileName"
+    },
+    "journey": {
+      "description": "Which journey ran.",
+      "type": "object",
+      "required": ["name", "version", "case"],
+      "properties": {
+        "name": { "description": "The journey's file name, without .journey.yaml.", "$ref": "#/$defs/fileName" },
+        "version": { "description": "The version of the journey that ran: a hash of what it promises.", "$ref": "#/$defs/text" },
+        "case": { "description": "The id of the case that ran, or null when the journey has no cases. One run is one case.", "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/text" }] }
+      }
+    },
+    "result": {
+      "description": "passed: every check passed. failed: any check failed. not_fully_checked: nothing failed, but a check is blocked or not_checked.",
+      "enum": ["passed", "failed", "not_fully_checked"]
+    },
+    "summary": { "description": "One plain sentence about the run.", "$ref": "#/$defs/text" },
+    "started_at": { "description": "When the run started, as an ISO time like 2026-11-08T18:02:11Z.", "$ref": "#/$defs/time" },
+    "finished_at": { "description": "When the run finished, as an ISO time.", "$ref": "#/$defs/time" },
+    "ran_by": { "description": "Which agent ran it, like {agent: \"claude-code\", model: \"opus\"}.", "type": "object" },
+    "journeysfirst": { "description": "The version of Journeys First that wrote the run, like \"0.0.4\".", "$ref": "#/$defs/text" },
+    "tags": { "description": "Facts about this run to filter on. Any key. Suggested: environment, device, browser, os.", "type": "object" },
+    "repos": {
+      "description": "The code that was tested, one item per repo.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["repo"],
+        "properties": { "repo": { "description": "Like owner/name.", "$ref": "#/$defs/text" }, "commit": {}, "branch": {} }
+      }
+    },
+    "users": {
+      "description": "Each user, and the account used in this run. null when it was not captured, like a viewer with no account.",
+      "type": "object",
+      "additionalProperties": { "type": ["string", "null"] }
+    },
+    "played_by": {
+      "description": "Who played a user, as the runner launched it: \"a script\", or an agent like \"Claude Code 2.4.1, opus\".",
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/text" }
+    },
+    "repeat": {
+      "description": "One of several runs of the same journey, back to back, like {batch: \"a1b2c3d4\", n: 2, of: 5}. A batch passes only when every run passed.",
+      "type": "object",
+      "required": ["batch", "n", "of"],
+      "properties": {
+        "batch": { "$ref": "#/$defs/text" },
+        "n": { "type": "integer", "minimum": 1 },
+        "of": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "values": {
+      "description": "Each ${name} from the journey and the value it had. A secret is {secret: true}, with no value, so it never leaves the machine.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": { "secret": { "type": "boolean" } },
+        "if": { "required": ["secret"], "properties": { "secret": { "const": true } } },
+        "then": { "not": { "required": ["value"] } },
+        "else": { "required": ["value"] }
+      }
+    },
+    "media": {
+      "description": "The run's files besides screenshots: videos, traces, captures.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/media" }
+    },
+    "verified": { "description": "The checks that passed, as plain sentences.", "$ref": "#/$defs/textList" },
+    "not_verified": { "description": "One sentence for each check that did not pass, starting with the check.", "$ref": "#/$defs/textList" },
+    "steps": {
+      "description": "Every line of the journey, in order, each with its result.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/step" }
+    },
+    "findings": {
+      "description": "What a review against fixed criteria found. Never changes a verdict. Left out: not reviewed. Empty: reviewed, nothing found.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/finding" }
+    },
+    "reviews": {
+      "description": "People's calls on a check or a finding. A review never changes a verdict.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["by", "at", "on", "says"],
+        "properties": {
+          "by": { "$ref": "#/$defs/text" },
+          "at": { "$ref": "#/$defs/text" },
+          "on": { "description": "A check id or a finding id.", "$ref": "#/$defs/text" },
+          "says": { "$ref": "#/$defs/text" }
+        }
+      }
+    },
+    "project": { "description": "Removed. A run belongs to whichever project it is published to.", "not": {} },
+    "people": { "description": "Renamed to users.", "not": {} },
+    "outcomes": { "description": "A draft 0 run. Run the journey again to write a v1 run.", "not": { "type": "array" } }
+  },
+  "$defs": {
+    "text": { "type": "string", "pattern": "\\S" },
+    "textList": { "type": "array", "items": { "$ref": "#/$defs/text" } },
+    "time": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}" },
+    "seconds": { "description": "Seconds from the start of the run.", "type": "number", "minimum": 0 },
+    "fileName": { "description": "A plain file name: letters, digits, dots, dashes and underscores.", "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "fullUrl": { "description": "A full address, like https://app.example.test/p/q3-plan.", "type": "string", "pattern": "^https?://[^/?#\\s]+" },
+    "step": {
+      "if": { "type": "object", "required": ["check"] },
+      "then": { "$ref": "#/$defs/check" },
+      "else": { "$ref": "#/$defs/action" }
+    },
+    "both": {
+      "type": "object",
+      "properties": {
+        "by": { "description": "Who did it, or whose view the check is about: you or a name from users. Left out on a line nobody did.", "$ref": "#/$defs/text" },
+        "at": { "$ref": "#/$defs/seconds" },
+        "took": { "description": "How long it took, in seconds.", "$ref": "#/$defs/seconds" },
+        "screenshots": { "description": "Screenshots taken at this step.", "type": "array", "items": { "$ref": "#/$defs/screenshot" } },
+        "cause": { "description": "Why it failed or was blocked: the product, the test (the journey or script is wrong), or the environment.", "enum": ["product", "test", "environment"] },
+        "reason": { "description": "What went wrong, in one plain sentence.", "$ref": "#/$defs/text" }
+      },
+      "allOf": [
+        {
+          "if": { "anyOf": [{ "required": ["status"], "properties": { "status": { "enum": ["failed", "blocked"] } } }, { "required": ["verdict"], "properties": { "verdict": { "enum": ["failed", "blocked"] } } }] },
+          "then": { "required": ["cause", "reason"] }
+        },
+        {
+          "if": { "anyOf": [{ "required": ["status"], "properties": { "status": { "const": "done" } } }, { "required": ["verdict"], "properties": { "verdict": { "enum": ["passed", "failed"] } } }] },
+          "then": { "required": ["by"] }
+        }
+      ]
+    },
+    "action": {
+      "description": "A line of the journey that someone did.",
+      "$ref": "#/$defs/both",
+      "required": ["says", "status"],
+      "properties": {
+        "says": { "description": "The line from the journey.", "$ref": "#/$defs/text" },
+        "status": { "enum": ["done", "failed", "blocked", "not_run"] }
+      }
+    },
+    "check": {
+      "description": "A check from the journey, with its verdict and proof.",
+      "$ref": "#/$defs/both",
+      "required": ["check", "id", "verdict"],
+      "properties": {
+        "check": { "description": "The check's sentence from the journey.", "$ref": "#/$defs/text" },
+        "id": { "description": "The check's id from the journey.", "$ref": "#/$defs/text" },
+        "says": { "not": {} },
+        "verdict": {
+          "description": "passed: true, with evidence. failed: the product did the wrong thing. blocked: setup or the environment broke. not_checked: no evidence. A pass without evidence from the by user's own login is read as not_checked.",
+          "enum": ["passed", "failed", "blocked", "not_checked"]
+        },
+        "claimed": { "description": "Set when a claimed pass was settled to not_checked.", "const": "passed" },
+        "proof": { "description": "How it was proven, in one plain sentence.", "$ref": "#/$defs/text" },
+        "evidence": { "description": "What was collected, for engineers.", "type": "array", "items": { "$ref": "#/$defs/evidence" } },
+        "added": { "description": "true when an agent added the check. Copied from the journey.", "type": "boolean" }
+      },
+      "allOf": [
+        { "if": { "properties": { "verdict": { "enum": ["passed", "failed"] } } }, "then": { "required": ["proof"] } },
+        { "if": { "required": ["claimed"] }, "then": { "properties": { "verdict": { "const": "not_checked" } } } }
+      ]
+    },
+    "screenshot": {
+      "description": "A file name in the run folder, or {file, url} with the full address of the page it shows.",
+      "anyOf": [
+        { "$ref": "#/$defs/fileName" },
+        {
+          "type": "object",
+          "required": ["file"],
+          "properties": { "file": { "$ref": "#/$defs/fileName" }, "url": { "$ref": "#/$defs/fullUrl" } }
+        }
+      ]
+    },
+    "evidence": {
+      "description": "One thing collected, with where it came from and enough to look it up again. login is the user's own session. key names an admin or service key, never its value.",
+      "type": "object",
+      "required": ["source"],
+      "properties": {
+        "source": { "enum": ["page", "api", "database", "log", "message"] },
+        "login": { "$ref": "#/$defs/text" },
+        "key": { "$ref": "#/$defs/text" }
+      },
+      "oneOf": [{ "required": ["login"], "not": { "required": ["key"] } }, { "required": ["key"], "not": { "required": ["login"] } }],
+      "allOf": [
+        { "if": { "properties": { "source": { "enum": ["page", "api"] } } }, "then": { "required": ["url"], "properties": { "url": { "$ref": "#/$defs/text" } } } },
+        { "if": { "properties": { "source": { "enum": ["database", "log"] } } }, "then": { "required": ["query"], "properties": { "query": { "$ref": "#/$defs/text" } } } },
+        { "if": { "properties": { "source": { "const": "message" } } }, "then": { "required": ["message_id"], "properties": { "message_id": { "$ref": "#/$defs/text" } } } }
+      ]
+    },
+    "media": {
+      "type": "object",
+      "required": ["file", "kind"],
+      "properties": {
+        "file": { "$ref": "#/$defs/fileName" },
+        "kind": { "description": "Like video, trace or capture. publish leaves out every trace.", "$ref": "#/$defs/text" },
+        "starts_at": { "description": "When this file starts, in seconds from the start of the run. A step starts at - starts_at seconds into the video.", "$ref": "#/$defs/seconds" },
+        "tags": {
+          "description": "Like {user: \"viewer\"} on that user's video.",
+          "type": "object",
+          "properties": { "person": { "description": "Renamed to user.", "not": {} } }
+        }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "required": ["id", "criterion", "says", "evidence"],
+      "properties": {
+        "id": { "description": "Unique in the run, never a check's id. Like intuitive-feedback-1.", "$ref": "#/$defs/fileName" },
+        "criterion": { "description": "The criterion it is about, like intuitive-feedback.", "$ref": "#/$defs/text" },
+        "says": { "description": "What was found, in one plain sentence.", "$ref": "#/$defs/text" },
+        "evidence": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/evidence" } },
+        "step": { "description": "The step it is about, from 1. Left out when it is about the whole journey.", "type": "integer", "minimum": 1 },
+        "ask": { "description": "The one question for a person. With it, the item is a question.", "$ref": "#/$defs/text" }
+      }
+    }
+  }
+}

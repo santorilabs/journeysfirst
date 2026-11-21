@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/santorilabs/journeysfirst/main/spec/journey-v1.schema.json",
+  "title": "Journeys First journey, v1",
+  "description": "A journey: what a product promises a user, as plain sentences a person can review and any agent can run. The file is journeys/<name>.journey.yaml. `npx journeysfirst validate` also checks what this schema cannot: ids are unique within a step list, and two cases share a check id only when the check says the same thing.",
+  "type": "object",
+  "required": ["format", "title", "promise"],
+  "properties": {
+    "format": {
+      "description": "Always journeysfirst/v1. v1 only gets additions, so v1 files keep working.",
+      "const": "journeysfirst/v1"
+    },
+    "title": {
+      "description": "A one-line name, like \"Share a presentation by link\".",
+      "type": "string",
+      "pattern": "^\\s*[^\\n]*\\S[^\\n]*\\s*$"
+    },
+    "promise": {
+      "description": "What the person asked for, in their own words. Keep their whole blurb. For a list or paragraph, start the value with | and put the text on the lines below.",
+      "$ref": "#/$defs/text"
+    },
+    "users": { "$ref": "#/$defs/users" },
+    "start": {
+      "description": "What is true before the first step. Required unless the journey has cases.",
+      "$ref": "#/$defs/sentence"
+    },
+    "setup": {
+      "description": "The name of the app's setup script that creates the start state.",
+      "$ref": "#/$defs/text"
+    },
+    "steps": { "$ref": "#/$defs/steps" },
+    "cases": {
+      "description": "Several ways the promise can happen, each with its own start and steps. Use cases or steps, not both.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/case" }
+    },
+    "notes": {
+      "description": "Anything an agent should know that is not a step.",
+      "anyOf": [{ "$ref": "#/$defs/text" }, { "type": "array", "items": { "$ref": "#/$defs/text" } }]
+    },
+    "people": {
+      "description": "Renamed to users.",
+      "not": {}
+    }
+  },
+  "oneOf": [
+    { "required": ["steps", "start"], "not": { "required": ["cases"] } },
+    { "required": ["cases"], "allOf": [{ "not": { "required": ["steps"] } }, { "not": { "required": ["start"] } }] }
+  ],
+  "$defs": {
+    "text": {
+      "type": "string",
+      "pattern": "\\S"
+    },
+    "sentence": {
+      "description": "Plain text. A value is written as ${name}, in lowercase with underscores.",
+      "type": "string",
+      "pattern": "^(?=[\\s\\S]*\\S)(?:[^$]|\\$(?!\\{)|\\$\\{[a-z][a-z0-9_]*\\})*$"
+    },
+    "id": {
+      "description": "Lowercase words joined by dashes, like link-on. Written once; never changes.",
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "users": {
+      "description": "Role words for the other users, like [viewer] or [editor, admin]. You are the main user and are not listed. Leave it out when only you act.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_-]*$",
+        "not": { "const": "you" }
+      }
+    },
+    "steps": {
+      "description": "One list, read top to bottom. Each step is a plain sentence, or a check with an id. At least one check.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/step" },
+      "contains": { "$ref": "#/$defs/check" }
+    },
+    "step": {
+      "anyOf": [{ "$ref": "#/$defs/sentence" }, { "$ref": "#/$defs/check" }]
+    },
+    "check": {
+      "description": "What must be true at this point.",
+      "type": "object",
+      "required": ["check", "id"],
+      "properties": {
+        "check": { "$ref": "#/$defs/sentence" },
+        "id": { "$ref": "#/$defs/id" },
+        "added": {
+          "description": "true when an agent added this check beyond what the person asked for.",
+          "type": "boolean"
+        }
+      }
+    },
+    "case": {
+      "description": "One way the promise can happen.",
+      "type": "object",
+      "required": ["name", "id", "start", "steps"],
+      "properties": {
+        "name": { "description": "How this case happens, in a few words.", "$ref": "#/$defs/text" },
+        "id": { "$ref": "#/$defs/id" },
+        "start": { "description": "What is true before this case's first step.", "$ref": "#/$defs/sentence" },
+        "steps": { "$ref": "#/$defs/steps" },
+        "users": { "$ref": "#/$defs/users" },
+        "setup": { "description": "The name of the app's setup script for this case.", "$ref": "#/$defs/text" },
+        "added": { "description": "true when an agent added this case.", "type": "boolean" },
+        "people": { "description": "Renamed to users.", "not": {} }
+      }
+    }
+  }
+}

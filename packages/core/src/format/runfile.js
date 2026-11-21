@@ -1,4 +1,4 @@
-// Run results v1 (spec/run-results-v1.md): what one run of a journey did and
+// Run results v1 (spec/run-results-v1.schema.json): what one run of a journey did and
 // proved. Any tool can write it; the review UI, publish and a service read it.
 import { createHash } from "node:crypto";
 import { isCheck, screenshotFile } from "../shared/display.js";

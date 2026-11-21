@@ -8,7 +8,7 @@
     "down": "./stack.sh down"
   },
   "dependencies": {
-    "journeysfirst": "0.0.4"
+    "journeysfirst": "0.0.5"
   },
   "devDependencies": {
     "@playwright/test": "^1.49.0"

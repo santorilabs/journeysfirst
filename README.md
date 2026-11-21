@@ -92,7 +92,7 @@ steps:
     id: teammate-sees-it
 ```
 
-You write it in plain sentences, with no selectors or URLs. Your agent works those out when it runs it, and saves them in a script. Every run keeps the proof: a screenshot for each line, a video for each user, and a [`run.json`](spec/run-results-v1.md#example) with every check.
+You write it in plain sentences, with no selectors or URLs. Your agent works those out when it runs it, and saves them in a script. Every run keeps the proof: a screenshot for each line, a video for each user, and a [`run.json`](spec/run-results-v1.example.json) with every check.
 
 https://github.com/user-attachments/assets/8d8912ba-3d1c-472b-a1af-b98645e558f5
 
