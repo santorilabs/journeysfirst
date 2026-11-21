@@ -1,0 +1,11 @@
+{
+  "files": ["consumer.check.ts"],
+  "compilerOptions": {
+    "noEmit": true,
+    "strict": true,
+    "module": "nodenext",
+    "target": "es2022",
+    "types": ["node"],
+    "skipLibCheck": true
+  }
+}

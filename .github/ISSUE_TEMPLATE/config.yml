@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: The spec
+    url: https://github.com/santorilabs/journeysfirst/tree/main/spec
+    about: The journey format and the run format.
+  - name: Get started
+    url: https://github.com/santorilabs/journeysfirst#readme
+    about: Install, write a first journey, run it.

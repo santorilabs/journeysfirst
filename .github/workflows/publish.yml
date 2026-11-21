@@ -1,0 +1,43 @@
+# Publishes journeysfirst to npm when a release is published, with npm trusted
+# publishing: npm checks the run came from this workflow in this repo, so there
+# is no npm token to store or leak, and each version gets a provenance record.
+# One-time setup on npmjs.com: package journeysfirst > Settings > Trusted
+# publishing > GitHub Actions, repo santorilabs/journeysfirst, workflow publish.yml.
+# The release tag must be v<version>, like v0.0.1.
+name: publish
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      # Trusted publishing needs npm 11.5.1 or newer.
+      - run: npm install -g npm@11
+      - name: Tag matches the package version
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          version=$(node -p "require('./packages/core/package.json').version")
+          if [ "$TAG" != "v$version" ]; then
+            echo "::error::Release tag $TAG does not match package version $version. Tag it v$version."
+            exit 1
+          fi
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y ffmpeg)
+      - run: npm test
+      - run: npm run check:names
+      - run: npm publish -w packages/core --access public

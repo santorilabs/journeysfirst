@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Q3 plan</title>
+<style>
+body{font-family:system-ui,sans-serif;margin:40px;color:#141516}
+.slide{border:1px solid #e6e6e3;border-radius:16px;padding:48px;max-width:640px}
+button{font:inherit;padding:10px 16px;border-radius:10px;border:1px solid #141516;background:#fff;cursor:pointer}
+dialog{border:1px solid #e6e6e3;border-radius:16px;padding:24px;width:360px;max-width:calc(100vw - 32px);box-sizing:border-box}
+label{display:inline-flex;align-items:center;gap:8px;min-height:32px}
+#status{color:#6b6d69}
+</style>
+</head>
+<body>
+<h1>Q3 plan</h1>
+<div class="slide"><h2>Where we are</h2><p>Three bets for the quarter.</p></div>
+<p><button id="share">Share</button></p>
+<dialog id="dialog">
+  <h3>Share "Q3 plan"</h3>
+  <label><input type="checkbox" id="link-sharing"> Anyone with the link can view</label>
+  <p><button id="copy">Copy link</button> <span id="status"></span></p>
+  <p><button id="close">Done</button></p>
+</dialog>
+<script>
+const dialog = document.getElementById("dialog");
+const toggle = document.getElementById("link-sharing");
+const status = document.getElementById("status");
+const link = `${location.origin}/view/q3-plan`;
+async function load() {
+  toggle.checked = (await (await fetch("/api/share")).json()).linkSharing;
+}
+const share = document.getElementById("share");
+share.onclick = async () => {
+  // Say it is working before the saved setting comes back.
+  share.disabled = true;
+  share.textContent = "Opening…";
+  await load();
+  share.disabled = false;
+  share.textContent = "Share";
+  dialog.showModal();
+};
+document.getElementById("close").onclick = () => dialog.close();
+toggle.onchange = async () => {
+  await fetch("/api/share", { method: "POST", body: JSON.stringify({ linkSharing: toggle.checked }) });
+};
+document.getElementById("copy").onclick = async () => {
+  await navigator.clipboard.writeText(link);
+  status.textContent = "Copied";
+};
+</script>
+</body>
+</html>

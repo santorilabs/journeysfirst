@@ -1,0 +1,68 @@
+name: Claude Code Review
+
+# Runs only when someone comments `@claude review` on a PR. claude.yml skips
+# that phrase so the two workflows don't both answer.
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  claude-review:
+    if: |
+      github.event.issue.pull_request &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
+      contains(github.event.comment.body, '@claude review')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Code Review
+        id: claude-review
+        # Pinned to v1.0.217: v1.0.218's installer exits 0
+        # without installing claude (anthropics/claude-code-action#1817).
+        uses: anthropics/claude-code-action@9c5ddab2e6d17b83ea679153b31f1d5f023cf636
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.issue.number }}
+
+            You are reviewing a teammate's code. Be concise; no fluff.
+
+            Read README.md, spec/journey-format-v1.md and spec/run-results-v1.md for how the repo works, and REVIEW.md for the severity bar and the tier.
+            Reject an empty, whitespace-only, or HTML-comment-only PR description; do not approve it.
+            Check completed verification of the final change. A visible review UI change needs screenshots at desktop and 375px. A format change needs the spec docs, the validator and the tests changed together. Do not infer a pass from a test name or a claim without results.
+
+            Focus ONLY on issues that actually matter:
+            - Missing required PR description or applicable verification evidence
+            - Bugs or logic errors that will cause problems
+            - Security vulnerabilities
+            - Significant performance issues
+            - Breaks of the v1 formats, or code that reports a run or check better than its evidence shows
+            - The core importing outside `scripts/check-names.mjs`'s allowlist
+            - Secret values written to run files, screenshots or logs
+
+            Do not comment on minor style preferences, nitpicks, unlikely theoretical concerns, or things already working.
+
+            Also check:
+            - Fixes the cause, not the symptom, and the same bug elsewhere was swept.
+            - A PR that fixes a break that got past review adds what would have caught it: a test, an example run or a REVIEW.md line.
+            - The author says in the title, description or comments that the PR is a demo, WIP or not meant to merge yet. Then end with `Not approving.` and quote where they said it, until they say it's ready.
+
+            On a later commit, review only what changed since your last review. Don't repeat a finding the author fixed or answered.
+
+            Before the last line, name the tier for the whole PR at this commit, as REVIEW.md describes, even on a later commit. Weigh the author's `Tier:` line and reasons, the full diff against main, other reviews (`gh pr view --comments`), and CI (`gh pr checks`). If you disagree with the author's tier, say why.
+            - `Tier: low|medium|high, <why>`
+
+            Use `gh pr comment` with your Bash tool to leave your review as a comment on the PR. Always leave one comment, and end it with its own last line: `Approving.` when the description and applicable verification are satisfied and there are no significant issues, or `Not approving.` with the issues above it.
+
+          claude_args: '--model sonnet --allowed-tools "Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh pr view:*),Bash(gh pr list:*)"'

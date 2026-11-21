@@ -1,0 +1,51 @@
+name: Bug
+description: Something in Journeys First does not work.
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: dropdown
+    id: part
+    attributes:
+      label: Which part
+      options:
+        - spec (journey or run format)
+        - skills
+        - runner (Playwright)
+        - review page
+        - publish
+        - CLI (init, upgrade, validate)
+        - not sure
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What you did, what happened, and what should have happened.
+      placeholder: |
+        Ran `npx journeysfirst validate journeys/signup.journey.yaml`.
+        It said "steps[2]: check needs an id", but line 9 has `id: signed-in`.
+        It should pass.
+    validations:
+      required: true
+  - type: textarea
+    id: cause
+    attributes:
+      label: Cause
+      description: What you think produced it, or "unknown".
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: The exact command or ask, the output, and the run's `run.json` if there is one. Remove anything private first.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version and agent
+      description: "`npx journeysfirst --version`, and the agent that ran it if any (Claude Code, Codex, Cursor, a Playwright script)."
+    validations:
+      required: true

@@ -1,0 +1,59 @@
+{
+  "name": "journeysfirst",
+  "version": "0.0.4",
+  "description": "Plain-sentence user journeys that any agent can build against, run and check.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/santorilabs/journeysfirst.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/santorilabs/journeysfirst#readme",
+  "bugs": {
+    "url": "https://github.com/santorilabs/journeysfirst/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "journeysfirst": "./bin/journeysfirst.js"
+  },
+  "types": "./types/index.d.ts",
+  "exports": {
+    ".": { "types": "./types/index.d.ts", "default": "./src/index.js" },
+    "./playwright": { "types": "./types/runner/playwright.d.ts", "default": "./src/runner/playwright.js" },
+    "./reporter": { "types": "./types/runner/reporter.d.ts", "default": "./src/runner/reporter.js" },
+    "./recorder": { "types": "./types/runner/recorder.d.ts", "default": "./src/runner/recorder.js" },
+    "./runfile": { "types": "./types/format/runfile.d.ts", "default": "./src/format/runfile.js" },
+    "./run-folder": { "types": "./types/format/run-folder.d.ts", "default": "./src/format/run-folder.js" },
+    "./publish": { "types": "./types/publish/publish.d.ts", "default": "./src/publish/publish.js" },
+    "./dev-server": { "types": "./types/publish/dev-server.d.ts", "default": "./src/publish/dev-server.js" },
+    "./publish-handler": { "types": "./types/publish/publish-handler.d.ts", "default": "./src/publish/publish-handler.js" },
+    "./run-answer": { "types": "./types/review/run-answer.d.ts", "default": "./src/review/run-answer.js" },
+    "./display": { "types": "./types/shared/display.d.ts", "default": "./src/shared/display.js" }
+  },
+  "files": [
+    "src",
+    "types",
+    "bin",
+    "skills",
+    "templates"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "types": "tsc -p .",
+    "prepack": "node ../../scripts/copy-skills.mjs",
+    "postpack": "node ../../scripts/copy-skills.mjs --remove"
+  },
+  "dependencies": {
+    "yaml": "^2.6.0"
+  },
+  "peerDependencies": {
+    "@playwright/test": ">=1.45"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2"
+  }
+}

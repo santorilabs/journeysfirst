@@ -1,0 +1,16 @@
+{
+  "name": "example-docmost-trash",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:break": "./stack.sh up break && DOCMOST_COMMIT=ec12e80423b5048dc67f144ddc6960daf3e604a4 playwright test",
+    "test:fix": "./stack.sh up fix && DOCMOST_COMMIT=95b7be61df95ce4a2199d055cbec74dca3f080be playwright test",
+    "down": "./stack.sh down"
+  },
+  "dependencies": {
+    "journeysfirst": "0.0.4"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  }
+}

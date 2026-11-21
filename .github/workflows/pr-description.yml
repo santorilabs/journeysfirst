@@ -1,0 +1,31 @@
+name: PR description
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+permissions:
+  pull-requests: read
+
+concurrency:
+  group: pr-description-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  pr-description:
+    name: PR description present
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Check description
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const { data: pr } = await github.rest.pulls.get({
+              ...context.repo,
+              pull_number: context.issue.number,
+            });
+            const description = (pr.body ?? "").replace(/<!--[\s\S]*?-->/g, "").trim();
+            if (!description) {
+              core.setFailed("Add a non-empty PR description.");
+            }

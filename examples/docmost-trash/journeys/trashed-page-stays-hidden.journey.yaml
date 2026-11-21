@@ -1,0 +1,32 @@
+format: journeysfirst/v1
+title: A page in Trash is hidden from everyone else
+promise: When I delete a page, it moves to Trash. People with the public link and other members of the space can no longer read it or find it.
+users: [viewer, teammate]
+start: |
+  You are the admin of a fresh Docmost workspace with a space called "Team".
+  The space has a page called "Salary bands 2025" with the text "Senior engineer band is 180k".
+  The page is shared to the web, and the viewer has its public link.
+  The teammate is a member of the "Team" space with "Can view" access.
+steps:
+  - The viewer opens the public link.
+  - check: The viewer sees "Salary bands 2025" and its text.
+    id: viewer-reads-before
+  - The teammate searches for "Salary bands".
+  - check: The teammate's search results include "Salary bands 2025".
+    id: teammate-finds-before
+  - Delete "Salary bands 2025".
+  - check: You see "Salary bands 2025" in the space's Trash after a reload.
+    id: in-trash
+  - The viewer opens the public link again.
+  - check: The viewer no longer sees "Salary bands 2025" or "Senior engineer band is 180k".
+    id: viewer-blocked
+  - The teammate searches for "Salary bands" again.
+  - check: The teammate's search results do not include "Salary bands 2025".
+    id: teammate-search-hidden
+  - The teammate tries to open the space's Trash.
+  - check: The teammate cannot see "Salary bands 2025" in the space's Trash.
+    id: teammate-no-trash
+    added: true
+notes: |
+  The first two checks prove the viewer and the teammate could read the page before it was deleted, so a later "cannot see" is caused by the delete.
+  The teammate has "Can view" access. This journey does not cover restoring a page or deleting it for good.

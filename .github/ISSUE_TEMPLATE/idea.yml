@@ -1,0 +1,22 @@
+name: Idea
+description: Something Journeys First should do.
+title: "[Idea] "
+labels: [idea]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Who it affects, what happens today, and what should happen.
+    validations:
+      required: true
+  - type: textarea
+    id: how
+    attributes:
+      label: How
+      description: What you would change, and the other ways you thought of.
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: A journey, a run or a real case where you hit this.

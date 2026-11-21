@@ -1,0 +1,15 @@
+{
+  "name": "example-share-by-link",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:bug": "DEMO_LINK_BUG=1 playwright test"
+  },
+  "dependencies": {
+    "journeysfirst": "0.0.4"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  }
+}

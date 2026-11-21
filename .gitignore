@@ -1,0 +1,6 @@
+node_modules
+journey-runs
+test-results
+playwright-report
+packages/core/skills
+.DS_Store

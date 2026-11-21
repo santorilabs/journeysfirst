@@ -1,0 +1,12 @@
+{
+  "name": "journeysfirst-monorepo",
+  "private": true,
+  "type": "module",
+  "workspaces": ["packages/core", "examples/share-by-link", "examples/immich-shared-link", "examples/docmost-trash"],
+  "scripts": {
+    "test": "npm test -w packages/core",
+    "check:names": "node scripts/check-names.mjs",
+    "example": "npm test -w examples/share-by-link",
+    "verify:publish": "node scripts/verify-publish.mjs"
+  }
+}

@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Q3 plan</title>
+<style>body{font-family:system-ui,sans-serif;margin:40px;color:#141516}.slide{border:1px solid #e6e6e3;border-radius:16px;padding:48px;max-width:640px}</style>
+</head>
+<body>
+<main id="main">Loading…</main>
+<script>
+fetch("/api/view/q3-plan").then((r) => r.json()).then(({ canView }) => {
+  document.getElementById("main").innerHTML = canView
+    ? '<h1>Q3 plan</h1><div class="slide"><h2>Where we are</h2><p>Three bets for the quarter.</p></div>'
+    : "<h1>You don't have access</h1><p>Ask the owner to share this with you.</p>";
+});
+</script>
+</body>
+</html>

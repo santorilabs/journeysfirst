@@ -1,0 +1,39 @@
+# When a release is published, tell each product repo in the PRODUCT_REPOS
+# variable (space-separated owner/name), so its journeysfirst-upgrade workflow
+# runs now instead of at its next daily run. Optional: the daily run alone
+# finds the release. Setup: docs/auto-upgrade.md.
+name: release dispatch
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  dispatch:
+    if: vars.PRODUCT_REPOS != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ secrets.JOURNEYSFIRST_TOKEN }}
+      REPOS: ${{ vars.PRODUCT_REPOS }}
+      TAG: ${{ github.event.release.tag_name }}
+    steps:
+      - name: Tell each product repo
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::Set the JOURNEYSFIRST_TOKEN secret. See docs/auto-upgrade.md."
+            exit 1
+          fi
+          failed=0
+          for repo in $REPOS; do
+            if gh api --silent --method POST "repos/$repo/dispatches" -f event_type=journeysfirst-release -f "client_payload[tag]=$TAG"; then
+              echo "Told $repo about $TAG."
+            else
+              echo "::error::Could not tell $repo. The token needs Contents: write on it."
+              failed=1
+            fi
+          done
+          exit $failed

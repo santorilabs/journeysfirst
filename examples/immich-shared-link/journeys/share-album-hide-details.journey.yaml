@@ -1,0 +1,22 @@
+format: journeysfirst/v1
+title: Share an album by link with photo details hidden
+promise: When I share an album by link with "Show metadata" turned off, people with the link see my photos but not where they were taken, the camera, or the file names.
+users: [viewer]
+start: You have an album called "Spring trip" with one photo, "tram.jpg". The photo's details say it was taken in Lisbon, Portugal, with a FUJIFILM X100V. The album has no shared links. The viewer has no account.
+notes: |
+  The viewer can open the link in a browser. The viewer can also give the link to an app, like a digital photo frame, that loads the album through the server's API. Both are the viewer, and the promise holds for both.
+steps:
+  - Create a shared link for "Spring trip" with "Show metadata" turned off, and send the link to the viewer.
+  - check: Your shared link still has "Show metadata" turned off after a reload.
+    id: link-hides-metadata
+    added: true
+  - The viewer opens the link in a browser and opens the photo.
+  - check: The viewer sees the photo from "Spring trip" without signing in.
+    id: viewer-sees-photo
+  - check: The viewer's page shows no location, camera or file name for the photo.
+    id: page-hides-details
+  - The viewer's photo frame app loads every photo in "Spring trip", with its details, using the link.
+  - check: The viewer's app gets exactly one photo, the one in "Spring trip".
+    id: app-gets-photo
+  - check: Nothing the viewer's app gets for the photo says where it was taken, the camera, or the file name "tram.jpg".
+    id: app-hides-details

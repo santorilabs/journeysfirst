@@ -1,0 +1,16 @@
+{
+  "name": "example-immich-shared-link",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:break": "./stack.sh up 655cd01d57c7806c4547d6ac47f4f827027caa27 && IMMICH_COMMIT=655cd01d57c7806c4547d6ac47f4f827027caa27 playwright test",
+    "test:fix": "./stack.sh up 9982bee7b04c1abf4c05ad6d811ea2be23573f8b && IMMICH_COMMIT=9982bee7b04c1abf4c05ad6d811ea2be23573f8b playwright test",
+    "down": "./stack.sh down"
+  },
+  "dependencies": {
+    "journeysfirst": "0.0.4"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  }
+}

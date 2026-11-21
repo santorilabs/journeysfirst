@@ -1,0 +1,196 @@
+# Upgrades Journeys First when npm has a new version. It opens one pull
+# request on the branch journeysfirst/upgrade and turns on auto-merge, so the
+# pull request merges itself once this repo's required checks pass. It turns
+# on auto-merge only when the check that runs the journeys is required: the
+# job named "journeys", or the name in the JOURNEYS_CHECK repo variable.
+# Written by `npx journeysfirst init` or `npx journeysfirst upgrade`. Each
+# upgrade writes it again.
+#
+# To open pull requests it needs the secret JOURNEYSFIRST_TOKEN: a token that
+# can push branches, edit workflows and open pull requests in this repo. The
+# default GITHUB_TOKEN is not enough: a pull request it opens starts no other
+# workflows, so the checks would never run. Without the secret, each run only
+# says when a new version is out.
+# Setup: https://github.com/santorilabs/journeysfirst/blob/main/docs/auto-upgrade.md
+#
+# To stop upgrades: gh workflow disable journeysfirst-upgrade.yml
+name: journeysfirst upgrade
+
+on:
+  schedule:
+    - cron: "23 14 * * *"
+  # Another workflow can start it with this event.
+  repository_dispatch:
+    types: [journeysfirst-release]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: journeysfirst-upgrade
+
+env:
+  BRANCH: journeysfirst/upgrade
+  GH_TOKEN: ${{ secrets.JOURNEYSFIRST_TOKEN }}
+  JOURNEYS_CHECK: ${{ vars.JOURNEYS_CHECK || 'journeys' }}
+
+jobs:
+  upgrade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.JOURNEYSFIRST_TOKEN || github.token }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Compare with the newest version on npm
+        id: versions
+        run: |
+          # The journeysfirst version a package.json asks for, or "tarball" for
+          # an older setup that installed vendor/journeysfirst-<version>.tgz.
+          installed() {
+            node -e '
+              const pkg = JSON.parse(require("fs").readFileSync(0, "utf8"));
+              const spec = { ...pkg.dependencies, ...pkg.devDependencies }.journeysfirst ?? "";
+              console.log(/\.tgz$/.test(spec) ? "tarball" : spec.replace(/^[\^~=v]+/, ""));
+            '
+          }
+          current=$(installed < package.json)
+          if [ -z "$current" ]; then
+            echo "::error::package.json has no journeysfirst. Install it: npm install --save-dev journeysfirst"
+            exit 1
+          fi
+          latest=$(npm view journeysfirst version)
+          echo "current=$current" >> "$GITHUB_OUTPUT"
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+          if [ "$current" = "tarball" ]; then
+            # A tarball is older than any version on npm, whatever its file
+            # name says: npm numbering started again at 0.0.1.
+            echo "journeysfirst comes from a tarball in vendor/. Moving it to npm, version $latest."
+          else
+            newest=$(printf '%s\n%s\n' "$current" "$latest" | sort -V | tail -n 1)
+            if [ "$newest" = "$current" ]; then
+              echo "On journeysfirst $current, the newest version. Nothing to do."
+              echo "upgrade=no" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::warning::journeysfirst $latest is out. To get it as a pull request, set the JOURNEYSFIRST_TOKEN secret (see the setup link at the top of .github/workflows/journeysfirst-upgrade.yml). Or upgrade by hand: npm install --save-dev journeysfirst@$latest && npx journeysfirst upgrade"
+            echo "upgrade=no" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # A pull request for this version is open already, or a person
+          # closed it. A manual run makes it again.
+          if git fetch --quiet origin "$BRANCH" 2>/dev/null \
+            && [ "$(git show "FETCH_HEAD:package.json" | installed)" = "$latest" ] \
+            && [ "$GITHUB_EVENT_NAME" != "workflow_dispatch" ]; then
+            echo "$BRANCH already has journeysfirst $latest. Run this workflow by hand to make it again."
+            echo "upgrade=no" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Upgrading journeysfirst $current to $latest."
+          echo "upgrade=yes" >> "$GITHUB_OUTPUT"
+
+      - uses: oven-sh/setup-bun@v2
+        if: hashFiles('bun.lock', 'bun.lockb') != ''
+
+      - name: Install the new version and refresh the skills
+        if: steps.versions.outputs.upgrade == 'yes'
+        env:
+          LATEST: ${{ steps.versions.outputs.latest }}
+        run: |
+          # Install with the package manager the repo's lockfile belongs to, so
+          # the pull request changes that lockfile and adds no second one.
+          if [ -f pnpm-lock.yaml ]; then
+            add="pnpm add --save-dev"; run="pnpm exec"
+            corepack enable
+            # With no packageManager in package.json, use the pnpm that wrote
+            # the lockfile, so its format does not change.
+            if ! grep -q '"packageManager"' package.json; then
+              case "$(sed -n "s/^lockfileVersion: '\{0,1\}\([0-9]*\).*/\1/p" pnpm-lock.yaml)" in
+                5) corepack prepare pnpm@7 --activate ;;
+                6) corepack prepare pnpm@8 --activate ;;
+              esac
+            fi
+          elif [ -f yarn.lock ]; then
+            add="yarn add --dev"; run="yarn"
+            corepack enable
+          elif [ -f bun.lock ] || [ -f bun.lockb ]; then
+            add="bun add --dev"; run="bunx"
+          else
+            add="npm install --save-dev"; run="npx"
+          fi
+          echo "\`$add journeysfirst@$LATEST\` and \`$run journeysfirst upgrade\`" > "$RUNNER_TEMP/commands.txt"
+          $add "journeysfirst@$LATEST"
+          git rm --quiet --ignore-unmatch 'vendor/journeysfirst-*.tgz'
+          $run journeysfirst upgrade | tee "$RUNNER_TEMP/upgrade.txt"
+
+      - name: Open or update the pull request
+        if: steps.versions.outputs.upgrade == 'yes'
+        env:
+          CURRENT: ${{ steps.versions.outputs.current }}
+          LATEST: ${{ steps.versions.outputs.latest }}
+        run: |
+          title="Journeys First $LATEST"
+          git switch --create "$BRANCH"
+          git add --all
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit --quiet --message "$title" --message "Upgrade journeysfirst from $CURRENT to $LATEST with npx journeysfirst upgrade."
+          git push --force origin "HEAD:refs/heads/$BRANCH"
+
+          body="$RUNNER_TEMP/body.md"
+          {
+            echo "## Problem"
+            echo
+            if [ "$CURRENT" = "tarball" ]; then
+              echo "This repo installs journeysfirst from a tarball in \`vendor/\`. Journeys First is on npm now, and $LATEST is the newest version."
+            else
+              echo "This repo is on journeysfirst $CURRENT. $LATEST is out."
+            fi
+            echo
+            echo "## How"
+            echo
+            echo "- \`.github/workflows/journeysfirst-upgrade.yml\` ran $(cat "$RUNNER_TEMP/commands.txt")."
+            if [ "$CURRENT" = "tarball" ]; then
+              echo "- It removed the tarball from \`vendor/\`. From now on, \`package.json\` installs journeysfirst from npm."
+            fi
+            echo "- \`upgrade\` printed:"
+            echo
+            echo '```'
+            cat "$RUNNER_TEMP/upgrade.txt"
+            echo '```'
+            echo
+            echo "- What changed: https://github.com/santorilabs/journeysfirst/blob/main/CHANGELOG.md"
+            echo
+            echo "## Verification"
+            echo
+            echo "This pull request merges itself when the required checks pass, and the journeys must be one of them. A journey that fails, or has no run, stops the merge. A check that is blocked, for example because the test setup broke, stops it too, unless the same check was blocked in main's newest run. When the merge stops, this pull request waits for a person."
+          } > "$body"
+
+          pr=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
+          if [ -z "$pr" ]; then
+            gh pr create --head "$BRANCH" --title "$title" --body-file "$body"
+          else
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/pulls/$pr" -f title="$title" -F "body=@$body" --jq .html_url
+          fi
+
+          # Auto-merge waits only for required checks. Unless the journeys
+          # check is one of them, it would merge without the journeys, so the
+          # pull request waits for a person.
+          base=$(gh repo view "$GITHUB_REPOSITORY" --json defaultBranchRef --jq .defaultBranchRef.name)
+          required=$(
+            gh api "repos/$GITHUB_REPOSITORY/branches/$base" --jq '.protection.required_status_checks.contexts[]?' 2>/dev/null
+            gh api "repos/$GITHUB_REPOSITORY/rules/branches/$base" --jq '.[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context' 2>/dev/null
+          )
+          if ! printf '%s\n' "$required" | grep -qxF "$JOURNEYS_CHECK"; then
+            echo "::warning::$JOURNEYS_CHECK is not a required check on $base, so auto-merge is off for this pull request. Make it required, or set the JOURNEYS_CHECK variable to the check that runs the journeys."
+            exit 0
+          fi
+          echo "$JOURNEYS_CHECK is required on $base. Turning on auto-merge."
+          gh pr merge "$BRANCH" --auto --squash

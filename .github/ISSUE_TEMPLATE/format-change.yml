@@ -1,0 +1,30 @@
+name: Format change
+description: Change the journey format or the run format.
+title: "[Format] "
+labels: [format]
+body:
+  - type: markdown
+    attributes:
+      value: The formats are in [spec/](https://github.com/santorilabs/journeysfirst/tree/main/spec). A change must keep every existing v1 journey and run valid, or say why not.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Which part of the spec, what it makes hard or wrong today, and what it should allow.
+    validations:
+      required: true
+  - type: textarea
+    id: how
+    attributes:
+      label: How
+      description: The change, and the other ways you thought of. Whether existing v1 files stay valid.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: A journey you could not write today, or one that reads wrong. Before and after if you can.
+      render: yaml
+    validations:
+      required: true
