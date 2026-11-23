@@ -23,6 +23,7 @@ const SECTION_START = "<!-- journeysfirst:start -->";
 const SECTION_END = "<!-- journeysfirst:end -->";
 
 export const DEFAULT_SKILLS_DIR = ".claude/skills";
+const FALLBACK_SKILLS_DIR = ".agents/skills";
 
 /** Skills an earlier release shipped and this one does not. upgrade deletes their copies. */
 export const RETIRED_SKILLS = ["install-journeysfirst", "prove-check", "onboard", "write-journey", "run-journey", "fix-journey-run"];
@@ -30,6 +31,24 @@ export const RETIRED_SKILLS = ["install-journeysfirst", "prove-check", "onboard"
 /** @returns {string[]} the names of the skills this package ships */
 export function packageSkills() {
   return readdirSync(SKILLS).sort();
+}
+
+/** @param {string} root @param {string} dir */
+function hasOurSkills(root, dir) {
+  const ours = [...packageSkills(), ...RETIRED_SKILLS];
+  return ours.some((name) => existsSync(join(root, dir, name)));
+}
+
+/**
+ * When upgrade is called without --skills, look in .claude/skills first and
+ * fall back to .agents/skills (where `npx skills add` installs for Codex and others).
+ * @param {string} root @param {string | undefined} skillsDir
+ */
+function resolveUpgradeSkillsDir(root, skillsDir) {
+  if (skillsDir) return skillsDir;
+  if (hasOurSkills(root, DEFAULT_SKILLS_DIR)) return DEFAULT_SKILLS_DIR;
+  if (hasOurSkills(root, FALLBACK_SKILLS_DIR)) return FALLBACK_SKILLS_DIR;
+  return DEFAULT_SKILLS_DIR;
 }
 
 /**
@@ -49,16 +68,16 @@ export function init({ root = process.cwd(), skillsDir = DEFAULT_SKILLS_DIR } = 
  * @param {{root?: string, skillsDir?: string}} [options]
  * @returns {string[]} one line per change
  */
-export function upgrade({ root = process.cwd(), skillsDir = DEFAULT_SKILLS_DIR } = {}) {
-  const ours = [...packageSkills(), ...RETIRED_SKILLS];
-  if (!ours.some((name) => existsSync(join(root, skillsDir, name)))) {
-    throw new Error(`No Journeys First skills in ${skillsDir}. Run npx journeysfirst init, or pass --skills <folder> if the skills are somewhere else.`);
+export function upgrade({ root = process.cwd(), skillsDir } = {}) {
+  const dir = resolveUpgradeSkillsDir(root, skillsDir);
+  if (!hasOurSkills(root, dir)) {
+    throw new Error(`No Journeys First skills in ${dir}. Run npx journeysfirst init, or pass --skills <folder> if the skills are somewhere else.`);
   }
-  const removed = RETIRED_SKILLS.filter((name) => existsSync(join(root, skillsDir, name))).map((name) => {
-    rmSync(join(root, skillsDir, name), { recursive: true });
-    return `removed ${join(skillsDir, name)} (this version no longer ships it)`;
+  const removed = RETIRED_SKILLS.filter((name) => existsSync(join(root, dir, name))).map((name) => {
+    rmSync(join(root, dir, name), { recursive: true });
+    return `removed ${join(dir, name)} (this version no longer ships it)`;
   });
-  return [...copySkills(root, skillsDir), ...removed, ...addConfig(root), ...ignoreRuns(root), ...writeWorkflow(root, skillsDir), ...addSection(root, skillsDir)];
+  return [...copySkills(root, dir), ...removed, ...addConfig(root), ...ignoreRuns(root), ...writeWorkflow(root, dir), ...addSection(root, dir)];
 }
 
 /**
@@ -134,9 +153,12 @@ function keepTraceOnFailure(root, config, text) {
 function ignoreRuns(root) {
   const file = join(root, ".gitignore");
   const text = existsSync(file) ? readFileSync(file, "utf8") : "";
-  if (text.split("\n").some((line) => /^\/?journey-runs\/?$/.test(line.trim()))) return [];
-  appendFileSync(file, `${text && !text.endsWith("\n") ? "\n" : ""}journey-runs/\n`);
-  return ["added journey-runs/ to .gitignore"];
+  const lines = text.split("\n").map((line) => line.trim());
+  const missing = ["journey-runs", "test-results"].filter((name) => !lines.some((line) => new RegExp(`^/?${name}/?$`).test(line)));
+  if (!missing.length) return [];
+  const prefix = text && !text.endsWith("\n") ? "\n" : "";
+  appendFileSync(file, `${prefix}${missing.map((name) => `${name}/`).join("\n")}\n`);
+  return missing.map((name) => `added ${name}/ to .gitignore`);
 }
 
 /**
@@ -224,8 +246,9 @@ function addSection(root, skillsDir) {
  * @param {"init"|"upgrade"} command @param {{root?: string, skillsDir?: string}} [options]
  * @returns {string[]}
  */
-export function nextSteps(command, { root = process.cwd(), skillsDir = DEFAULT_SKILLS_DIR } = {}) {
-  const skill = (/** @type {string} */ name) => `${skillsDir}/${name}/SKILL.md`;
+export function nextSteps(command, { root = process.cwd(), skillsDir } = {}) {
+  const dir = command === "upgrade" ? resolveUpgradeSkillsDir(root, skillsDir) : (skillsDir ?? DEFAULT_SKILLS_DIR);
+  const skill = (/** @type {string} */ name) => `${dir}/${name}/SKILL.md`;
   const steps = [];
   const pkg = readPackage(root);
   const readme = join(root, "journeys/README.md");

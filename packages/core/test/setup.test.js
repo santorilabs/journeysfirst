@@ -21,10 +21,11 @@ test("init copies every package skill, adds a Playwright config and ignores jour
   assert.match(read(dir, "playwright.config.js"), /journeysfirst\/reporter/);
   assert.match(read(dir, "playwright.config.js"), /reuseExistingServer: false/);
   assert.match(read(dir, "playwright.config.js"), /trace: "retain-on-failure"/);
-  assert.equal(read(dir, ".gitignore"), "journey-runs/\n");
+  assert.equal(read(dir, ".gitignore"), "journey-runs/\ntest-results/\n");
   assert.ok(changes.includes("added .claude/skills/journey-onboard"), changes.join("\n"));
   assert.ok(changes.some((c) => c.startsWith("added playwright.config.js")), changes.join("\n"));
   assert.ok(changes.includes("added journey-runs/ to .gitignore"), changes.join("\n"));
+  assert.ok(changes.includes("added test-results/ to .gitignore"), changes.join("\n"));
 });
 
 test("the new Playwright config starts the app with its dev script, else its start script, else says what to set", () => {
@@ -75,7 +76,7 @@ test("init keeps an existing Playwright config and .gitignore lines, and says wh
   assert.ok(!existsSync(join(dir, "playwright.config.js")));
   assert.equal(read(dir, "playwright.config.ts"), "export default {};\n");
   assert.ok(changes.some((c) => c.startsWith("kept playwright.config.ts") && c.includes("journeysfirst/reporter")), changes.join("\n"));
-  assert.equal(read(dir, ".gitignore"), "node_modules/\njourney-runs/\n");
+  assert.equal(read(dir, ".gitignore"), "node_modules/\njourney-runs/\ntest-results/\n");
 });
 
 test("upgrade adds trace: retain-on-failure to a config's use, and never changes a trace setting the repo has", () => {
@@ -182,6 +183,30 @@ test("upgrade writes through linked skill folders, the layout npx skills add mak
   }
   assert.ok(changes.some((c) => c.startsWith("updated .claude/skills/journey-onboard")), changes.join("\n"));
   assert.ok(changes.includes("added AGENTS.md"), changes.join("\n"));
+});
+
+test("upgrade falls back to .agents/skills when .claude/skills has none of our skills", () => {
+  const dir = repo();
+  mkdirSync(join(dir, ".agents/skills/journey-write"), { recursive: true });
+  writeFileSync(join(dir, ".agents/skills/journey-write/SKILL.md"), "an older copy\n");
+  const changes = upgrade({ root: dir });
+  assert.equal(read(dir, ".agents/skills/journey-write/SKILL.md"), skill("journey-write"));
+  assert.ok(changes.includes("added .agents/skills/journey-onboard"), changes.join("\n"));
+  assert.match(read(dir, "AGENTS.md"), /\.agents\/skills\/journey-run\/SKILL\.md/);
+  assert.match(read(dir, UPGRADE_WORKFLOW), /journeysfirst upgrade --skills \.agents\/skills/);
+  assert.match(nextSteps("upgrade", { root: dir }).join("\n"), /\.agents\/skills\/journey-onboard\/SKILL\.md/);
+});
+
+test("CLI --help exits 0 and accepts --flag=value syntax", () => {
+  const dir = repo();
+  for (const arg of ["--help", "-h", "help"]) {
+    const res = cli([arg], dir);
+    assert.equal(res.status, 0, `${arg}: ${res.stdout}${res.stderr}`);
+    assert.match(res.stdout, /^Usage:/);
+  }
+  const eqInit = cli(["init", "--skills=.agents/skills"], dir);
+  assert.equal(eqInit.status, 0, eqInit.stdout + eqInit.stderr);
+  assert.ok(existsSync(join(dir, ".agents/skills/journey-onboard/SKILL.md")));
 });
 
 test("upgrade refuses a repo with no Journeys First skills, and points to init", () => {
