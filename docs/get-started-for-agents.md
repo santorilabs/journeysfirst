@@ -56,7 +56,7 @@ You are done when the person has confirmed what good means and the top tests are
 
 ## Upgrade
 
-A repo set up with [auto-upgrade.md](auto-upgrade.md) gets each release as a pull request from `.github/workflows/journeysfirst-upgrade.yml`. Review that pull request instead of upgrading by hand. When its journeys stopped the merge, use `journey-fix` on the runs it uploaded.
+A repo set up with [auto-upgrade.md](https://raw.githubusercontent.com/santorilabs/journeysfirst/main/docs/auto-upgrade.md) gets each release as a pull request from `.github/workflows/journeysfirst-upgrade.yml`. Review that pull request instead of upgrading by hand. When its journeys stopped the merge, use `journey-fix` on the runs it uploaded.
 
 1. Run `npm install` if `node_modules` is missing. Read the new safety rules before you install: `npm pack journeysfirst@<new> --pack-destination /tmp`, then `tar -xOzf /tmp/journeysfirst-<new>.tgz package/skills/journey-run/SKILL.md`, section "2. Get a safe environment".
 2. Get a "before" result for each journey. `journey-runs/` is not committed, so if there are no run folders, run the journeys once now on the old version. Set up the safe environment the new version asks for first, even though the old version is installed.
@@ -64,10 +64,10 @@ A repo set up with [auto-upgrade.md](auto-upgrade.md) gets each release as a pul
 4. `npx journeysfirst upgrade` (add `--skills <folder>` if the skills are not in `.claude/skills`). It refreshes the skills, deletes retired ones and rewrites the Journeys section in `AGENTS.md` (and in a `CLAUDE.md` that does not import `@AGENTS.md`). It never touches the app skill. It lists each skill as added, updated, unchanged or removed. Read it, and `git diff` any skill it updated.
 5. Check each saved script in `e2e/` against the evidence rules in `journey-run`. A read made with a service or admin key must say `key`, with the env var name the product's own code reads for that key (like `SUPABASE_SERVICE_ROLE_KEY`), not `login`. Fix any that do not.
 6. If `journeys/README.md` has no Foundation section, add it: follow "Find the foundation" in `journey-onboard`. Each run now ends with `journey-review`, which reads it. `upgrade` prints this step when the section is missing.
-7. Run the journeys again with `journey-run` and compare each result with step 2. Report the old and new version, the release notes ([CHANGELOG.md](../CHANGELOG.md)), what `upgrade` printed, and each journey before and after.
+7. Run the journeys again with `journey-run` and compare each result with step 2. Report the old and new version, the release notes ([CHANGELOG.md](https://github.com/santorilabs/journeysfirst/blob/main/CHANGELOG.md)), what `upgrade` printed, and each journey before and after.
 
 ## When something gets in the way
 
 Do the safe thing and tell the person what you did. Ask only when there is no safe choice.
 
-The skills are listed in [skills.md](skills.md).
+The skills are listed in [skills.md](https://raw.githubusercontent.com/santorilabs/journeysfirst/main/docs/skills.md).

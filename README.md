@@ -8,6 +8,7 @@
 [![Changelog](https://img.shields.io/badge/changelog-CHANGELOG.md-blue)](CHANGELOG.md)
 [![Tests](https://github.com/santorilabs/journeysfirst/actions/workflows/test.yml/badge.svg)](https://github.com/santorilabs/journeysfirst/actions/workflows/test.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![skills.sh installs](https://skills.sh/b/santorilabs/journeysfirst)](https://skills.sh/santorilabs/journeysfirst)
 
 **Built for agent-first product development**: agents build your product, and **agents use it too.**
 
@@ -20,12 +21,6 @@ Your agents build to them, and check their work against what your users experien
 - **Review page:** watch each run step by step, as each user.
 
 Everything lives in your repo and runs wherever your code runs: your machine, CI or your own cloud.
-
-Install only the skills. This asks no questions:
-
-```bash
-npx skills add santorilabs/journeysfirst --all
-```
 
 ## The problem
 
@@ -106,7 +101,7 @@ https://github.com/user-attachments/assets/8d8912ba-3d1c-472b-a1af-b98645e558f5
 Ask your agent to do it. Copy this to your agent:
 
 ```text
-Set up Journeys First in this repo: https://github.com/santorilabs/journeysfirst/blob/main/docs/get-started-for-agents.md
+Set up Journeys First in this repo: https://journeysfirst.com/start
 ```
 
 It tells you its plan first, and stops before it runs anything.
@@ -119,7 +114,7 @@ npx playwright install --only-shell chromium
 npx journeysfirst init
 ```
 
-Or only the skills. This asks no questions: `npx skills add santorilabs/journeysfirst --all`
+Or only the skills: `npx skills add santorilabs/journeysfirst --skill '*' --agent claude-code codex -y`
 
 ## Try it
 
