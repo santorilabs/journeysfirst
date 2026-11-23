@@ -8,7 +8,6 @@
 [![Changelog](https://img.shields.io/badge/changelog-CHANGELOG.md-blue)](CHANGELOG.md)
 [![Tests](https://github.com/santorilabs/journeysfirst/actions/workflows/test.yml/badge.svg)](https://github.com/santorilabs/journeysfirst/actions/workflows/test.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
-[![skills.sh installs](https://skills.sh/b/santorilabs/journeysfirst)](https://skills.sh/santorilabs/journeysfirst)
 
 **Built for agent-first product development**: agents build your product, and **agents use it too.**
 
@@ -21,6 +20,12 @@ Your agents build to them, and check their work against what your users experien
 - **Review page:** watch each run step by step, as each user.
 
 Everything lives in your repo and runs wherever your code runs: your machine, CI or your own cloud.
+
+Install only the skills. This asks no questions:
+
+```bash
+npx skills add santorilabs/journeysfirst --all
+```
 
 ## The problem
 
@@ -46,7 +51,7 @@ Journeys First works on top of what you already have: your tests, your agent's o
 | Self-check skills | [pstack](https://github.com/cursor/plugins/tree/main/pstack), [Showboat](https://github.com/simonw/showboat) | Agents drive your app from a feature map and show you proof. | Describes each feature from one user's point of view. Every rerun is a full agent run. |
 | Check-and-save tools | [Shiplight](https://www.shiplight.ai/yaml-tests), [Playwright test agents](https://playwright.dev/docs/test-agents) | Agents turn their check into a test that runs on every PR. | Browser tests only, so no agent as a user. |
 | Test code | [Playwright](https://playwright.dev/docs/browser-contexts), [Cucumber](https://cucumber.io/docs/gherkin/) | Tests several users in one test. | Fixed code checks of each step. They break when the UI changes, so someone keeps updating them. |
-| AI QA services | [QA Wolf](https://www.qawolf.com/how-it-works), [QA.tech](https://qa.tech/use-cases/multi-user-testing) | Test your app for you, with several users. | Your agent can't use it while it builds. External service. |
+| AI QA services | [QA Wolf](https://docs.qawolf.com/why-qa-wolf), [QA.tech](https://qa.tech/use-cases/multi-user-testing) | Test your app for you, with several users. | Your agent can't use it while it builds. External service. |
 | Spec tools | [Spec Kit](https://github.com/github/spec-kit), [Kiro](https://kiro.dev/docs/specs/correctness/) | Write down what to build. | Agents build and verify against the current task, not everything your product promises. |
 | MCP eval tools | [promptfoo](https://www.promptfoo.dev/docs/providers/mcp/), [mcp-eval](https://github.com/lastmile-ai/mcp-eval) | Test your MCP server on its own. | Check the agent's side only, not what people see after. |
 
@@ -114,7 +119,7 @@ npx playwright install --only-shell chromium
 npx journeysfirst init
 ```
 
-Or only the skills: `npx skills add santorilabs/journeysfirst --skill '*' --agent claude-code codex -y`
+Or only the skills. This asks no questions: `npx skills add santorilabs/journeysfirst --all`
 
 ## Try it
 
