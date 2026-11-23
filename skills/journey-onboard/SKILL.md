@@ -75,7 +75,7 @@ Do not assume it works. In a new product it usually does not. Read the code and 
 - Seed or reset for the state each journey starts from. A test-only route stays off unless a test setting turns it on.
 - What the machine needs: the Node version, a container runtime.
 
-Write what you find in the app skill, `.claude/skills/<app>-journeys/SKILL.md` (or your agent's skills folder), from `node_modules/journeysfirst/templates/app-skill.md`. Mark what you did not check as **Unverified**.
+Write what you find in the app skill, `.claude/skills/<app>-journeys/SKILL.md` (or `.agents/skills/<app>-journeys/SKILL.md` for Codex, Devin or Cursor), from `node_modules/journeysfirst/templates/app-skill.md`. Mark what you did not check as **Unverified**.
 
 ## 5. Write journeys/README.md
 
@@ -99,7 +99,7 @@ Agree with the person on which journeys to draft first. Then update the file.
 
 ## 7. Draft the top journeys
 
-- No Journeys section in `AGENTS.md` (no `<!-- journeysfirst:start -->`)? Run `npx journeysfirst init`, or `npx journeysfirst upgrade` when the skills are already there (`--skills <folder>` when they are not in `.claude/skills`).
+- No Journeys section in `AGENTS.md` (no `<!-- journeysfirst:start -->`)? Run `npx journeysfirst init`, or `npx journeysfirst upgrade` when the skills are already there (pass `--skills .agents/skills` for Codex, Devin or Cursor, or `--skills <folder>` for another folder).
 - For each top journey, follow `journey-write`, but write from what you read: skip its "Exploring a product that exists" section, since onboarding starts nothing and signs in to nothing. Each "What good means" line that applies becomes a check. Check each file with `npx journeysfirst validate`.
 - A planned promise gets a journey too. It fails until the feature exists.
 - Set each status to **drafted** in `journeys/README.md`.

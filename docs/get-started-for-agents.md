@@ -9,11 +9,12 @@ Journeys First is on npm as `journeysfirst`.
 Find which version the repo has. Read `package.json`, not `node_modules`, which a fresh checkout does not have yet:
 
 ```bash
-node -p "const p = require('./package.json'); p.devDependencies?.journeysfirst ?? p.dependencies?.journeysfirst ?? 'not installed'"
+node -p "const fs = require('fs'); if (!fs.existsSync('./package.json')) 'no package.json'; else { const p = JSON.parse(fs.readFileSync('./package.json', 'utf8')); p.devDependencies?.journeysfirst ?? p.dependencies?.journeysfirst ?? 'not installed'; }"
 npm view journeysfirst version
 ```
 
 - `not installed`: you install it in step 3.
+- `no package.json`: in a monorepo, check the web app folder. In a non-Node repo, step 3 creates a small `package.json` at the root and adds `node_modules/` to `.gitignore`.
 - A version range, like `^0.0.1`: compare it with the newest version. Older: see **Upgrade**. The same: run `npm install` if `node_modules` is missing, and you are current.
 
 If the repo has no `journeys/README.md`, it is not onboarded yet, even if Journeys First was set up before that file existed.
@@ -26,11 +27,11 @@ Write them one short message with these three parts, in your own words:
 
 1. **What it is.** Journeys First keeps a short list, in their repo, of what each user of their product must be able to do, in plain sentences. Users can be people or agents. Agents build to that list and check every change against it as each user, and keep proof: screenshots and a video.
 2. **What it could do for them.** One example from their product, from what you read. For example: "When the owner turns link sharing off, I check that the viewer loses access too, and keep a video of what the viewer sees." Pick a change where one user's action affects another user.
-3. **What happens if they say yes.** You install it, then ask them a few questions about their product, one at a time. Together you pick the top things their users must be able to do, and you draft a test for each. You don't run anything, and you don't commit anything until they say so.
+3. **What happens if they say yes.** You install the `journeysfirst` and `@playwright/test` dev dependencies plus Playwright's Chromium browser, then ask them a few questions about their product, one at a time. Together you pick the top things their users must be able to do, and you draft a journey for each. You don't run anything, and you don't commit anything until they say so.
 
 Then the one question: "Go ahead?"
 
-Keep it under 12 lines. Name their product. Never write "this app" or "here", which can read as Journeys First. Leave out file names, npm, Playwright and Chromium: they don't need those words to decide. Then wait for their answer.
+Keep it under 12 lines and plain-spoken. Name their product (avoid "this app" or "here", which can read as Journeys First). Keep setup details brief instead of pasting full shell commands or a full file list. Then wait for their answer.
 
 ## 3. Install
 
@@ -41,8 +42,9 @@ npm install --save-dev journeysfirst @playwright/test
 npx playwright install --only-shell chromium
 ```
 
-- `npm install` may reformat `package.json`. Read `git diff package.json`, keep the new dev dependencies and restore the rest.
-- The skills may already be in the repo, from `npx skills add santorilabs/journeysfirst`. Then run `npx journeysfirst upgrade`, not `init`. That is fine. `journey-onboard` sets up the rest.
+- If the repo has a `pnpm-lock.yaml`, `yarn.lock`, or `bun.lock`, install `journeysfirst` and `@playwright/test` as dev dependencies with that package manager instead of `npm`.
+- `npm install` may reformat `package.json`. Read `git diff package.json`, keep the new dev dependencies and restore the rest. If the repo had no `package.json` before, add `node_modules/` to `.gitignore` if it is not ignored yet.
+- If the skills are already in the repo (from `npx skills add santorilabs/journeysfirst`), that is fine. In step 4 (`journey-onboard`), run `npx journeysfirst upgrade` instead of `init` (pass `--skills .agents/skills` if the skills live in `.agents/skills`).
 
 Then tell them in one line what changed: two dev dependencies in `package.json`, and a test browser on this computer, outside the repo.
 
@@ -50,7 +52,7 @@ Then tell them in one line what changed: two dev dependencies in `package.json`,
 
 Read the `journey-onboard` skill (in your skills folder, or `node_modules/journeysfirst/skills/journey-onboard/SKILL.md`) and follow it. You already read the product, so don't ask what you already know. Ask the person one thing at a time, and wait for their answer.
 
-When they approve the list, onboarding adds: a `journeys/` folder, the skills in the agent's skills folder, a Journeys section in `AGENTS.md`, `playwright.config.js` if there is none, `journey-runs/` in `.gitignore`, and `.github/workflows/journeysfirst-upgrade.yml`, which opens a pull request for each new release once a `JOURNEYSFIRST_TOKEN` secret is set. Tell them this list before you add it.
+When they approve the list, onboarding adds: a `journeys/` folder, the skills in the agent's skills folder (`.claude/skills` by default, or pass `--skills .agents/skills` for Codex, Devin or Cursor), a Journeys section in `AGENTS.md`, `playwright.config.js` if there is none, `journey-runs/` and `test-results/` in `.gitignore`, and `.github/workflows/journeysfirst-upgrade.yml`, which optionally opens a pull request for each new release once you add a `JOURNEYSFIRST_TOKEN` secret (see [auto-upgrade.md](https://raw.githubusercontent.com/santorilabs/journeysfirst/main/docs/auto-upgrade.md) for what access it needs). Tell them this list before you add it.
 
 You are done when the person has confirmed what good means and the top tests are drafted. Nothing is committed until they say so.
 

@@ -6,12 +6,19 @@ A journey is a YAML file that says what a user should be able to do in your prod
 
 ## Install
 
+Ask your agent to set it up. Copy this to your agent:
+
+```text
+Set up Journeys First in this repo: https://journeysfirst.com/start
+```
+
+Or install it yourself (Node 20 or newer):
+
 ```bash
 npm install --save-dev journeysfirst @playwright/test
 npx playwright install --only-shell chromium
+npx journeysfirst init
 ```
-
-It needs Node 20 or newer.
 
 ## The smallest example
 

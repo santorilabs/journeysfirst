@@ -52,6 +52,8 @@ const { positional, flags } = parseArgs(rest);
 
 if (command === "--version" || command === "version") {
   console.log(VERSION);
+} else if (command === "--help" || command === "-h" || command === "help") {
+  console.log(USAGE);
 } else if (command === "validate" && positional.length) {
   let failed = false;
   for (const file of positional) {
@@ -197,8 +199,11 @@ function parseArgs(args) {
   const positional = [];
   const flags = {};
   for (let i = 0; i < args.length; i++) {
-    if (args[i].startsWith("--")) flags[args[i].slice(2)] = args[++i];
-    else positional.push(args[i]);
+    if (args[i].startsWith("--")) {
+      const eq = args[i].indexOf("=");
+      if (eq !== -1) flags[args[i].slice(2, eq)] = args[i].slice(eq + 1);
+      else flags[args[i].slice(2)] = args[++i];
+    } else positional.push(args[i]);
   }
   return { positional, flags };
 }
