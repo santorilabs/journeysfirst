@@ -46,7 +46,7 @@ Journeys First works on top of what you already have: your tests, your agent's o
 | Self-check skills | [pstack](https://github.com/cursor/plugins/tree/main/pstack), [Showboat](https://github.com/simonw/showboat) | Agents drive your app from a feature map and show you proof. | Describes each feature from one user's point of view. Every rerun is a full agent run. |
 | Check-and-save tools | [Shiplight](https://www.shiplight.ai/yaml-tests), [Playwright test agents](https://playwright.dev/docs/test-agents) | Agents turn their check into a test that runs on every PR. | Browser tests only, so no agent as a user. |
 | Test code | [Playwright](https://playwright.dev/docs/browser-contexts), [Cucumber](https://cucumber.io/docs/gherkin/) | Tests several users in one test. | Fixed code checks of each step. They break when the UI changes, so someone keeps updating them. |
-| AI QA services | [QA Wolf](https://www.qawolf.com/how-it-works), [QA.tech](https://qa.tech/use-cases/multi-user-testing) | Test your app for you, with several users. | Your agent can't use it while it builds. External service. |
+| AI QA services | [QA Wolf](https://docs.qawolf.com/why-qa-wolf), [QA.tech](https://qa.tech/use-cases/multi-user-testing) | Test your app for you, with several users. | Your agent can't use it while it builds. External service. |
 | Spec tools | [Spec Kit](https://github.com/github/spec-kit), [Kiro](https://kiro.dev/docs/specs/correctness/) | Write down what to build. | Agents build and verify against the current task, not everything your product promises. |
 | MCP eval tools | [promptfoo](https://www.promptfoo.dev/docs/providers/mcp/), [mcp-eval](https://github.com/lastmile-ai/mcp-eval) | Test your MCP server on its own. | Check the agent's side only, not what people see after. |
 
@@ -101,7 +101,7 @@ https://github.com/user-attachments/assets/8d8912ba-3d1c-472b-a1af-b98645e558f5
 Ask your agent to do it. Copy this to your agent:
 
 ```text
-Set up Journeys First in this repo: https://github.com/santorilabs/journeysfirst/blob/main/docs/get-started-for-agents.md
+Set up Journeys First in this repo: https://journeysfirst.com/start
 ```
 
 It tells you its plan first, and stops before it runs anything.
