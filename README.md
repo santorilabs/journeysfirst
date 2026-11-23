@@ -10,7 +10,7 @@
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![skills.sh installs](https://skills.sh/b/santorilabs/journeysfirst)](https://skills.sh/santorilabs/journeysfirst)
 
-**Built for agent-first product development**: agents build your product, and **agents use it too.**
+Agents build your product, and **agents now use it too.**
 
 An open format and skills for writing the contracts your product keeps: what each user, person or agent, must be able to do. 
 Your agents build to them, and check their work against what your users experience.
