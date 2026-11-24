@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/banner.png" alt="Journeys First: an open format and toolkit for defining, running and verifying user journeys" width="100%" />
+  <img src="assets/banner.png" alt="Santori Labs logo. Journeys First. An open format for user journeys, with skills and a CLI. Your agent verifies each journey in the real product before it says done, as every user, human or agent." width="100%" />
 </p>
 
 # Journeys First

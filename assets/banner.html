@@ -1,0 +1,66 @@
+<!doctype html>
+<!-- Source for assets/banner.png (2400 by 840). The page is 1200 by 420, and the renderer shoots it at 2x.
+     Render with: node scripts/render-banner.mjs
+     The mark is the Santori Labs logo from the site.
+     The type is Schibsted Grotesk, under the SIL Open Font License (assets/fonts/OFL.txt). -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Journeys First</title>
+<style>
+@font-face {
+  font-family: "Schibsted Grotesk";
+  src: url("fonts/schibsted-grotesk-medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: block;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  width: 1200px;
+  height: 420px;
+  overflow: hidden;
+  background: #f7f9f4;
+  color: #141516;
+  font-family: "Schibsted Grotesk", system-ui, sans-serif;
+  font-weight: 500;
+}
+.mark {
+  position: absolute;
+  top: 36px;
+  left: 48px;
+  width: 32px;
+  height: 32px;
+}
+.sheet {
+  position: absolute;
+  left: 48px;
+  right: 48px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+h1 {
+  margin: 0;
+  font: 500 56px/1 "Schibsted Grotesk", system-ui, sans-serif;
+  letter-spacing: -0.03em;
+}
+p {
+  margin: 16px 0 0;
+  font: 500 22px/1.35 "Schibsted Grotesk", system-ui, sans-serif;
+  letter-spacing: -0.01em;
+  color: #3a3c3a;
+  white-space: nowrap;
+}
+p + p { margin-top: 4px; }
+</style>
+</head>
+<body>
+<img class="mark" src="mark.svg" alt="Santori Labs">
+<div class="sheet">
+  <h1>Journeys First</h1>
+  <p>An open format for user journeys, with skills and a CLI.</p>
+  <p>Your agent verifies each journey in the real product before it says done, as every user, human or agent.</p>
+</div>
+</body>
+</html>
