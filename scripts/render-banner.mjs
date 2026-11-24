@@ -29,13 +29,16 @@ const page = await browser.newPage({
 await page.goto(pathToFileURL(html).href)
 await page.evaluate(() => document.fonts.ready)
 
-const faces = await page.evaluate(() => ({
-  wordmark: document.fonts.check('500 28px "Schibsted Grotesk"'),
-  mono: document.fonts.check('17px "Cascadia Mono"'),
-}))
-if (!faces.wordmark || !faces.mono) {
-  console.error("A banner font did not load.", faces)
-  console.error("Schibsted Grotesk comes from assets/fonts. Cascadia Mono must be installed.")
+const ready = await page.evaluate(() => {
+  const mark = document.querySelector(".mark")
+  return {
+    font: document.fonts.check('500 56px "Schibsted Grotesk"'),
+    logo: mark instanceof HTMLImageElement && mark.complete && mark.naturalWidth > 0,
+  }
+})
+if (!ready.font || !ready.logo) {
+  console.error("The banner is missing a font or the logo.", ready)
+  console.error("Schibsted Grotesk is in assets/fonts. The logo is assets/mark.svg.")
   await browser.close()
   process.exit(1)
 }
@@ -44,7 +47,7 @@ if (!faces.wordmark || !faces.mono) {
 // the glyphs.
 const overflow = await page.evaluate(() => {
   const box = document.body.getBoundingClientRect()
-  return [...document.querySelectorAll(".l, .logo, .ck, .pill, .credit")].flatMap((el) => {
+  return [...document.querySelectorAll("h1, p, .mark")].flatMap((el) => {
     const range = document.createRange()
     range.selectNodeContents(el)
     const r = range.getBoundingClientRect()
