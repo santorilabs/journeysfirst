@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/banner.png" alt="Santori Labs logo. Journeys First. Your agent uses your product as each user before it says done." width="100%" />
+  <img src="assets/banner.png" alt="Santori Labs logo. Journeys First. Agent skills that make your agent use your product as each user before it says done." width="100%" />
 </p>
 
 # Journeys First
