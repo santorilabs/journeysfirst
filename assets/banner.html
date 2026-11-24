@@ -1,17 +1,19 @@
 <!doctype html>
 <!-- Source for assets/banner.png (2400 by 840). The page is 1200 by 420, and the renderer shoots it at 2x.
      Render with: node scripts/render-banner.mjs
-     The mark is the Santori Labs logo from the site.
-     The type is Schibsted Grotesk, under the SIL Open Font License (assets/fonts/OFL.txt). -->
+     The mark is the Santori Labs logo from the site, at the 32px size the home page uses.
+     The background is chalk and the words are ink, from public/brand.css and public/index.html on journeysfirst.com.
+     The type is Cascadia Mono, the mono the site names first for its share image, under the SIL Open Font License (assets/fonts/OFL.txt).
+     The home page itself sets ui-monospace, SF Mono, Menlo, Consolas, at weight 400. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <title>Journeys First</title>
 <style>
 @font-face {
-  font-family: "Schibsted Grotesk";
-  src: url("fonts/schibsted-grotesk-medium.woff2") format("woff2");
-  font-weight: 500;
+  font-family: "Cascadia Mono";
+  src: url("fonts/cascadia-mono-regular.woff2") format("woff2");
+  font-weight: 400;
   font-style: normal;
   font-display: block;
 }
@@ -23,36 +25,36 @@ body {
   overflow: hidden;
   background: #f7f9f4;
   color: #141516;
-  font-family: "Schibsted Grotesk", system-ui, sans-serif;
-  font-weight: 500;
+  font-family: "Cascadia Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-weight: 400;
 }
 .mark {
   position: absolute;
-  top: 36px;
-  left: 48px;
+  top: 40px;
+  left: 80px;
   width: 32px;
   height: 32px;
 }
 .sheet {
   position: absolute;
-  left: 48px;
-  right: 48px;
+  left: 80px;
+  right: 80px;
   top: 50%;
   transform: translateY(-50%);
 }
 h1 {
   margin: 0;
-  font: 500 56px/1 "Schibsted Grotesk", system-ui, sans-serif;
-  letter-spacing: -0.03em;
+  font: 400 36px/1.15 "Cascadia Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  letter-spacing: normal;
 }
 p {
   margin: 16px 0 0;
-  font: 500 22px/1.35 "Schibsted Grotesk", system-ui, sans-serif;
-  letter-spacing: -0.01em;
-  color: #3a3c3a;
+  font: 400 17px/28px "Cascadia Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  letter-spacing: normal;
+  color: #141516;
   white-space: nowrap;
 }
-p + p { margin-top: 4px; }
+p + p { margin-top: 0; }
 </style>
 </head>
 <body>
