@@ -2,6 +2,10 @@
 
 Each released version is on npm (`journeysfirst`). Newest first.
 
+## Unreleased
+
+- `journeyVideo: false` in the Playwright config's `use` turns video off for every test, so a run that only needs pass or fail records no video and does not pause. A test's own `video` option wins.
+
 ## 0.0.5
 
 - The journey format has a JSON Schema, `spec/journey-v1.schema.json`, and 2 example files. Put `# yaml-language-server: $schema=https://raw.githubusercontent.com/santorilabs/journeysfirst/main/spec/journey-v1.schema.json` at the top of a journey to get checks and hover help in your editor. A test keeps the schema and `validate` in agreement.

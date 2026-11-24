@@ -184,6 +184,7 @@ export type JourneyFixtures = {
         run: JourneyRun | null;
     };
     journeyCaptions: import("./captions.js").CaptionsOption | undefined;
+    journeyVideo: boolean | undefined;
 };
 export type JourneyOptions = {
     case?: string;
@@ -217,6 +218,8 @@ export type JourneyBody = (args: {
  * Pass captions: false to turn that off, captions: { position: "bottom" } to
  * move it (or set journeyCaptions in the config's use for every test), and pause (ms after each action; a
  * check's verdict stays five times as long) to change the pacing.
+ * Set journeyVideo: false in the config's use to record no video for every test;
+ * with no video the run does not pause either, unless pause is set.
  * After each line the user's screen is measured for a review and saved as
  * measure-<line>.txt. Measuring sets the page 375 px wide for a moment. Pass
  * measure: "wide" when that breaks a line, or measure: false for none.

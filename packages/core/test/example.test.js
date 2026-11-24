@@ -3,7 +3,7 @@
 // folders. Needs Playwright's Chromium (npx playwright install --only-shell chromium).
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readdirSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -16,10 +16,10 @@ const PLAYWRIGHT = new URL("../../../node_modules/.bin/playwright", import.meta.
 const JOURNEY = loadJourney(join(EXAMPLE, "journeys/share-by-link.journey.yaml"));
 
 /** Run the example and return its exit code and the one run folder it wrote. */
-function runExample(env) {
+function runExample(env, args = []) {
   const runs = mkdtempSync(join(tmpdir(), "jf-example-"));
   // Its own Playwright output folder: Playwright empties it at the start, so a shared one loses another run's videos.
-  const result = spawnSync(PLAYWRIGHT, ["test", "--output", join(runs, "test-results")], {
+  const result = spawnSync(PLAYWRIGHT, ["test", "--output", join(runs, "test-results"), ...args], {
     cwd: EXAMPLE,
     env: { ...process.env, ...env, JOURNEYSFIRST_RUNS_DIR: runs },
     encoding: "utf8",
@@ -60,6 +60,22 @@ test("the example passes against the good app", () => {
   assert.ok(run.steps.every((s) => s.screenshots?.length === 1));
   assert.ok(files.has("step-7.png") && files.has("viewer.webm"));
   assert.ok(!run.media.some((m) => m.kind === "trace") && !files.has("trace.zip"), "a passing run keeps no trace");
+});
+
+test("journeyVideo: false in the config's use records no video for any user", () => {
+  // A config beside the example's, so its testDir and webServer resolve the same.
+  const config = join(EXAMPLE, `playwright.no-video-${process.pid}.config.js`);
+  writeFileSync(config, 'import base from "./playwright.config.js";\nexport default { ...base, use: { ...base.use, journeyVideo: false } };\n');
+  try {
+    const { status, output, run, files } = runExample({}, ["--config", config]);
+    assert.equal(status, 0, output);
+    assert.equal(run.result, "passed");
+    assert.deepEqual(run.media.filter((m) => m.kind === "video"), []);
+    assert.ok(![...files.keys()].some((name) => name.endsWith(".webm")));
+    assert.ok(run.steps.every((s) => s.screenshots?.length === 1), "screenshots are still taken");
+  } finally {
+    rmSync(config, { force: true });
+  }
 });
 
 test("the example fails with cause product when the link keeps working", () => {

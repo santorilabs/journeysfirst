@@ -386,12 +386,15 @@ export class JourneyRun {
 /**
  * @typedef {import("@playwright/test").PlaywrightTestArgs & import("@playwright/test").PlaywrightTestOptions} TestArgs
  * @typedef {import("@playwright/test").PlaywrightWorkerArgs & import("@playwright/test").PlaywrightWorkerOptions} WorkerArgs
- * @typedef {{_journeyRun: {run: JourneyRun | null}, journeyCaptions: import("./captions.js").CaptionsOption | undefined}} JourneyFixtures
+ * @typedef {{_journeyRun: {run: JourneyRun | null}, journeyCaptions: import("./captions.js").CaptionsOption | undefined, journeyVideo: boolean | undefined}} JourneyFixtures
  *   journeyCaptions: the project's default captions, set in the Playwright config's use, like
  *   use: { journeyCaptions: { position: "bottom" } }. A test's own captions option wins.
+ *   journeyVideo: the project's default for video, like use: { journeyVideo: false } for a run
+ *   that only needs pass or fail. A test's own video option wins.
  */
 const journeyTest = base.extend(/** @type {import("@playwright/test").Fixtures<JourneyFixtures, {}, TestArgs, WorkerArgs>} */ ({
   journeyCaptions: [undefined, { option: true }],
+  journeyVideo: [undefined, { option: true }],
   _journeyRun: async ({}, use) => {
     /** @type {{run: JourneyRun | null}} */
     const holder = { run: null };
@@ -415,6 +418,8 @@ const journeyTest = base.extend(/** @type {import("@playwright/test").Fixtures<J
  * Pass captions: false to turn that off, captions: { position: "bottom" } to
  * move it (or set journeyCaptions in the config's use for every test), and pause (ms after each action; a
  * check's verdict stays five times as long) to change the pacing.
+ * Set journeyVideo: false in the config's use to record no video for every test;
+ * with no video the run does not pause either, unless pause is set.
  * After each line the user's screen is measured for a review and saved as
  * measure-<line>.txt. Measuring sets the page 375 px wide for a moment. Pass
  * measure: "wide" when that breaks a line, or measure: false for none.
@@ -430,10 +435,10 @@ function declareJourney(file, options, body) {
   if (typeof options === "function") [options, body] = [{}, options];
   const journey = loadJourney(file);
   const caseName = options.case ? journey.cases?.find((c) => c.id === options.case)?.name : null;
-  atCaller(journeyTest)(caseName ? `${journey.title}: ${caseName}` : journey.title, async ({ browser, request, _journeyRun, journeyCaptions }, testInfo) => {
+  atCaller(journeyTest)(caseName ? `${journey.title}: ${caseName}` : journey.title, async ({ browser, request, _journeyRun, journeyCaptions, journeyVideo }, testInfo) => {
     const captions = captionSettings(options.captions, journeyCaptions) ?? false;
     const delay = Number(process.env.JOURNEYS_DELAY_MS) || 0;
-    const run = new JourneyRun({ file, caseId: options.case ?? null, browser, testInfo, video: options.video ?? true, captions, pause: options.pause, measure: options.measure, delay, repos: options.repos, tags: options.tags });
+    const run = new JourneyRun({ file, caseId: options.case ?? null, browser, testInfo, video: options.video ?? journeyVideo ?? true, captions, pause: options.pause, measure: options.measure, delay, repos: options.repos, tags: options.tags });
     _journeyRun.run = run;
     // body is set: it is the last argument, or options when only two are given.
     await /** @type {JourneyBody} */ (body)({ journey: run, browser, request });
