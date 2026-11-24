@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/banner.png" alt="Journeys First: an open format and toolkit for defining, running and verifying user journeys" width="100%" />
+  <img src="assets/banner.png" alt="A journey file for Journeys First. The promise is: I write down what a user should be able to do in my product. My agent runs it in the real product and proves every check. The checks are first-journeys, evidence and replay." width="100%" />
 </p>
 
 # Journeys First
