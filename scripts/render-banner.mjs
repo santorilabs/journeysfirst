@@ -32,13 +32,13 @@ await page.evaluate(() => document.fonts.ready)
 const ready = await page.evaluate(() => {
   const mark = document.querySelector(".mark")
   return {
-    font: document.fonts.check('500 56px "Schibsted Grotesk"'),
+    font: document.fonts.check('400 36px "Cascadia Mono"'),
     logo: mark instanceof HTMLImageElement && mark.complete && mark.naturalWidth > 0,
   }
 })
 if (!ready.font || !ready.logo) {
   console.error("The banner is missing a font or the logo.", ready)
-  console.error("Schibsted Grotesk is in assets/fonts. The logo is assets/mark.svg.")
+  console.error("Cascadia Mono is in assets/fonts. The logo is assets/mark.svg.")
   await browser.close()
   process.exit(1)
 }
