@@ -4,7 +4,7 @@
 
 # Journeys First
 
-[![npm](https://img.shields.io/npm/v/journeysfirst.svg)](https://www.npmjs.com/package/journeysfirst)
+[![npm](https://img.shields.io/npm/v/journeysfirst)](https://www.npmjs.com/package/journeysfirst)
 [![Changelog](https://img.shields.io/badge/changelog-CHANGELOG.md-blue)](CHANGELOG.md)
 [![Tests](https://github.com/santorilabs/journeysfirst/actions/workflows/test.yml/badge.svg)](https://github.com/santorilabs/journeysfirst/actions/workflows/test.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)

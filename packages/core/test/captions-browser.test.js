@@ -32,7 +32,9 @@ before(async () => {
     const policy = POLICIES[/** @type {keyof typeof POLICIES} */ (kind)];
     if (!policy || !name) return res.writeHead(404).end();
     const style = kind === "nonce" ? '<style nonce="n0nce">body{margin:0;background:#fff}</style>' : "";
-    res.writeHead(200, { "content-type": "text/html", "content-security-policy": policy }).end(`<!doctype html><html><head>${style}</head><body><h1>Page ${name}</h1></body></html>`);
+    const fill = name === "a" ? "#ffe6d7" : "#d7e6ff";
+    const marker = `<svg width="900" height="500"><rect width="900" height="500" fill="${fill}"/></svg>`;
+    res.writeHead(200, { "content-type": "text/html", "content-security-policy": policy }).end(`<!doctype html><html><head>${style}</head><body><h1>Page ${name}</h1>${marker}</body></html>`);
   });
   await new Promise((done) => server.listen(0, "127.0.0.1", done));
   base = `http://127.0.0.1:${server.address().port}`;
@@ -48,6 +50,20 @@ function pixel(path, { at, x, y }) {
 }
 const dark = (rgb) => rgb.every((c) => c < 60);
 const light = (rgb) => rgb.every((c) => c > 200);
+const peach = (rgb) => light(rgb) && rgb[0] - rgb[2] > 20;
+const blue = (rgb) => light(rgb) && rgb[2] - rgb[0] > 20;
+
+/** The pixels at (160, 3) and (160, 120) in each frame scaled to 320x180. */
+function captionFrames(video) {
+  const height = 120 - 3 + 1;
+  const out = spawnSync("ffmpeg", ["-loglevel", "error", "-i", video, "-vf", `scale=320:180,format=rgb24,crop=1:${height}:160:3`, "-f", "rawvideo", "pipe:1"]);
+  assert.equal(out.status, 0, String(out.stderr));
+  const frames = [];
+  for (let i = 0; i < out.stdout.length; i += height * 3) {
+    frames.push({ bar: [...out.stdout.subarray(i, i + 3)], page: [...out.stdout.subarray(i + (height - 1) * 3, i + height * 3)] });
+  }
+  return frames;
+}
 
 /** Record one user on a page with this policy: a step, then a check that moves to another page.
  * slowOpen: ms that opening a page takes after its video has started, like on a slow CI machine. */
@@ -84,6 +100,8 @@ async function record(kind, { slowOpen = 0 } = {}) {
     await run.check("link-on", { by: "you", caption: "Checking the second page." }, async () => {
       await page.goto(`${base}/${kind}/b`);
       await page.waitForTimeout(1500);
+      // Distinguish the page during the check from the same page with the verdict caption.
+      await page.locator("svg").evaluate((marker) => marker.remove());
       return { passed: true, proof: "Opened the second page.", evidence: [{ source: "page", login: "you", url: page.url(), saw: "Page b" }] };
     });
     const video = page.video();
@@ -102,10 +120,13 @@ for (const kind of ["self", "nonce"]) {
   test(`under style-src ${kind === "self" ? "'self'" : "nonce only"}, the bar shows in the video, also after a navigation, with no CSP refusal and no request for it`, async () => {
     const { run, files, video, refused, requests } = await record(kind);
     const [step, check] = run.steps;
-    for (const [label, at] of [["first page", into(run, step, 1.0)], ["after the navigation", into(run, check, 1.2)]]) {
-      if (FRAMES) spawnSync("ffmpeg", ["-loglevel", "error", "-y", "-ss", String(at), "-i", video, "-frames:v", "1", join(FRAMES, `${kind}-${label.replaceAll(" ", "-")}.png`)]);
-      assert.ok(dark(pixel(video, { at, x: 160, y: 3 })), `${label}: the bar's dark fill is at the top`);
-      assert.ok(light(pixel(video, { at, x: 160, y: 120 })), `${label}: the page shows under the bar`);
+    // A fixed timestamp can land on a screenshot, when the bar is hidden.
+    const frames = captionFrames(video);
+    const firstPage = frames.findIndex(({ bar, page }) => dark(bar) && peach(page));
+    const secondPage = frames.findIndex(({ bar, page }, i) => i > firstPage && dark(bar) && blue(page));
+    for (const [label, frame] of [["first page", firstPage], ["after the navigation", secondPage]]) {
+      assert.ok(frame >= 0, `${label}: the bar's dark fill is at the top and the page shows under it`);
+      if (FRAMES) spawnSync("ffmpeg", ["-loglevel", "error", "-y", "-i", video, "-vf", `select=eq(n\\,${frame})`, "-frames:v", "1", join(FRAMES, `${kind}-${label.replaceAll(" ", "-")}.png`)]);
     }
     assert.deepEqual(refused, []);
     assert.deepEqual([...new Set(requests)], [`/${kind}/a`, `/${kind}/b`], "the bar asks for nothing");
