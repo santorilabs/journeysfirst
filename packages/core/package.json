@@ -1,6 +1,6 @@
 {
   "name": "journeysfirst",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "Plain-sentence user journeys that any agent can build against, run and check.",
   "type": "module",
   "license": "MIT",

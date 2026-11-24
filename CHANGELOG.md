@@ -2,7 +2,7 @@
 
 Each released version is on npm (`journeysfirst`). Newest first.
 
-## Unreleased
+## 0.0.6
 
 - `journeyVideo: false` in the Playwright config's `use` turns video off for every test, so a run that only needs pass or fail records no video and does not pause. A test's own `video` option wins.
 
