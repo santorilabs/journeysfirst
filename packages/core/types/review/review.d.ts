@@ -65,9 +65,12 @@ export declare function serveReview({ dir, port, host }?: {
 /**
  * Every run folder under root, newest first, in v1 terms.
  * @param {string} root
+ * @param {{followSymlinks?: boolean}} [options]
  * @returns {RunEntry[]}
  */
-export declare function listRuns(root: string): RunEntry[];
+export declare function listRuns(root: string, { followSymlinks }?: {
+    followSymlinks?: boolean;
+}): RunEntry[];
 /**
  * A run as the rules say it stands, never as stored (see checkRun). Problems
  * from validation (against the journey when journeys/<name>.journey.yaml is
@@ -83,6 +86,19 @@ export declare function forDisplay(raw: any): ShownRun;
  * @returns {ShownRun}
  */
 export declare function fromLegacy(run: any): ShownRun;
+/** @param {RunEntry[]} runs @param {(journey: string, id: string) => string} runUrl */
+export declare function indexPage(runs: RunEntry[], runUrl?: (journey: string, id: string) => string): string;
+/**
+ * @param {ShownRun} run
+ * @param {string} journey
+ * @param {string} id
+ * @param {string} folder the run folder on disk, to say where its trace is
+ * @param {{file: (name: string | undefined) => string | undefined, captions: (name: string) => string | undefined}} [assets] approved exported assets
+ */
+export declare function runPage(run: ShownRun, journey: string, id: string, folder: string, assets?: {
+    file: (name: string | undefined) => string | undefined;
+    captions: (name: string) => string | undefined;
+}): string;
 /**
  * Each line in a video as a WebVTT captions track: from its time in the video
  * to the next line's, or to its own end for the last. A video recorded on a
