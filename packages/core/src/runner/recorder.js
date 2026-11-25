@@ -16,7 +16,7 @@ import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 import { journeyName, journeyPlan, loadJourney, validateJourney } from "../format/format.js";
 import { writeRunFolder } from "../format/run-folder.js";
-import { FILE_NAME, RUN_FORMAT, isCheck, settle, stepProblems } from "../format/runfile.js";
+import { FILE_NAME, LOOKUP, RUN_FORMAT, isCheck, settle, stepProblems } from "../format/runfile.js";
 import { maskRun } from "./mask.js";
 import { VERSION } from "../shared/version.js";
 
@@ -406,22 +406,27 @@ function secretLeaks(run, secrets) {
 }
 
 /**
- * Every key and string in a JSON value, with its path.
+ * Every text value and every data key, with its path.
  * @param {unknown} value
  * @param {string} path
+ * @param {boolean} [data] keys are supplied by the caller, not the run format
  * @returns {Generator<[string, string]>}
  */
-function* stringFields(value, path) {
+function* stringFields(value, path, data = false) {
   if (typeof value === "string" || typeof value === "number") yield [path, String(value)];
-  else if (Array.isArray(value)) for (const [i, item] of value.entries()) yield* stringFields(item, `${path}[${i}]`);
+  else if (Array.isArray(value)) for (const [i, item] of value.entries()) yield* stringFields(item, `${path}[${i}]`, data);
   else if (value && typeof value === "object") {
+    const map = data || path === "tags" || path === "users" || path === "played_by" || /^media\[\d+\]\.tags$/.test(path);
+    const evidence = /^steps\[\d+\]\.evidence\[\d+\]$/.test(path);
     for (const [key, item] of Object.entries(value)) {
       const field = path ? `${path}.${key}` : key;
-      yield [field, key];
-      yield* stringFields(item, field);
+      if (map || path === "values" || (evidence && !EVIDENCE_FIELDS.has(key))) yield [field, key];
+      yield* stringFields(item, field, map || evidence || (path.startsWith("values.") && key === "value"));
     }
   }
 }
+
+const EVIDENCE_FIELDS = new Set(["source", "login", "key", "got", "expected", ...Object.values(LOOKUP)]);
 
 /** A screenshot given as {image, url}, not bare bytes or a path. */
 /** @param {Shot} shot @returns {shot is {image: Image, url?: string}} */

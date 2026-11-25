@@ -218,6 +218,16 @@ test("a secret that appears nowhere else writes the run, and its value stays out
   assert.doesNotMatch(readFileSync(join(folder, "run.json"), "utf8"), /481516/);
 });
 
+test("a declared secret may match a format key, but not a free-form data key", () => {
+  const run = recordAllPassed(recorder());
+  run.value("first", "secret", { secret: true });
+  run.value("second", "value", { secret: true });
+  run.value("visible", "ordinary text");
+  assert.deepEqual(run.result().run.values, { first: { secret: true }, second: { secret: true }, visible: { value: "ordinary text" } });
+  run.tag("user-secret-data", true);
+  assert.throws(() => run.result(), /\$\{first\} is in the run at tags\.user-\[redacted\]-data/);
+});
+
 test("an obvious secret in the run is covered, and an ordinary value is kept", () => {
   const run = recordAllPassed(recorder());
   run.check("link-on", {
