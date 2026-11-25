@@ -195,6 +195,22 @@ test("a declared secret anywhere else in the run stops the run folder from being
   assert.equal(existsSync(join(dir, "share-by-link")), false, "nothing written");
 });
 
+test("declared secrets in evidence keys stop the run without appearing in the error paths", () => {
+  const dir = mkdtempSync(join(tmpdir(), "jf-secret-"));
+  const run = recordAllPassed(recorder({ outputDir: dir }));
+  run.value("code", "private+code", { secret: true });
+  run.value("pin", 4312, { secret: true });
+  run.check("link-on", { by: "you", verdict: "passed", proof: "Read the setting.",
+    evidence: [{ ...ON, got: { "account-private+code": { pin_4312: "ordinary value" } } }] });
+  assert.throws(() => run.finish(), (error) => {
+    assert.match(error.message, /\$\{code\} is in the run at steps\[1\]\.evidence\[0\]\.got\.account-\[redacted\]/);
+    assert.match(error.message, /\$\{pin\} is in the run at steps\[1\]\.evidence\[0\]\.got\.account-\[redacted\]\.pin_\[redacted\]/);
+    assert.doesNotMatch(error.message, /private\+code|4312/);
+    return true;
+  });
+  assert.equal(existsSync(join(dir, "share-by-link")), false);
+});
+
 test("a secret that appears nowhere else writes the run, and its value stays out of it", () => {
   const run = recordAllPassed(recorder({ outputDir: mkdtempSync(join(tmpdir(), "jf-secret-")) }));
   run.value("code", "481516", { secret: true });

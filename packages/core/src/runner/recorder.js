@@ -390,18 +390,23 @@ function defaultSummary(result, steps) {
  * @returns {string[]}
  */
 function secretLeaks(run, secrets) {
+  const values = [...secrets].flatMap(([name, value]) =>
+    (typeof value === "string" || typeof value === "number" || typeof value === "bigint") && String(value)
+      ? [{ name, text: String(value) }] : []);
+  if (!values.length) return [];
   const lines = [];
-  for (const [name, value] of secrets) {
-    const text = typeof value === "string" || typeof value === "number" || typeof value === "bigint" ? String(value) : "";
-    if (!text) continue;
-    const fields = [...stringFields(run, "")].filter(([, s]) => s.includes(text)).map(([path]) => path);
-    if (fields.length) lines.push(`The secret \${${name}} is in the run at ${fields.join(", ")}.`);
+  const matches = [...new Set(values.map(({ text }) => text))].sort((a, b) => b.length - a.length);
+  const pattern = new RegExp(matches.map((text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "g");
+  const fields = [...stringFields(run, "")];
+  for (const { name, text } of values) {
+    const paths = new Set(fields.filter(([, s]) => s.includes(text)).map(([path]) => path.replace(pattern, "[redacted]")));
+    if (paths.size) lines.push(`The secret \${${name.replace(pattern, "[redacted]")}} is in the run at ${[...paths].join(", ")}.`);
   }
   return lines;
 }
 
 /**
- * Every string in a JSON value, with its path.
+ * Every key and string in a JSON value, with its path.
  * @param {unknown} value
  * @param {string} path
  * @returns {Generator<[string, string]>}
@@ -409,7 +414,13 @@ function secretLeaks(run, secrets) {
 function* stringFields(value, path) {
   if (typeof value === "string" || typeof value === "number") yield [path, String(value)];
   else if (Array.isArray(value)) for (const [i, item] of value.entries()) yield* stringFields(item, `${path}[${i}]`);
-  else if (value && typeof value === "object") for (const [key, item] of Object.entries(value)) yield* stringFields(item, path ? `${path}.${key}` : key);
+  else if (value && typeof value === "object") {
+    for (const [key, item] of Object.entries(value)) {
+      const field = path ? `${path}.${key}` : key;
+      yield [field, key];
+      yield* stringFields(item, field);
+    }
+  }
 }
 
 /** A screenshot given as {image, url}, not bare bytes or a path. */
