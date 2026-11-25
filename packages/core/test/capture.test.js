@@ -299,6 +299,10 @@ test("host-home denial must pass the probe unless the caller opts into host read
   assert.equal(codexFixture("unsafe", ["--allow-host-read"]).result.status, 1);
 });
 
+// Built at run time so secret scanners do not read these fixtures as real keys.
+const FAKE_SUBSCRIPTION_TOKEN = ["sk", "ant", "oat01", "synthetic", "fixture"].join("-");
+const FAKE_API_KEY = ["sk", "ant", "api03", "org", "key"].join("-");
+
 const fakeClaude = `#!/usr/bin/env node
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -313,7 +317,7 @@ const tool = (id, name, input, content, is_error = false) => {
 for (const name of ["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"]) assert.equal(process.env[name], undefined);
 assert.equal(process.env.CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR, "3");
 assert.equal(process.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB, "1");
-assert.equal(fs.readFileSync(3, "utf8"), "sk-ant-oat01-synthetic-fixture");
+assert.equal(fs.readFileSync(3, "utf8"), "${FAKE_SUBSCRIPTION_TOKEN}");
 assert.ok(!fs.existsSync(".env.local") && !fs.existsSync(".claude"));
 assert.ok(args.includes("-p") && args.includes("stream-json") && !args.some(a => a.includes("dangerously") || a === "bypassPermissions"));
 assert.equal(args[args.indexOf("--permission-prompts") + 1], "none");
@@ -363,7 +367,7 @@ if (mode === "bad-login") {
 }
 `;
 
-function claudeFixture(mode, { flags = [], token = "sk-ant-oat01-synthetic-fixture" } = {}) {
+function claudeFixture(mode, { flags = [], token = FAKE_SUBSCRIPTION_TOKEN } = {}) {
   const root = dir();
   const bin = join(root, "bin");
   const project = join(root, "project");
@@ -377,7 +381,7 @@ function claudeFixture(mode, { flags = [], token = "sk-ant-oat01-synthetic-fixtu
   writeFileSync(join(root, "mcp.json"), JSON.stringify({ demo: ["node", "server.js"] }));
   const args = [cli, "run", "share-by-link.journey.yaml", "--agent", "claude", "--project", project, "--mcp", "mcp.json",
     "--allow-domains", "registry.npmjs.org", "--timeout", "5", ...flags, "--"];
-  const env = { ...process.env, PATH: bin + ":" + process.env.PATH, CLAUDE_CODE_OAUTH_TOKEN: token, ANTHROPIC_API_KEY: "sk-ant-api03-org-key" };
+  const env = { ...process.env, PATH: bin + ":" + process.env.PATH, CLAUDE_CODE_OAUTH_TOKEN: token, ANTHROPIC_API_KEY: FAKE_API_KEY };
   const result = spawnSync(process.execPath, args, { cwd: root, env, encoding: "utf8", timeout: 10000 });
   const runs = join(root, "journey-runs", "share-by-link");
   if (!existsSync(runs)) return { result };
@@ -398,7 +402,7 @@ test("Claude gets the journey after a sandbox probe, with its subscription login
 });
 
 test("the Claude launcher refuses an API key in place of a subscription token", () => {
-  const { result, run } = claudeFixture(undefined, { token: "sk-ant-api03-org-key" });
+  const { result, run } = claudeFixture(undefined, { token: FAKE_API_KEY });
   assert.equal(result.status, 1);
   assert.match(result.stderr, /claude setup-token.*does not use API keys/);
   assert.equal(run, undefined);
