@@ -26,7 +26,7 @@ test("the sentence names a failed request at the failing line first, then an ear
 });
 
 test("the report puts the line's user first and keeps the last few requests and errors, with a count of the rest", () => {
-  const many = Array.from({ length: MOST_ITEMS + 3 }, (_, i) => ({ line: 1, method: "GET", path: `/api/${i}`, status: 404 }));
+  const many = Array.from({ length: MOST_ITEMS + 3 }, (_, i) => ({ line: 1, method: "GET", url: `http://app.test/api/${i}`, page: "http://app.test/", status: 404 }));
   const report = failureReport({
     line: 2,
     says: "The viewer sees the doc.",
@@ -54,7 +54,7 @@ test("every text in the report is redacted and masked: the line, the paths, the 
     says: `Open /doc/${secret}`,
     by: "you",
     since: 1,
-    users: [{ user: "you", requests: [{ line: 1, method: "GET", path: `/doc/${secret}`, status: 403 }], errors: [{ line: 1, text: "sent Bearer abcdefghijklmnop" }], outline: `- text: ${secret}` }],
+    users: [{ user: "you", requests: [{ line: 1, method: "GET", url: `http://app.test/doc/${secret}?a=1`, page: "http://app.test/", status: 403 }], errors: [{ line: 1, text: "sent Bearer abcdefghijklmnop" }], outline: `- text: ${secret}` }],
     redact,
   });
   const text = JSON.stringify(report) + failureMarkdown(report);
@@ -71,7 +71,7 @@ test("the Markdown starts with the line and the sentence, and gives each user th
     by: "viewer",
     since: 3,
     users: [
-      { user: "viewer", requests: [{ line: 3, method: "GET", path: "/api/view/q3-plan", status: 403 }], errors: [{ line: 3, text: "Failed to load resource: 403" }], outline: "- heading \"You don't have access\" [level=1]" },
+      { user: "viewer", requests: [{ line: 3, method: "GET", url: "http://app.test/api/view/q3-plan", page: "http://app.test/view", status: 403 }], errors: [{ line: 3, text: "Failed to load resource: 403" }], outline: "- heading \"You don't have access\" [level=1]" },
       { user: "you", requests: [], errors: [], outline: null },
     ],
     redact: none,
@@ -113,4 +113,20 @@ test("a frozen page gets no outline, and the capture does not wait for it", asyn
   const started = Date.now();
   assert.equal(await screenOutline(page, [], 50), null);
   assert.ok(Date.now() - started < 1000);
+});
+
+test("a link declared secret as a whole is found before its query is cut, so no part of it is kept", () => {
+  const link = "http://app.test/s/k7Q2mZp91x?via=email";
+  const redact = (/** @type {string} */ text) => text.replaceAll(link, "${link}");
+  const report = failureReport({
+    line: 1,
+    says: "Open the link.",
+    by: "viewer",
+    since: 1,
+    users: [{ user: "viewer", requests: [{ line: 1, method: "GET", url: link, page: "http://app.test/", status: 403 }], errors: [{ line: 1, text: `GET ${link} 403` }], outline: `- /url: ${link}` }],
+    redact,
+  });
+  const text = JSON.stringify(report) + failureMarkdown(report);
+  assert.equal(text.includes("k7Q2mZp91x"), false, text);
+  assert.equal(report.users[0].requests[0].path, "${link}");
 });

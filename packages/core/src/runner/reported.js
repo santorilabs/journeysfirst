@@ -24,13 +24,15 @@ const OUTLINE_MS = 2000;
 /**
  * @typedef {{line: number|null, method: string, path: string, status: number}} FailedRequest
  *   line: the journey line in progress, or null for setup before the first line
+ * @typedef {{line: number|null, method: string, url: string, page?: string, status: number}} SeenRequest
+ *   as seen, with its full address and the address of the page that made it. Never written.
  * @typedef {{line: number|null, text: string}} ConsoleError
  * @typedef {{user: string, requests: FailedRequest[], errors: ConsoleError[], more?: {requests?: number, errors?: number},
  *   outline: string|null}} UserReport outline: null when it was not captured (a closed page, or Playwright before 1.49)
  * @typedef {{line: number, says: string, by: string, since: number, summary: string, users: UserReport[]}} FailureReport
  *   line: the failing line. since: the first line the report covers.
- * @typedef {{requests: FailedRequest[], errors: ConsoleError[], clear: () => void}} AppWatch
- * @typedef {{user: string, requests: FailedRequest[], errors: ConsoleError[], outline: string|null}} CapturedUser
+ * @typedef {{requests: SeenRequest[], errors: ConsoleError[], clear: () => void}} AppWatch
+ * @typedef {{user: string, requests: SeenRequest[], errors: ConsoleError[], outline: string|null}} CapturedUser
  * @typedef {{line: number, says: string, by: string, since: number, users: CapturedUser[]}} Captured
  */
 
@@ -54,7 +56,7 @@ export function watchApp(context, lineNow) {
   context.on("response", (response) => {
     if (response.status() < 400) return;
     const request = response.request();
-    watch.requests.push({ line: lineNow(), method: request.method(), path: requestPath(request.url(), frameUrl(request)), status: response.status() });
+    watch.requests.push({ line: lineNow(), method: request.method(), url: request.url(), page: frameUrl(request), status: response.status() });
   });
   context.on("console", (message) => {
     if (message.type() === "error") watch.errors.push({ line: lineNow(), text: message.text() });
@@ -118,13 +120,14 @@ export async function screenOutline(page, secrets, ms = OUTLINE_MS) {
  * @returns {FailureReport}
  */
 export function failureReport({ line, says, by, since, users, redact }) {
-  const clean = (/** @type {string} */ text) => maskText(redact(withoutQueries(text)));
+  // Redact before anything is cut, so a declared secret that is a whole link still matches.
+  const clean = (/** @type {string} */ text) => maskText(withoutQueries(redact(text)));
   const shown = users.map(({ user, requests, errors, outline }) => {
     const more = { requests: Math.max(0, requests.length - MOST_ITEMS), errors: Math.max(0, errors.length - MOST_ITEMS) };
     /** @type {UserReport} */
     const report = {
       user,
-      requests: requests.slice(-MOST_ITEMS).map((r) => ({ ...r, path: clean(r.path) })),
+      requests: requests.slice(-MOST_ITEMS).map((r) => ({ line: r.line, method: r.method, path: maskText(requestPath(redact(r.url), r.page)), status: r.status })),
       errors: errors.slice(-MOST_ITEMS).map((e) => ({ ...e, text: clean(firstLine(e.text)).slice(0, ERROR_CHARS) })),
       outline: outline === null ? null : clean(outline),
     };
@@ -211,7 +214,7 @@ export function requestPath(url, pageUrl) {
     } catch {
       origin = address.origin;
     }
-    return `${origin === "null" ? "" : origin}${address.pathname}`;
+    return `${origin === "null" ? "" : origin}${readable(address.pathname)}`;
   } catch {
     return String(url).split(/[?#]/)[0];
   }
@@ -237,6 +240,15 @@ function frameUrl(request) {
     return request.frame().url();
   } catch {
     return undefined;
+  }
+}
+
+/** A path as written, so a redacted `${name}` reads as itself. @param {string} path */
+function readable(path) {
+  try {
+    return decodeURI(path);
+  } catch {
+    return path;
   }
 }
 

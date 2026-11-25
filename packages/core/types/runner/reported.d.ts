@@ -8,6 +8,13 @@ export type FailedRequest = {
     path: string;
     status: number;
 };
+export type SeenRequest = {
+    line: number | null;
+    method: string;
+    url: string;
+    page?: string;
+    status: number;
+};
 export type ConsoleError = {
     line: number | null;
     text: string;
@@ -31,13 +38,13 @@ export type FailureReport = {
     users: UserReport[];
 };
 export type AppWatch = {
-    requests: FailedRequest[];
+    requests: SeenRequest[];
     errors: ConsoleError[];
     clear: () => void;
 };
 export type CapturedUser = {
     user: string;
-    requests: FailedRequest[];
+    requests: SeenRequest[];
     errors: ConsoleError[];
     outline: string | null;
 };
@@ -51,13 +58,15 @@ export type Captured = {
 /**
  * @typedef {{line: number|null, method: string, path: string, status: number}} FailedRequest
  *   line: the journey line in progress, or null for setup before the first line
+ * @typedef {{line: number|null, method: string, url: string, page?: string, status: number}} SeenRequest
+ *   as seen, with its full address and the address of the page that made it. Never written.
  * @typedef {{line: number|null, text: string}} ConsoleError
  * @typedef {{user: string, requests: FailedRequest[], errors: ConsoleError[], more?: {requests?: number, errors?: number},
  *   outline: string|null}} UserReport outline: null when it was not captured (a closed page, or Playwright before 1.49)
  * @typedef {{line: number, says: string, by: string, since: number, summary: string, users: UserReport[]}} FailureReport
  *   line: the failing line. since: the first line the report covers.
- * @typedef {{requests: FailedRequest[], errors: ConsoleError[], clear: () => void}} AppWatch
- * @typedef {{user: string, requests: FailedRequest[], errors: ConsoleError[], outline: string|null}} CapturedUser
+ * @typedef {{requests: SeenRequest[], errors: ConsoleError[], clear: () => void}} AppWatch
+ * @typedef {{user: string, requests: SeenRequest[], errors: ConsoleError[], outline: string|null}} CapturedUser
  * @typedef {{line: number, says: string, by: string, since: number, users: CapturedUser[]}} Captured
  */
 /**
