@@ -3,6 +3,7 @@ import { accessSync, closeSync, constants, copyFileSync, cpSync, fstatSync, mkdi
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import { writeRunFolder } from "../format/run-folder.js";
 import { CAUSES } from "../format/runfile.js";
 import { RunRecorder, recording } from "./recorder.js";
 import { CAPTURE_LIMIT } from "./capture.js";
@@ -78,7 +79,6 @@ export async function runCodex({ journey, caseId, project, mcp, container, allow
     const final = finalMessage(result.stdout);
     if (result.timedOut) problem = "Codex reached the time limit.";
     else if (result.code !== 0) problem = "Codex exited before completing the journey.";
-    if (problem) leaveIncomplete(run, problem);
     if (final) run.attach({ name: "handoff.txt", body: maskText(run.redact(final)), kind: "transcript" });
   } catch (error) {
     problem = run.redact(error instanceof Error ? error.message : "Codex could not complete the journey.");
@@ -86,7 +86,11 @@ export async function runCodex({ journey, caseId, project, mcp, container, allow
     if (probeDir) rmSync(probeDir, { recursive: true, force: true });
     rmSync(base, { recursive: true, force: true });
   }
-  const saved = run.finish(problem ? { summary: problem } : undefined);
+  const { run: outcome, files } = run.result(problem ? { summary: problem } : undefined);
+  if (problem && outcome.result === "passed") {
+    throw new Error(`${problem} No run was saved because a passing run needs a clean exit.`);
+  }
+  const saved = writeRunFolder(run.outputDir, outcome, files, run.journey);
   return { ...saved, problem };
 }
 
@@ -96,17 +100,6 @@ function pickArgs(args) {
     throw new Error("Pass only --model <name> after --. Journeys First sets the Codex prompt and sandbox.");
   }
   return args;
-}
-
-/** @param {RunRecorder} run @param {string} reason */
-function leaveIncomplete(run, reason) {
-  const last = run.plan.lines.filter((line) => line.kind === "check").at(-1);
-  if (!last || !run.plan.lines.every((line) => {
-    const entry = run.recorded.get(line.n);
-    return line.kind === "check" ? entry?.verdict === "passed" : entry?.status === "done";
-  })) return;
-  const { by, proof, evidence } = run.recorded.get(last.n) ?? {};
-  run.check(last.id, { by, proof, evidence, verdict: "not_checked", cause: "environment", reason });
 }
 
 /** @param {RunRecorder} run */

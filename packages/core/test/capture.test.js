@@ -176,12 +176,12 @@ if (args[0] === "sandbox") {
       { id: "link-on", verdict: "passed", proof: "The command showed it.", refs: [{ file: "command.txt", line: 1 }] },
       { id: "viewer-blocked", verdict: "passed", proof: "No capture." },
     ];
-    if (fs.existsSync("complete.txt")) {
+    if (fs.existsSync("complete.txt") || fs.existsSync("complete-clean.txt")) {
       const [, pass] = outcomes;
       outcomes.pop();
       outcomes.push(...[3, 5, 6].map(line => ({ line, status: "done" })),
         ...["viewer-sees-it", "viewer-blocked"].map(id => ({ ...pass, id })));
-      process.exitCode = 7;
+      if (fs.existsSync("complete.txt")) process.exitCode = 7;
     }
     fs.writeFileSync(".journeysfirst/results.jsonl", outcomes.map(JSON.stringify).join("\\n"));
     console.log(JSON.stringify({ type: "item.completed", item: { type: "reasoning", text: "Private reasoning" } }));
@@ -252,11 +252,12 @@ test("Codex imports failure causes and records rejected result lines", () => {
 test("a nonzero agent exit cannot seal a passed run even with every line submitted", () => {
   const { result, run } = codexFixture("complete");
   assert.equal(result.status, 1);
-  assert.equal(run.result, "not_fully_checked");
-  assert.equal(run.steps[1].verdict, "passed");
-  assert.equal(run.steps.at(-1).verdict, "not_checked");
-  assert.equal(run.steps.at(-1).cause, "environment");
-  assert.equal(run.steps.at(-1).evidence[0].got, "Sharing is on\n");
+  assert.match(result.stderr, /No run was saved because a passing run needs a clean exit/);
+  assert.equal(run, undefined);
+  const clean = codexFixture("complete-clean");
+  assert.equal(clean.result.status, 0, clean.result.stderr);
+  assert.equal(clean.run.result, "passed");
+  assert.equal(clean.run.steps.at(-1).verdict, "passed");
 });
 
 test("the single-seat Codex launcher refuses a journey that names another seat", () => {
