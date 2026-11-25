@@ -46,8 +46,9 @@ const USAGE = `Usage:
   journeysfirst add-review <run folder> --on <check or finding id> --by <person> --says "<their words>"
       Records a person's call in the run's reviews. It never changes a verdict or the result. Do it before publish.
   journeysfirst review [runs folder] [--port <n>] [--host <address>]   (default port 4400, or PORT; host 127.0.0.1)
-  journeysfirst review [runs folder] --out <new folder>
+  journeysfirst review [runs folder] --out <new folder> [--include-transcripts]
       Export a static review. Check the pages and recordings for private data before hosting the folder.
+      Include attached transcripts only with --include-transcripts, after checking them for private data.
   journeysfirst publish <run folder> [--to <url>] [--journey <file>]   (default JOURNEYSFIRST_URL; token from JOURNEYSFIRST_TOKEN)
   journeysfirst dev-server [--port <n>] [--host <address>]   (default port 4500; host 127.0.0.1)
   journeysfirst affected <path...>
@@ -159,7 +160,8 @@ if (command === "--version" || command === "version") {
   if (flags.out !== undefined) {
     try {
       if (typeof flags.out !== "string" || !flags.out) throw new Error("Give --out the name of a new folder.");
-      console.log(`Exported review to ${exportReview(dir, flags.out)}. Check the pages and recordings for private data before sharing.`);
+      const includeTranscripts = flags["include-transcripts"] === true || flags["include-transcripts"] === "true";
+      console.log(`Exported review to ${exportReview(dir, flags.out, { includeTranscripts })}. Check the pages and recordings for private data before sharing.`);
     } catch (error) {
       console.error(error.message);
       process.exitCode = 1;

@@ -8,8 +8,9 @@ import { captionTrack, indexPage, listRuns, runPage } from "./review.js";
  * Write review HTML and the images, videos, and captions it uses to a new folder.
  * @param {string} dir
  * @param {string} out
+ * @param {{includeTranscripts?: boolean}} [options] share only when the attached transcripts have been checked
  */
-export function exportReview(dir, out) {
+export function exportReview(dir, out, { includeTranscripts = false } = {}) {
   const root = realpathSync(dir);
   const runs = listRuns(root, { followSymlinks: false });
   const target = resolve(out);
@@ -39,6 +40,7 @@ export function exportReview(dir, out) {
       tracks.add(video.file);
     }
     writeFileSync(join(dest, "index.html"), runPage(run, journey, id, source, {
+      includeTranscripts,
       file: (name) => name && files.has(name) ? "assets/" + name : undefined,
       captions: (name) => tracks.has(name) ? "assets/" + name + ".vtt" : undefined,
     }));
