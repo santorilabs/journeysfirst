@@ -91,9 +91,10 @@ Files, in `src/runner/`:
 - `playwright.js`: `test.journey` and the `journey` fixture (`page`, `step`, `check`, `value`). It uses `RunRecorder`.
 - `captions.js`: the caption bar each user's video shows for the line in progress, and screenshots taken without it. Only `playwright.js` uses it.
 - `measure.js`: what the runner reads from a user's screen after each line, for a review: the values in use, each control's box, and each click with the ms until the page first changed. It also holds the slow replay (`JOURNEYS_DELAY_MS`). Only `playwright.js` uses it.
+- `mask.js`: covers password fields and secret values in a screenshot, and redacts them in a trace zip and in the run file. `playwright.js`, `recorder.js` and `reporter.js` use it.
 - `reporter.js`: the Playwright reporter that writes each run to a folder.
 
-May import: the format layer, `src/shared`, and `@playwright/test` (only `playwright.js`). `reporter.js` imports two names from `playwright.js`.
+May import: the format layer, `src/shared`, and `@playwright/test` (only `playwright.js`). `reporter.js` imports the attachment names from `playwright.js`.
 
 Read first: `RunRecorder.result` in `recorder.js`, then `declareJourney` in `playwright.js` (it is `test.journey`).
 

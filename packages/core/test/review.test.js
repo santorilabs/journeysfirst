@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { request } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,6 +10,7 @@ import { RunRecorder } from "../src/runner/recorder.js";
 import { JOURNEY, PNG, VIEWER_SAW, findings, recordAllPassed, recorder } from "./helpers.js";
 import { batchResult, reviewLine, spreadMarks } from "../src/shared/display.js";
 import JourneyReporter from "../src/runner/reporter.js";
+import { readZip } from "../src/runner/mask.js";
 import { RUN_ATTACHMENT } from "../src/runner/playwright.js";
 import { readFileSync, readdirSync } from "node:fs";
 
@@ -470,4 +471,57 @@ test("the reporter keeps Playwright's trace in a run that did not pass, and neve
   assert.equal(readFileSync(join(folder("2026-11-17-1200-fail"), "trace.zip"), "utf8"), "zip bytes");
   assert.equal(stored("2026-11-17-1201-pass").media, undefined, "a passing run lists no trace");
   assert.ok(!readdirSync(folder("2026-11-17-1201-pass")).includes("trace.zip"));
+});
+
+/** A one-file zip with the sizes in the local header, so the reporter's reader can open it. */
+function storedZip(name, text) {
+  const data = Buffer.from(text);
+  const nameBuf = Buffer.from(name);
+  const local = Buffer.alloc(30 + nameBuf.length);
+  local.writeUInt32LE(0x04034b50, 0);
+  local.writeUInt16LE(20, 4);
+  local.writeUInt32LE(data.length, 18);
+  local.writeUInt32LE(data.length, 22);
+  local.writeUInt16LE(nameBuf.length, 26);
+  nameBuf.copy(local, 30);
+  const central = Buffer.alloc(46 + nameBuf.length);
+  central.writeUInt32LE(0x02014b50, 0);
+  central.writeUInt16LE(20, 4);
+  central.writeUInt16LE(20, 6);
+  central.writeUInt32LE(data.length, 20);
+  central.writeUInt32LE(data.length, 24);
+  central.writeUInt16LE(nameBuf.length, 28);
+  nameBuf.copy(central, 46);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(1, 8);
+  end.writeUInt16LE(1, 10);
+  end.writeUInt32LE(central.length, 12);
+  end.writeUInt32LE(local.length + data.length, 16);
+  return Buffer.concat([local, data, central, end]);
+}
+
+test("the reporter redacts a trace and does not leave the secret list on disk", () => {
+  const dir = mkdtempSync(join(tmpdir(), "jf-trace-mask-"));
+  const trace = join(dir, "trace-source.zip");
+  writeFileSync(trace, storedZip("trace.trace", 'fill password=hunter2 and s3cr3t-value\n'));
+  const secrets = join(dir, "secrets.json");
+  writeFileSync(secrets, JSON.stringify(["s3cr3t-value"]));
+  const reporter = new JourneyReporter({ outputDir: dir });
+  const failing = recordAllPassed(recorder({ id: "2026-11-17-1300-mask" }));
+  failing.check("viewer-blocked", { by: "viewer", verdict: "failed", proof: "Opened the link again.", evidence: [VIEWER_SAW], reason: "The link still works." });
+  const test = { parent: { project: () => ({ repeatEach: 1 }) }, repeatEachIndex: 0, titlePath: () => ["x"] };
+  reporter.onTestEnd(test, {
+    attachments: [
+      { name: RUN_ATTACHMENT, body: Buffer.from(JSON.stringify(failing.result().run)) },
+      { name: "trace", path: trace, contentType: "application/zip" },
+      { name: "journeysfirst-secrets", path: secrets, body: Buffer.from(JSON.stringify(["s3cr3t-value"])) },
+    ],
+  });
+  const saved = readZip(readFileSync(join(dir, "share-by-link", "2026-11-17-1300-mask", "trace.zip")));
+  const text = saved[0].data.toString("utf8");
+  assert.doesNotMatch(text, /hunter2|s3cr3t-value/);
+  assert.match(text, /password=/);
+  assert.equal(existsSync(secrets), false, "the secret list is removed from the test output");
+  assert.ok(!readdirSync(join(dir, "share-by-link", "2026-11-17-1300-mask")).includes("secrets.json"));
 });

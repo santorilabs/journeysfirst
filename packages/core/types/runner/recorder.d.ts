@@ -136,6 +136,12 @@ export declare class RunRecorder {
         secret?: boolean;
     }): void;
     /**
+     * Secret values still in memory, longest first. For a screenshot and a
+     * trace. Nothing here is written into the run file.
+     * @returns {string[]}
+     */
+    secretValues(): string[];
+    /**
      * A fact about this run to filter on, like environment or device.
      * @param {string} key
      * @param {unknown} value

@@ -7,6 +7,7 @@ import { test as base } from "@playwright/test";
 import { CAPTION_CSS, CHECK_PAUSES, actionsFor, adoptCaptionStyles, canCaption, captionHtml, captionSettings, cleanScreenshot, fillValues, replaceCaption, shortCaption, userLabel } from "./captions.js";
 import { loadJourney } from "../format/format.js";
 import { delayData, measureScreen, slowReport, watchActions } from "./measure.js";
+import { MASK, applyMask, restoreMask } from "./mask.js";
 import { RunRecorder } from "./recorder.js";
 import { isFullUrl, settleCheck } from "../format/runfile.js";
 import { missingTarget } from "../shared/target.js";
@@ -15,6 +16,8 @@ export { expect } from "@playwright/test";
 
 export const RUN_ATTACHMENT = "journeysfirst-run";
 export const FILE_ATTACHMENT = "journeysfirst-file:";
+/** Declared secret values for the reporter, so it can redact a trace. Not a run file. */
+export const SECRET_ATTACHMENT = "journeysfirst-secrets";
 export const THREW = "The check threw an error before it could prove anything.";
 export const NO_PROOF = "The runner did not say how it was proven.";
 /** The pause after each line while video records, in ms, so a person watching can follow. */
@@ -342,6 +345,8 @@ export class JourneyRun {
       this.recorder.attach({ name: `measure-${line}.txt`, body: this.recorder.redact(JSON.stringify(measured)), kind: "capture", tags: { user } });
     }
     const { run, files } = this.recorder.result();
+    const secrets = this.recorder.secretValues();
+    if (secrets.length) await this.testInfo.attach(SECRET_ATTACHMENT, { body: Buffer.from(JSON.stringify(secrets)), contentType: "application/json" });
     for (const [name, body] of files) await this.testInfo.attach(`${FILE_ATTACHMENT}${name}`, { body });
     await this.testInfo.attach(RUN_ATTACHMENT, { body: JSON.stringify(run), contentType: "application/json" });
     return run;
@@ -354,10 +359,22 @@ export class JourneyRun {
   async #screenshot(user) {
     const opened = this.pages.get(user);
     if (!opened) return [];
+    // Cover the field before the shot, and put the value back so the test can keep going.
+    try {
+      await opened.page.evaluate(applyMask, { secrets: this.recorder.secretValues(), mask: MASK });
+    } catch {
+      // A page that cannot run the mask still gets a screenshot.
+    }
     try {
       return [{ image: await cleanScreenshot(opened.page, opened.captioned ? this.captions : null), url: pageUrl(opened.page) }];
     } catch {
       return []; // A closed page can't be captured; the step still records what happened.
+    } finally {
+      try {
+        await opened.page.evaluate(restoreMask);
+      } catch {
+        // A closed page has nothing to put back.
+      }
     }
   }
 

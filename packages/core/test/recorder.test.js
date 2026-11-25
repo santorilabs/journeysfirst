@@ -202,6 +202,25 @@ test("a secret that appears nowhere else writes the run, and its value stays out
   assert.doesNotMatch(readFileSync(join(folder, "run.json"), "utf8"), /481516/);
 });
 
+test("an obvious secret in the run is covered, and an ordinary value is kept", () => {
+  const run = recordAllPassed(recorder());
+  run.check("link-on", {
+    by: "you",
+    verdict: "failed",
+    proof: "Read Bearer abcdefghijklmnop from the header.",
+    evidence: [{ ...ON, got: { password: "hunter2", code: "481516" } }],
+    reason: "password=hunter2 and the code 481516 was rejected.",
+  });
+  const file = run.result().run;
+  const json = JSON.stringify(file);
+  assert.doesNotMatch(json, /hunter2|abcdefghijklmnop/);
+  assert.match(json, /481516/);
+  assert.equal(file.steps[1].evidence[0].got.password, "••••••••");
+  assert.match(file.steps[1].reason, /password=/);
+  assert.equal(file.summary.includes("hunter2"), false);
+  assert.deepEqual(validateRun(file), []);
+});
+
 test("a value declared secret and then given again in the open is no longer checked as a secret", () => {
   const run = recordAllPassed(recorder({ outputDir: mkdtempSync(join(tmpdir(), "jf-secret-")) }));
   run.value("link", "https://app.example.test/view/q3-plan", { secret: true });
