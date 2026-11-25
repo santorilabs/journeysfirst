@@ -5,8 +5,10 @@
 //   failure.md    the same report, for the agent that fixes the run (journey-fix)
 // The report covers the failing line and the lines since the last check that
 // ran before it, because the request that broke a check is often made by the
-// action line before it. Headers and request bodies are never kept. A path
-// keeps no query. Every text goes through the run's redaction and maskText.
+// action line before it. Headers and request bodies are never kept. No web
+// address keeps its query or fragment: not a request path, not a link in the
+// screen outline, not a URL in a console error. They can hold a sign-in or
+// invite token. Every text also goes through the run's redaction and maskText.
 import { MASK, applyMask, maskText, restoreMask } from "./mask.js";
 import { userLabel } from "./captions.js";
 
@@ -68,12 +70,11 @@ export function watchApp(context, lineNow) {
  * @param {string[]} secrets declared secret values, covered on screen before the outline
  */
 export async function captureUsers(pages, secrets) {
-  /** @type {CapturedUser[]} */
-  const users = [];
-  for (const [user, { page, app }] of pages) {
-    users.push({ user, requests: [...app.requests], errors: [...app.errors], outline: await screenOutline(page, secrets) });
-  }
-  return users;
+  return Promise.all([...pages].map(async ([user, { page, app }]) => {
+    const requests = [...app.requests];
+    const errors = [...app.errors];
+    return /** @type {CapturedUser} */ ({ user, requests, errors, outline: await screenOutline(page, secrets) });
+  }));
 }
 
 /**
@@ -83,20 +84,31 @@ export async function captureUsers(pages, secrets) {
  * @param {string[]} secrets
  * @returns {Promise<string|null>}
  */
-export async function screenOutline(page, secrets) {
+export async function screenOutline(page, secrets, ms = OUTLINE_MS) {
   const body = page.locator("body");
   // ariaSnapshot came in Playwright 1.49. On an older version there is no outline.
   if (typeof body.ariaSnapshot !== "function" || page.isClosed()) return null;
-  let covered = false;
+  const read = async () => {
+    let covered = false;
+    try {
+      covered = (await page.evaluate(applyMask, { secrets, mask: MASK })) === true;
+      const outline = await body.ariaSnapshot({ timeout: ms });
+      const lines = outline.split("\n");
+      return lines.length > OUTLINE_LINES ? [...lines.slice(0, OUTLINE_LINES), `(${lines.length - OUTLINE_LINES} more lines)`].join("\n") : outline;
+    } catch {
+      return null;
+    } finally {
+      if (covered) await page.evaluate(restoreMask).catch(() => {});
+    }
+  };
+  // A frozen page never answers evaluate. Give up on the outline, so the run is still written.
+  /** @type {ReturnType<typeof setTimeout> | undefined} */
+  let timer;
+  const late = new Promise((done) => (timer = setTimeout(() => done(null), ms * 2)));
   try {
-    covered = (await page.evaluate(applyMask, { secrets, mask: MASK })) === true;
-    const outline = await body.ariaSnapshot({ timeout: OUTLINE_MS });
-    const lines = outline.split("\n");
-    return lines.length > OUTLINE_LINES ? [...lines.slice(0, OUTLINE_LINES), `(${lines.length - OUTLINE_LINES} more lines)`].join("\n") : outline;
-  } catch {
-    return null;
+    return /** @type {string|null} */ (await Promise.race([read(), late]));
   } finally {
-    if (covered) await page.evaluate(restoreMask).catch(() => {});
+    clearTimeout(timer);
   }
 }
 
@@ -106,7 +118,7 @@ export async function screenOutline(page, secrets) {
  * @returns {FailureReport}
  */
 export function failureReport({ line, says, by, since, users, redact }) {
-  const clean = (/** @type {string} */ text) => maskText(redact(text));
+  const clean = (/** @type {string} */ text) => maskText(redact(withoutQueries(text)));
   const shown = users.map(({ user, requests, errors, outline }) => {
     const more = { requests: Math.max(0, requests.length - MOST_ITEMS), errors: Math.max(0, errors.length - MOST_ITEMS) };
     /** @type {UserReport} */
@@ -161,7 +173,7 @@ export function failureMarkdown(report) {
     "",
     report.summary,
     "",
-    `This covers ${span}, for every user. Request headers and bodies are not kept. Secrets are covered.`,
+    `This covers ${span}, for every user. Request headers and bodies, and the query of every web address, are not kept. Passwords and declared secrets are covered.`,
   ];
   for (const user of report.users) {
     out.push("", `## ${userLabel(user.user)}`, "");
@@ -203,6 +215,17 @@ export function requestPath(url, pageUrl) {
   } catch {
     return String(url).split(/[?#]/)[0];
   }
+}
+
+/**
+ * Every http or https address in a text, and every link in a screen outline
+ * (its "/url:" line, which can be relative), without its query or fragment.
+ * @param {string} text
+ */
+export function withoutQueries(text) {
+  return String(text ?? "")
+    .replace(/(https?:\/\/[^\s"'<>?#]*)[?#][^\s"'<>]*/g, "$1")
+    .replace(/(\/url: [^\s?#]*)[?#]\S*/g, "$1");
 }
 
 /**

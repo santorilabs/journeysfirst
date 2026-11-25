@@ -2,7 +2,7 @@
 // its masking, and the Markdown the journey-fix skill reads.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { MOST_ITEMS, failureMarkdown, failureReport, requestPath, screenOutline, summarize } from "../src/runner/reported.js";
+import { MOST_ITEMS, failureMarkdown, failureReport, requestPath, screenOutline, summarize, withoutQueries } from "../src/runner/reported.js";
 
 const none = (/** @type {string} */ text) => text;
 
@@ -89,4 +89,28 @@ test("with Playwright before 1.49 there is no screen outline, and nothing else i
   const page = /** @type {any} */ ({ locator: () => ({}), isClosed: () => false, evaluate: async () => void (asked += 1) });
   assert.equal(await screenOutline(page, []), null);
   assert.equal(asked, 0);
+});
+
+test("no web address in the report keeps its query or fragment: not a link on screen, not a URL in a console error", () => {
+  assert.equal(withoutQueries("- /url: https://app.test/join?invite=Zq81kLm09xYp#top"), "- /url: https://app.test/join");
+  assert.equal(withoutQueries('GET "http://a.test/x?code=1" failed'), 'GET "http://a.test/x" failed');
+  assert.equal(withoutQueries("  - /url: /join?invite=Zq81kLm09xYp"), "  - /url: /join");
+  const report = failureReport({
+    line: 1,
+    says: "Open the invite.",
+    by: "you",
+    since: 1,
+    users: [{ user: "you", requests: [], errors: [{ line: 1, text: "Failed to load https://app.test/api?sig=abc123" }], outline: '- link "Join":\n  - /url: https://app.test/join?invite=Zq81kLm09xYp' }],
+    redact: none,
+  });
+  const text = JSON.stringify(report) + failureMarkdown(report);
+  assert.equal(text.includes("Zq81kLm09xYp"), false);
+  assert.equal(text.includes("abc123"), false);
+});
+
+test("a frozen page gets no outline, and the capture does not wait for it", async () => {
+  const page = /** @type {any} */ ({ locator: () => ({ ariaSnapshot: async () => "- main" }), isClosed: () => false, evaluate: () => new Promise(() => {}) });
+  const started = Date.now();
+  assert.equal(await screenOutline(page, [], 50), null);
+  assert.ok(Date.now() - started < 1000);
 });

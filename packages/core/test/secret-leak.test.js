@@ -96,12 +96,13 @@ test("what the app reported at a failed line names the 403 and keeps no secret f
   const IN_URL = "url-leak-1f2e3d4c5b";
   const IN_CONSOLE = "con-leak-9a8b7c6d5e";
   const DECLARED = "dcl-leak-0f1e2d3c4b";
-  const needles = [HEADER, IN_URL, IN_CONSOLE, DECLARED];
+  const IN_LINK = "lnk-leak-5e4d3c2b1a";
+  const needles = [HEADER, IN_URL, IN_CONSOLE, DECLARED, IN_LINK];
   // The viewer's page asks for the doc with a key in a header and a token in
   // the URL. The app answers 403, and the page logs both secrets.
   const app = createServer((req, res) => {
     if (req.url?.startsWith("/api/doc")) return void res.writeHead(403, { "content-type": "application/json" }).end('{"error":"no access"}');
-    res.writeHead(200, { "content-type": "text/html" }).end(`<!doctype html><h1>Doc</h1><p id="code"></p><script>
+    res.writeHead(200, { "content-type": "text/html" }).end(`<!doctype html><h1>Doc</h1><p id="code"></p><a href="/join?invite=${IN_LINK}">Join</a><script>
 const code = new URLSearchParams(location.search).get("code");
 document.getElementById("code").textContent = "Your code is " + code;
 fetch("/api/doc/q3?token=${IN_URL}", { headers: { authorization: "Bearer ${HEADER}" } }).then((r) => {
@@ -161,6 +162,7 @@ test.journey("journeys/view-a-doc.journey.yaml", { video: false, measure: false 
   assert.match(md, /- line 1: 403 GET \/api\/doc\/q3\n/);
   assert.match(md, /Could not load the doc: api_key=•+ code \$\{code\}/, "the console error is there, with both secrets covered");
   assert.match(md, /You don't have access/, "the screen outline is there");
+  assert.match(md, /\/url: \/join\n/, "a link on screen keeps its path, not its query");
   const review = serveReview({ dir: join(dir, "journey-runs"), port: 0 });
   await new Promise((done) => review.once("listening", done));
   try {

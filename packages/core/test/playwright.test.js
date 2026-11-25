@@ -513,6 +513,8 @@ test("a failed check writes what the app reported since the last check, for ever
     browser.contexts[0].emit("response", fakeResponse(500, "POST", "http://localhost:4321/api/share?x=1"));
   });
   await run.check("link-on", { by: "you" }, async () => ({ passed: true, proof: "Read the setting.", evidence: [ON] }));
+  // Reported after the check, before the next line: still part of the passed check, so dropped.
+  browser.contexts[0].emit("response", fakeResponse(502, "GET", "http://localhost:4321/api/after-check"));
   await run.page("viewer");
   await run.step(3, { by: "viewer" }, async () => {
     browser.contexts[1].emit("response", fakeResponse(403, "GET", "http://localhost:4321/api/view/q3-plan"));
@@ -530,7 +532,7 @@ test("a failed check writes what the app reported since the last check, for ever
   assert.deepEqual(report.users.map((u) => u.user), ["viewer", "you"]);
   assert.deepEqual(report.users[0].requests, [{ line: 3, method: "GET", path: "/api/view/q3-plan", status: 403 }]);
   assert.deepEqual(report.users[0].errors, [{ line: 3, text: "Failed to load resource: 403" }]);
-  assert.deepEqual(report.users[1].requests, [], "your 500 at line 1 came before the last check");
+  assert.deepEqual(report.users[1].requests, [], "your 500 at line 1 and the 502 right after the check came before the window");
   assert.equal(report.users[0].outline, "- heading \"You don't have access\" [level=1]");
   assert.match(String(files.get("failure.md")), /^# What the app reported at line 4\n/);
   assert.deepEqual(written.media.filter((m) => m.kind === "capture").map((m) => m.file), ["measure-1.txt", "measure-2.txt", "measure-3.txt", "measure-4.txt", "failure.json", "failure.md"]);

@@ -290,7 +290,8 @@ function appReport(run, folder) {
  */
 function reportedSection(report) {
   const at = (/** @type {number|null} */ line) => (line === null ? "setup" : `line ${line}`);
-  const users = report.users.map((u) => {
+  const users = report.users.map((/** @type {AppReport["users"][number]} */ shown) => {
+    const u = { ...shown, requests: shown.requests ?? [], errors: shown.errors ?? [], outline: shown.outline ?? null };
     const requests = u.requests.map((r) => `<li>${esc(at(r.line))}: <b>${esc(r.status)}</b> ${esc(r.method)} <code>${esc(r.path)}</code></li>`);
     const errors = u.errors.map((e) => `<li>${esc(at(e.line))}: ${esc(e.text)}</li>`);
     if (u.more?.requests) requests.push(`<li class="how">and ${esc(u.more.requests)} earlier failed requests</li>`);

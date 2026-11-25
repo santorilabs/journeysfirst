@@ -2,12 +2,12 @@
 // Each user gets their own browser context (their own login), with video.
 // It records through RunRecorder, so a Playwright run and an agent's own run
 // write the same run file. The reporter writes it to disk.
-import { compileFunction } from "node:vm";
 import { test as base } from "@playwright/test";
 import { CAPTION_CSS, CHECK_PAUSES, actionsFor, adoptCaptionStyles, canCaption, captionHtml, captionSettings, cleanScreenshot, fillValues, replaceCaption, shortCaption, userLabel } from "./captions.js";
 import { loadJourney } from "../format/format.js";
 import { delayData, measureScreen, slowReport, watchActions } from "./measure.js";
 import { MASK, applyMask, restoreMask } from "./mask.js";
+import { atCaller } from "./caller.js";
 import { RunRecorder } from "./recorder.js";
 import { captureUsers, failureMarkdown, failureReport, watchApp } from "./reported.js";
 import { isFullUrl, settleCheck } from "../format/runfile.js";
@@ -263,7 +263,6 @@ export class JourneyRun {
       // The verdict as the run will say it: a pass without its proof shows as not checked, with why.
       const settled = settleCheck(/** @type {import("../format/runfile.js").CheckStep} */ (this.recorder.recorded.get(plan.n)));
       if (settled.verdict === "failed" || settled.verdict === "blocked") await this.#failed(plan.n, plan.check, by);
-      for (const opened of this.pages.values()) opened.app.clear();
       this.sinceLine = plan.n + 1;
       const why = settled.verdict === verdict && result.caption ? result.caption : ((settled.verdict === "passed" ? settled.proof : settled.reason) ?? plan.check);
       await this.#narrate({ by, verdict: settled.verdict, text: shortCaption(lowerFirst(why)) });
@@ -294,7 +293,12 @@ export class JourneyRun {
 
   /** Drop what the pages reported before this line: setup, and what another user's line caused. */
   #forgetActions() {
-    for (const opened of this.pages.values()) opened.actions?.forget();
+    // After a check, what the app reported starts over when the next line does.
+    const afterCheck = this.lastLine !== null && this.sinceLine > this.lastLine;
+    for (const opened of this.pages.values()) {
+      opened.actions?.forget();
+      if (afterCheck) opened.app.clear();
+    }
   }
 
   /**
@@ -490,7 +494,7 @@ function declareJourney(file, options, body) {
   if (typeof options === "function") [options, body] = [{}, options];
   const journey = loadJourney(file);
   const caseName = options.case ? journey.cases?.find((c) => c.id === options.case)?.name : null;
-  atCaller(journeyTest)(caseName ? `${journey.title}: ${caseName}` : journey.title, async ({ browser, request, _journeyRun, journeyCaptions, journeyVideo }, testInfo) => {
+  atCaller(journeyTest, declareJourney)(caseName ? `${journey.title}: ${caseName}` : journey.title, async ({ browser, request, _journeyRun, journeyCaptions, journeyVideo }, testInfo) => {
     const problem = missingTarget({ baseURL: testInfo.project.use?.baseURL, webServer: testInfo.config?.webServer });
     if (problem) throw new Error(problem);
     const captions = captionSettings(options.captions, journeyCaptions) ?? false;
@@ -504,43 +508,6 @@ function declareJourney(file, options, body) {
       throw new Error(`The journey run is ${written.result.replaceAll("_", " ")}:\n- ${/** @type {string[]} */ (written.not_verified).join("\n- ")}`);
     }
   });
-}
-
-/**
- * fn, called from code that sits at the place test.journey was called from.
- * Playwright names a test by the file and line its test() was called from,
- * read from the stack. Called from here, every journey test would be listed
- * at this file. A function compiled with the caller's file name and position
- * makes Playwright list the user's spec file and line instead. Playwright maps
- * that position through the spec's source map, as it does for its own calls.
- * @template {(...args: any[]) => any} F
- * @param {F} fn
- * @returns {F}
- */
-function atCaller(fn) {
-  const where = callerFrame();
-  if (!where) return fn;
-  const call = compileFunction("fn(...args)", ["fn", "args"], { filename: where.file, lineOffset: where.line - 1, columnOffset: where.column - 1 });
-  return /** @type {F} */ ((...args) => call(fn, args));
-}
-
-/** The file, line and column of the code that called test.journey, unmapped. */
-function callerFrame() {
-  const prepare = Error.prepareStackTrace;
-  const limit = Error.stackTraceLimit;
-  /** @type {{stack?: any}} */
-  const holder = {};
-  try {
-    Error.stackTraceLimit = 1;
-    Error.prepareStackTrace = (_, frames) => frames[0];
-    Error.captureStackTrace(holder, declareJourney);
-    const frame = holder.stack;
-    const file = frame?.getFileName();
-    return file ? { file, line: frame.getLineNumber() ?? 1, column: frame.getColumnNumber() ?? 1 } : null;
-  } finally {
-    Error.prepareStackTrace = prepare;
-    Error.stackTraceLimit = limit;
-  }
 }
 
 /** Playwright's test, plus test.journey. */

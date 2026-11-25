@@ -85,7 +85,7 @@ export declare function captureUsers(pages: Map<string, {
  * @param {string[]} secrets
  * @returns {Promise<string|null>}
  */
-export declare function screenOutline(page: import("@playwright/test").Page, secrets: string[]): Promise<string | null>;
+export declare function screenOutline(page: import("@playwright/test").Page, secrets: string[], ms?: number): Promise<string | null>;
 /**
  * The report for a failing line, with every text redacted and masked.
  * @param {Captured & {redact: (text: string) => string}} input
@@ -114,3 +114,9 @@ export declare function failureMarkdown(report: FailureReport): string;
  * @param {string} [pageUrl]
  */
 export declare function requestPath(url: string, pageUrl?: string): string;
+/**
+ * Every http or https address in a text, and every link in a screen outline
+ * (its "/url:" line, which can be relative), without its query or fragment.
+ * @param {string} text
+ */
+export declare function withoutQueries(text: string): string;
