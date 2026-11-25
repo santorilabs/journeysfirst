@@ -16,7 +16,7 @@ import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 import { journeyName, journeyPlan, loadJourney, validateJourney } from "../format/format.js";
 import { writeRunFolder } from "../format/run-folder.js";
-import { FILE_NAME, RUN_FORMAT, isCheck, settle, stepProblems } from "../format/runfile.js";
+import { FILE_NAME, LOOKUP, RUN_FORMAT, isCheck, settle, stepProblems } from "../format/runfile.js";
 import { maskRun } from "./mask.js";
 import { VERSION } from "../shared/version.js";
 
@@ -396,12 +396,17 @@ function defaultSummary(result, steps) {
  * @returns {string[]}
  */
 function secretLeaks(run, secrets) {
+  const values = [...secrets].flatMap(([name, value]) =>
+    (typeof value === "string" || typeof value === "number" || typeof value === "bigint") && String(value)
+      ? [{ name, text: String(value) }] : []);
+  if (!values.length) return [];
   const lines = [];
-  for (const [name, value] of secrets) {
-    const text = typeof value === "string" || typeof value === "number" || typeof value === "bigint" ? String(value) : "";
-    if (!text) continue;
-    const fields = [...stringFields(run, "")].filter(([, s]) => s.includes(text)).map(([path]) => path);
-    if (fields.length) lines.push(`The secret \${${name}} is in the run at ${fields.join(", ")}.`);
+  const matches = [...new Set(values.map(({ text }) => text))].sort((a, b) => b.length - a.length);
+  const pattern = new RegExp(matches.map((text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "g");
+  const fields = [...stringFields(run, "")];
+  for (const { name, text } of values) {
+    const paths = new Set(fields.filter(([, s]) => s.includes(text)).map(([path]) => path.replace(pattern, "[redacted]")));
+    if (paths.size) lines.push(`The secret \${${name.replace(pattern, "[redacted]")}} is in the run at ${[...paths].join(", ")}.`);
   }
   return lines;
 }
@@ -418,16 +423,42 @@ function transcriptHasSecret(body, secrets) {
 }
 
 /**
- * Every string in a JSON value, with its path.
+ * Every text value and every data key, with its path.
  * @param {unknown} value
  * @param {string} path
+ * @param {string} [shape] the format path, stopped when entering free-form data
  * @returns {Generator<[string, string]>}
  */
-function* stringFields(value, path) {
+function* stringFields(value, path, shape = "") {
   if (typeof value === "string" || typeof value === "number") yield [path, String(value)];
-  else if (Array.isArray(value)) for (const [i, item] of value.entries()) yield* stringFields(item, `${path}[${i}]`);
-  else if (value && typeof value === "object") for (const [key, item] of Object.entries(value)) yield* stringFields(item, path ? `${path}.${key}` : key);
+  else if (Array.isArray(value)) for (const [i, item] of value.entries()) yield* stringFields(item, `${path}[${i}]`, `${shape}[]`);
+  else if (value && typeof value === "object") {
+    for (const [key, item] of Object.entries(value)) {
+      const field = path ? `${path}.${key}` : key;
+      const defined = FORMAT_KEYS.get(shape)?.has(key);
+      if (!defined) yield [field, key];
+      const child = shape === "values" ? "values.*" : defined ? (shape ? `${shape}.${key}` : key) : "*";
+      yield* stringFields(item, field, child);
+    }
+  }
 }
+
+const evidenceKeys = new Set(["source", "login", "key", ...Object.values(LOOKUP)]);
+const FORMAT_KEYS = new Map([
+  ["", new Set("format id journey result summary started_at finished_at ran_by journeysfirst tags repos users played_by repeat values media verified not_verified steps findings reviews".split(" "))],
+  ["journey", new Set(["name", "version", "case"])],
+  ["ran_by", new Set(["agent", "model"])],
+  ["repos[]", new Set(["repo", "branch", "commit"])],
+  ["repeat", new Set(["batch", "n", "of"])],
+  ["values.*", new Set(["value", "secret"])],
+  ["media[]", new Set(["file", "kind", "starts_at", "tags"])],
+  ["steps[]", new Set("says status check id by verdict claimed proof evidence at took screenshots cause reason added".split(" "))],
+  ["steps[].screenshots[]", new Set(["file", "url"])],
+  ["steps[].evidence[]", evidenceKeys],
+  ["findings[]", new Set(["id", "criterion", "says", "evidence", "step", "ask"])],
+  ["findings[].evidence[]", evidenceKeys],
+  ["reviews[]", new Set(["by", "at", "on", "says"])],
+]);
 
 /** A screenshot given as {image, url}, not bare bytes or a path. */
 /** @param {Shot} shot @returns {shot is {image: Image, url?: string}} */

@@ -195,11 +195,85 @@ test("a declared secret anywhere else in the run stops the run folder from being
   assert.equal(existsSync(join(dir, "share-by-link")), false, "nothing written");
 });
 
+test("declared secrets in evidence keys stop the run without appearing in the error paths", () => {
+  const dir = mkdtempSync(join(tmpdir(), "jf-secret-"));
+  const run = recordAllPassed(recorder({ outputDir: dir }));
+  run.value("code", "private+code", { secret: true });
+  run.value("pin", 4312, { secret: true });
+  run.check("link-on", { by: "you", verdict: "passed", proof: "Read the setting.",
+    evidence: [{ ...ON, got: { "account-private+code": { pin_4312: "ordinary value" } } }] });
+  assert.throws(() => run.finish(), (error) => {
+    assert.match(error.message, /\$\{code\} is in the run at steps\[1\]\.evidence\[0\]\.got\.account-\[redacted\]/);
+    assert.match(error.message, /\$\{pin\} is in the run at steps\[1\]\.evidence\[0\]\.got\.account-\[redacted\]\.pin_\[redacted\]/);
+    assert.doesNotMatch(error.message, /private\+code|4312/);
+    return true;
+  });
+  assert.equal(existsSync(join(dir, "share-by-link")), false);
+});
+
 test("a secret that appears nowhere else writes the run, and its value stays out of it", () => {
   const run = recordAllPassed(recorder({ outputDir: mkdtempSync(join(tmpdir(), "jf-secret-")) }));
   run.value("code", "481516", { secret: true });
   const { folder } = run.finish();
   assert.doesNotMatch(readFileSync(join(folder, "run.json"), "utf8"), /481516/);
+});
+
+test("a declared secret may match a format key, but not a free-form data key", () => {
+  const run = recordAllPassed(recorder());
+  run.value("first", "secret", { secret: true });
+  run.value("second", "value", { secret: true });
+  run.value("visible", "ordinary text");
+  assert.deepEqual(run.result().run.values, { first: { secret: true }, second: { secret: true }, visible: { value: "ordinary text" } });
+  run.tag("user-secret-data", true);
+  assert.throws(() => run.result(), /\$\{first\} is in the run at tags\.user-\[redacted\]-data/);
+});
+
+test("a declared secret cannot be used as a runner metadata key", () => {
+  const run = recordAllPassed(recorder({ ranBy: { agent: "test", model: "fixture", "private-field": true } }));
+  run.value("first", "agent", { secret: true });
+  run.value("second", "model", { secret: true });
+  assert.equal(run.result().run.ran_by.agent, "test");
+  run.value("hidden", "private-field", { secret: true });
+  assert.throws(() => run.result(), (error) => {
+    assert.match(error.message, /\$\{hidden\} is in the run at ran_by\.\[redacted\]/);
+    assert.doesNotMatch(error.message, /private-field/);
+    return true;
+  });
+});
+
+test("only the format's repo keys are exempt from secret scanning", () => {
+  const repos = [{ repo: "acme/web", branch: "main", commit: "abc123" }];
+  const run = recordAllPassed(recorder({ repos }));
+  run.value("first", "repo", { secret: true });
+  run.value("second", "branch", { secret: true });
+  run.value("third", "commit", { secret: true });
+  assert.deepEqual(run.result().run.repos, repos);
+
+  repos[0]["private-repo-field"] = true;
+  run.value("hidden", "private-repo-field", { secret: true });
+  assert.throws(() => run.result(), (error) => {
+    assert.match(error.message, /\$\{hidden\} is in the run at \[redacted\]s\[0\]\.\[redacted\]/);
+    assert.doesNotMatch(error.message, /private-repo-field/);
+    return true;
+  });
+});
+
+test("a format key is not exempt inside other objects or in a lookalike path", () => {
+  const run = recordAllPassed(recorder({ repeat: { batch: "sample", n: 1, of: 2, branch: true } }));
+  run.value("first", "branch", { secret: true });
+  run.value("second", "agent", { secret: true });
+  run.value("third", "source", { secret: true });
+  run.value("fourth", "expected", { secret: true });
+  run.attach({ name: "note.txt", kind: "capture", body: "Example", tags: { ran_by: { agent: true } } });
+  run.check("link-on", { by: "you", verdict: "passed", proof: "Read the setting.",
+    evidence: [{ ...ON, expected: true, got: { "steps[1].evidence[0]": { source: true } } }] });
+  assert.throws(() => run.result(), (error) => {
+    assert.match(error.message, /repeat\.\[redacted\]/);
+    assert.match(error.message, /media\[0\]\.tags\.ran_by\.\[redacted\]/);
+    assert.match(error.message, /steps\[1\]\.evidence\[0\]\.got\.steps\[1\]\.evidence\[0\]\.\[redacted\]/);
+    assert.match(error.message, /\$\{fourth\} is in the run at steps\[1\]\.evidence\[0\]\.\[redacted\]/);
+    return true;
+  });
 });
 
 test("an obvious secret in the run is covered, and an ordinary value is kept", () => {
