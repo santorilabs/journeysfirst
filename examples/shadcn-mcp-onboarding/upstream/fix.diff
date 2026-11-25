@@ -1,0 +1,84 @@
+diff --git a/packages/shadcn/src/mcp/index.ts b/packages/shadcn/src/mcp/index.ts
+index 169149a..e8af065 100644
+--- a/packages/shadcn/src/mcp/index.ts
++++ b/packages/shadcn/src/mcp/index.ts
+@@ -6,10 +6,7 @@ import {
+ import { getRegistryItems, searchRegistries } from "@shadcn/registry"
+ import { withRegistryContext } from "@shadcn/registry/internal/registry/context"
+ import { RegistryError } from "@shadcn/registry/internal/registry/errors"
+-import {
+-  resolveSearchRegistries,
+-  SEARCHABLE_TYPES,
+-} from "@shadcn/registry/internal/registry/search"
++import { SEARCHABLE_TYPES } from "@shadcn/registry/internal/registry/search"
+ import dedent from "dedent"
+ import { z } from "zod"
+ 
+@@ -111,6 +108,15 @@ function formatToolError(error: unknown): CallToolResult {
+   return errorResult(dedent`Error: ${errorMessage}`)
+ }
+ 
++// get_project_registries lists the builtin registries, so a call that names
++// no registry covers them too. The CLI's "search all" keeps its own rule.
++function resolveMcpRegistries(
++  registries: string[] | undefined,
++  config: Awaited<ReturnType<typeof getMcpConfig>>
++) {
++  return registries?.length ? registries : Object.keys(config.registries ?? {})
++}
++
+ const NO_REGISTRIES_MESSAGE = dedent`No registries are configured. Add registries to components.json (use get_project_registries to inspect) or pass them explicitly.`
+ 
+ const listRegistriesField = z
+@@ -149,13 +155,13 @@ function registerTools(server: McpServer) {
+     "get_project_registries",
+     {
+       description:
+-        "Get configured registry names from components.json - Returns error if no components.json exists (use init_project to create one)",
++        "Get configured registry names from components.json - Returns an error if no components.json exists (run `npx shadcn@latest init` to create one)",
+       inputSchema: z.object({}),
+     },
+     registryTool(async () => {
+       const config = await getMcpConfig(process.cwd())
+ 
+-      if (!config?.registries) {
++      if (!Object.keys(config?.registries ?? {}).length) {
+         return textResult(dedent`No components.json found or no registries configured.
+ 
+           To fix this:
+@@ -185,7 +191,7 @@ function registerTools(server: McpServer) {
+     "list_items_in_registries",
+     {
+       description:
+-        "List items from registries (requires components.json - use init_project if missing)",
++        "List items from registries (requires components.json - run `npx shadcn@latest init` if missing)",
+       inputSchema: z.object({
+         registries: listRegistriesField,
+         types: typesField,
+@@ -202,7 +208,7 @@ function registerTools(server: McpServer) {
+       const config = await getMcpConfig(process.cwd())
+ 
+       const listAll = !args.registries?.length
+-      const registries = resolveSearchRegistries(args.registries ?? [], config)
++      const registries = resolveMcpRegistries(args.registries, config)
+ 
+       if (registries.length === 0) {
+         return textResult(NO_REGISTRIES_MESSAGE)
+@@ -262,7 +268,7 @@ function registerTools(server: McpServer) {
+       // When registries are omitted, search every configured registry and
+       // tolerate individual failures.
+       const searchAll = !args.registries?.length
+-      const registries = resolveSearchRegistries(args.registries ?? [], config)
++      const registries = resolveMcpRegistries(args.registries, config)
+ 
+       if (registries.length === 0) {
+         return textResult(NO_REGISTRIES_MESSAGE)
+@@ -350,7 +356,7 @@ function registerTools(server: McpServer) {
+       const config = await getMcpConfig()
+ 
+       const searchAll = !args.registries?.length
+-      const registries = resolveSearchRegistries(args.registries ?? [], config)
++      const registries = resolveMcpRegistries(args.registries, config)
+ 
+       if (registries.length === 0) {
+         return textResult(NO_REGISTRIES_MESSAGE)
