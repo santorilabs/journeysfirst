@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, statSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -80,4 +80,17 @@ test("a seat records checks only from output lines of its own approved captures"
   assert.equal(saved.result, "passed");
   assert.equal(saved.steps[1].evidence[0].got, "Link sharing: on\n");
   assert.equal(saved.media[0].kind, "transcript");
+});
+
+test("a newly declared secret in an attached capture prevents sealing the run", () => {
+  const root = dir();
+  const out = join(root, "terminal.txt");
+  const value = "private\"fixture";
+  const captured = spawnSync(node, [cli, "capture", "--out", out, "--", node, "-e", `console.log(${JSON.stringify(value)})`]);
+  assert.equal(captured.status, 0);
+  const run = recordAllPassed(recorder({ outputDir: root }));
+  recording(run, "you").attach("terminal.txt", out);
+  run.value("fixture", value, { secret: true });
+  assert.throws(() => run.finish(), { message: "A declared secret is in an attached transcript. Remove it from the transcript before writing the run." });
+  assert.equal(existsSync(join(root, "share-by-link")), false);
 });
