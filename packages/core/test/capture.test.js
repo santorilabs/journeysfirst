@@ -138,6 +138,13 @@ if (args[0] === "sandbox") {
     assert.match(fs.readFileSync(probe, "utf8"), /Synthetic host home probe/);
     assert.ok(args.join(" ").includes(JSON.stringify(path.dirname(path.dirname(probe))) + '="deny"'));
     assert.match(args.join(" "), /":minimal"="read"/);
+    if (fs.existsSync("/etc/resolv.conf")) {
+      const resolver = fs.realpathSync("/etc/resolv.conf");
+      if (resolver.startsWith("/run/") && fs.statSync(resolver).isFile()) {
+        assert.ok(args.join(" ").includes(JSON.stringify(resolver) + '="read"'));
+        assert.ok(!args.join(" ").includes('"/run"="read"'));
+      }
+    }
     if (fs.existsSync("leaky-home.txt")) process.exit(1);
   }
   console.log("journeysfirst: workspace readable, auth directory denied");
@@ -223,6 +230,7 @@ test("Codex gets the journey without hints, safe auth setup, wrapped MCP config 
   const { result, folder, run } = codexFixture();
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stderr, /without a container/);
+  assert.match(result.stdout, /Exit 0 means the agent finished and a run was saved\. The journey did not pass\./);
   assert.equal(run.steps[1].verdict, "passed");
   assert.equal(run.steps[1].evidence[0].login, "you");
   assert.equal(run.steps.find((step) => step.id === "viewer-blocked").verdict, "not_checked");

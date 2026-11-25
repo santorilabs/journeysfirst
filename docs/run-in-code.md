@@ -53,7 +53,23 @@ To use Docker, pass `--container <local image>`. The image needs Node and Codex,
 
 For MCP, pass `--mcp <file.json>` with server names and command arrays, such as `{"example":["node","server.js"]}`. List only servers whose tools you trust Codex to call without a prompt. Journeys First approves calls only for those servers, which run through the same permission profile and the MCP proxy. Do not put admin credentials in the project or server config. If a proxied server exits with an error, the launcher reports an environment failure and exits nonzero. A tool response marked as a failure changes a check only if Codex submits it as such, with proof. A missing or invalid submission stays unverified.
 
+For a signed-out Convex project, save this as `convex-mcp.json`:
+
+```json
+{"convex":["npx","--yes","convex@1.51.0","mcp","start"]}
+```
+
+From the directory that contains that file, pass it with the path to your journey and the signed-out project:
+
+```sh
+npx journeysfirst run journeys/agent-onboarding.journey.yaml --agent codex --project ./signed-out-convex --mcp convex-mcp.json
+```
+
+The sandbox allows outbound network access. This example needs access to the npm registry from inside the sandbox because the copied project has no `node_modules`. For a preinstalled Convex package, use `["node","/path/to/convex/bin/main.js","mcp","start"]` instead. Keep that package next to a sandbox-readable runtime outside your home directory.
+
 `--timeout <seconds>` sets a limit for Codex. If Codex times out or exits with an error, the launcher saves partial results. If the submitted results would count as a pass, it does not save a run and exits with an error. It keeps only the last delivered agent message as `handoff.txt`, not the model's reasoning. Review the transcript for private data before sharing. The handoff is evidence of what Codex said, not what a human understood.
+
+Exit status `0` means Codex finished and Journeys First saved a run. It does not mean the journey passed. Read the printed run result or use `npx journeysfirst merge-check` when a journey result must stop a merge.
 
 ### Record a terminal command or MCP exchange
 

@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { accessSync, closeSync, constants, copyFileSync, cpSync, fstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { accessSync, closeSync, constants, copyFileSync, cpSync, fstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -157,6 +157,12 @@ function profile({ work, home, auth, container, hostHome }) {
     for (const dir of [dirname(process.execPath), codexDirectory()]) {
       if (dir && relative(hostHome, dir).startsWith(".." + "/")) paths[dir] = "read";
     }
+    try {
+      const resolver = realpathSync("/etc/resolv.conf");
+      if (resolver.startsWith("/run/") && relative(hostHome, resolver).startsWith("../") && statSync(resolver).isFile()) {
+        paths[resolver] = "read";
+      }
+    } catch {}
     paths[hostHome] = "deny";
   } else if (!container) {
     for (const name of [".aws", ".codex", ".config", ".convex", ".docker", ".gitconfig", ".kube", ".netrc", ".npmrc", ".ssh"]) {
