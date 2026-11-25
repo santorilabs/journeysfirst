@@ -19,6 +19,9 @@ const OMIT = new Set([".git", ".codex", ".convex", ".env", ".env.local", ".npmrc
 export async function runCodex({ journey, caseId, project, mcp, container, timeoutMs = 180000, agentArgs }) {
   const selected = pickArgs(agentArgs);
   const run = RunRecorder.start({ journey, case: caseId, ranBy: { agent: "codex" }, playedBy: { you: "Codex" } });
+  if (run.plan.everyone.some((user) => user !== "you")) {
+    throw new Error("The Codex launcher only plays the 'you' seat. Use the recorder directly for journeys with more than one user.");
+  }
   const key = process.env.OPENAI_API_KEY;
   if (key) run.value("OPENAI_API_KEY", key, { secret: true });
   const base = realpathSync(mkdtempSync(join(tmpdir(), "journeysfirst-codex-")));

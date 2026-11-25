@@ -188,7 +188,8 @@ function codexFixture(mode) {
   mkdirSync(bin);
   mkdirSync(project);
   writeFileSync(join(bin, "codex"), fakeCodex, { mode: 0o700 });
-  writeFileSync(join(root, "share-by-link.journey.yaml"), JOURNEY + "\nnotes: private setup hint\n");
+  const journey = mode === "multi-seat" ? JOURNEY : JOURNEY.replace("users: [viewer]\n", "");
+  writeFileSync(join(root, "share-by-link.journey.yaml"), journey + "\nnotes: private setup hint\n");
   writeFileSync(join(project, ".env.local"), "Private product login");
   if (mode) writeFileSync(join(project, mode + ".txt"), "");
   writeFileSync(join(root, "mcp.json"), '{"demo":["node","server.js"]}');
@@ -196,6 +197,7 @@ function codexFixture(mode) {
   const env = { ...process.env, PATH: bin + ":" + process.env.PATH, OPENAI_API_KEY: "synthetic-fixture-key" };
   const result = spawnSync(process.execPath, args, { cwd: root, env, encoding: "utf8", timeout: 10000 });
   const runs = join(root, "journey-runs", "share-by-link");
+  if (!existsSync(runs)) return { result };
   const folder = join(runs, readdirSync(runs)[0]);
   return { result, folder, run: JSON.parse(readFileSync(join(folder, "run.json"), "utf8")) };
 }
@@ -246,4 +248,11 @@ test("a nonzero agent exit cannot seal a passed run even with every line submitt
   assert.equal(run.steps.at(-1).verdict, "not_checked");
   assert.equal(run.steps.at(-1).cause, "environment");
   assert.equal(run.steps.at(-1).evidence[0].got, "Sharing is on");
+});
+
+test("the single-seat Codex launcher refuses a journey that names another seat", () => {
+  const { result, run } = codexFixture("multi-seat");
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /only plays the 'you' seat/);
+  assert.equal(run, undefined);
 });
