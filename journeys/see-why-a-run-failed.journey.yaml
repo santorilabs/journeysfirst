@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/santorilabs/journeysfirst/main/spec/journey-v1.schema.json
+format: journeysfirst/v1
+title: See why a run failed
+promise: |
+  When a journey run fails, I want to see what the app told each user at the line that failed.
+  I do not want to open a trace to find out.
+users: [agent]
+start: The project has a journey where a viewer opens a doc. The app refuses the viewer, so the run will fail.
+steps:
+  - The agent runs the journey.
+  - check: The agent sees the run fail at the line where the viewer looks at the doc.
+    id: run-fails-at-the-line
+  - check: The agent reads that the app refused the viewer at that line.
+    id: agent-sees-the-refusal
+  - You open the run.
+  - check: You see what the app told the viewer, under the line that failed.
+    id: you-see-what-the-app-said
+notes: The app answers the viewer's request for the doc with 403. The agent reads the run folder. You read the run's review page.

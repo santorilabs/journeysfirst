@@ -22,6 +22,10 @@ import { RUN_PLAYER_CSS, RUN_PLAYER_SCRIPT, runPlayerHtml } from "./run-player.j
  * @typedef {Partial<import("../format/runfile.js").ActionStep & import("../format/runfile.js").CheckStep>} StepFields an action or a check, field by field
  * @typedef {Run & {journey: {title?: string}, promise?: string, legacy?: boolean, problems?: string[]}} ShownRun a run as the page shows it
  * @typedef {{journey: string, id: string, run: ShownRun}} RunEntry
+ * @typedef {{line: number, summary: string, users: Array<{user: string, outline: string|null,
+ *   requests: Array<{line: number|null, method: string, path: string, status: number}>,
+ *   errors: Array<{line: number|null, text: string}>, more?: {requests?: number, errors?: number}}>}} AppReport
+ *   failure.json, written by the runner when a run fails (see src/runner/reported.js)
  */
 
 /**
@@ -208,9 +212,11 @@ function runPage(run, journey, id, folder) {
   const fileUrl = (name) => `/files/${esc(journey)}/${esc(id)}/${esc(name)}`;
   const media = (run.media ?? []).filter((m) => m.kind === "video" && typeof m.tags?.user === "string");
   const videos = media.map((v) => ({ user: String(v.tags?.user), src: fileUrl(v.file), captions: `/captions/${esc(journey)}/${esc(id)}/${esc(v.file)}.vtt` }));
+  const report = appReport(run, folder);
   const steps = run.steps.map((/** @type {StepFields} */ step, i) => {
     const at = videoAt(step, media);
-    return { n: i + 1, text: String(step.check ?? step.says ?? ""), isCheck: isCheck(step), state: stepState(step), by: step.by || undefined, at: at?.seconds, card: stepCard(step, i + 1, fileUrl, Boolean(at)) };
+    const card = stepCard(step, i + 1, fileUrl, Boolean(at)) + (report?.line === i + 1 ? reportedSection(report) : "");
+    return { n: i + 1, text: String(step.check ?? step.says ?? ""), isCheck: isCheck(step), state: stepState(step), by: step.by || undefined, at: at?.seconds, card };
   });
   // The first check that did not pass, else the last step.
   const openAt = steps.find((s) => s.isCheck && s.state !== "passed")?.n ?? steps.length;
@@ -258,6 +264,42 @@ function stepCard(step, n, fileUrl, inVideo) {
     ${step.proof ? `<p>${esc(step.proof)}</p>` : ""}
     ${evidenceList(step.evidence ?? [])}
     ${shots ? (inVideo ? `<details><summary>Screenshot</summary>${shots}</details>` : shots) : inVideo ? "" : '<p class="empty">No screenshot.</p>'}`;
+}
+
+/**
+ * What the app reported at a failed run's first failed line, when the run has
+ * a failure.json. Null when it has none or the file can't be read.
+ * @param {ShownRun} run
+ * @param {string} folder
+ * @returns {AppReport | null}
+ */
+function appReport(run, folder) {
+  if (!(run.media ?? []).some((m) => m.kind === "capture" && m.file === "failure.json")) return null;
+  try {
+    const report = JSON.parse(readFileSync(join(folder, "failure.json"), "utf8"));
+    return Number.isInteger(report?.line) && Array.isArray(report.users) ? report : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The "What the app reported" block under the failed step: one sentence, then
+ * each user's failed requests, console errors, and a folded screen outline.
+ * @param {AppReport} report
+ */
+function reportedSection(report) {
+  const at = (/** @type {number|null} */ line) => (line === null ? "setup" : `line ${line}`);
+  const users = report.users.map((u) => {
+    const requests = u.requests.map((r) => `<li>${esc(at(r.line))}: <b>${esc(r.status)}</b> ${esc(r.method)} <code>${esc(r.path)}</code></li>`);
+    const errors = u.errors.map((e) => `<li>${esc(at(e.line))}: ${esc(e.text)}</li>`);
+    if (u.more?.requests) requests.push(`<li class="how">and ${esc(u.more.requests)} earlier failed requests</li>`);
+    if (u.more?.errors) errors.push(`<li class="how">and ${esc(u.more.errors)} earlier console errors</li>`);
+    const nothing = !u.requests.length && !u.errors.length ? '<p class="empty">No failed requests or console errors.</p>' : "";
+    const outline = u.outline === null ? '<p class="empty">The screen outline was not captured.</p>' : `<details><summary>What ${esc(u.user)} saw on screen</summary><pre>${esc(u.outline)}</pre></details>`;
+    return `<div class="reported-user"><p><b>${esc(u.user)}</b></p>${nothing}${requests.length ? `<p class="how">Failed requests</p><ul class="evidence">${requests.join("")}</ul>` : ""}${errors.length ? `<p class="how">Console errors</p><ul class="evidence">${errors.join("")}</ul>` : ""}${outline}</div>`;
+  });
+  return `<section class="reported"><p class="how">What the app reported</p><p>${esc(report.summary)}</p>${users.join("")}</section>`;
 }
 
 /**
@@ -414,6 +456,7 @@ pre{background:var(--tint);border-radius:8px;padding:8px 10px;font-size:12px;ove
 .start{border-top:1px solid var(--rule);padding:8px 0}.start ul{margin:4px 0;padding-left:20px}
 .found{font-weight:400}.pass{font-size:15px;margin:12px 0 0}
 .start .findings{list-style:none;padding:0;margin:4px 0 8px}.findings li{padding:10px 0;border-top:1px solid var(--rule)}.findings li:first-child{border-top:0}
+.reported{border-top:1px solid var(--rule);margin-top:12px;padding-top:4px}.reported-user{padding:4px 0}.reported-user p{margin:4px 0}.reported code{font-size:13px;word-break:break-all}
 .findings p{margin:2px 0}.findings .says{font-weight:600}.findings a{color:var(--muted)}
 </style></head><body><main>${body}</main></body></html>`;
 }

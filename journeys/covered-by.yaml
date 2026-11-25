@@ -26,3 +26,8 @@ run-the-journeys-a-change-covers:
   - packages/core/src/format/affected.js
   - packages/core/bin/journeysfirst.js
   - journeys/covered-by.yaml
+
+see-why-a-run-failed:
+  - packages/core/src/runner/**
+  - packages/core/src/review/review.js
+  - skills/journey-fix/**
