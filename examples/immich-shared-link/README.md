@@ -31,8 +31,6 @@ The viewer's page on the breaking commit shows the photo and no details. This is
 
 ## The journey
 
-An agent that knew the bug and the fix wrote this journey, from the side of the user the bug hurt. The example shows that such a journey catches the break on replay. It does not show that an agent found the bug unprompted.
-
 [`journeys/share-album-hide-details.journey.yaml`](journeys/share-album-hide-details.journey.yaml). The viewer is one user who comes in two ways: a browser and an app that reads the album through the API. The script does not aim at one endpoint. With only the link, the app reads the album every way the API offers, then looks for the hidden details in every response.
 
 | Check | Break `655cd01` | Fix `9982bee` |

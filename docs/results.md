@@ -39,5 +39,3 @@
   | After the page went to trash | After the fix |
   |---|---|
   | ![The public link still shows the page](../examples/docmost-trash/screenshots/break-viewer.png) | ![The public link shows "404 page not found"](../examples/docmost-trash/screenshots/fix-viewer.png) |
-
-**Limits.** We wrote each journey after we knew the bug.
