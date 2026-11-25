@@ -9,7 +9,7 @@ import { DEFAULT_PAUSE, JourneyRun, NO_PROOF, THREW } from "../src/runner/playwr
 import { validateRun } from "../src/format/runfile.js";
 import { CAPTION_CSS, adoptCaptionStyles } from "../src/runner/captions.js";
 import { WATCH_BINDING, watchPage } from "../src/runner/measure.js";
-import { JOURNEY } from "./helpers.js";
+import { JOURNEY, ON, VIEWER_SAW } from "./helpers.js";
 
 // A page's screencast as Playwright 1.59+ has it. Each call goes into log, in order.
 function fakeScreencast(log) {
@@ -38,6 +38,9 @@ function fakeBrowser({ screencast = true } = {}) {
       context.addInitScript = async (script, arg) => context.initScripts.push([script, arg]);
       context.exposeBinding = async (name, fn) => (context.report = (event) => fn({}, event));
       context.route = async (pattern, handler) => (context.routed = [pattern, handler]);
+      context.listeners = {};
+      context.on = (event, fn) => (context.listeners[event] ??= []).push(fn);
+      context.emit = (event, value) => (context.listeners[event] ?? []).forEach((fn) => fn(value));
       context.sizes = [];
       context.log = [];
       context.newPage = async () => ({
@@ -46,6 +49,8 @@ function fakeBrowser({ screencast = true } = {}) {
         goto: async (url) => (context.visited = url),
         url: () => (context.visited ? new URL(context.visited, "http://localhost:4321").href : "about:blank"),
         video: () => null,
+        isClosed: () => context.closed,
+        locator: () => ({ ariaSnapshot: async () => context.outline ?? "- main" }),
         evaluate: async () => ({ width: context.sizes.at(-1)?.width ?? 1280, controls: [{ name: 'button "Share"', height: 40 }], said: context.onScreen }),
         viewportSize: () => ({ width: 1280, height: 800 }),
         setViewportSize: async (size) => context.sizes.push(size),
@@ -500,3 +505,49 @@ test("finish gives the reporter the secret values, and the run file does not con
   assert.deepEqual(JSON.parse(bodies.get("journeysfirst-secrets").toString()), ["481516-secret"]);
   assert.doesNotMatch(bodies.get("journeysfirst-run").toString(), /481516-secret/);
 });
+
+test("a failed check writes what the app reported since the last check, for every user, and a passing run writes none", async () => {
+  const { browser, run } = journeyRun();
+  await run.page("you");
+  await run.step(1, { by: "you" }, async () => {
+    browser.contexts[0].emit("response", fakeResponse(500, "POST", "http://localhost:4321/api/share?x=1"));
+  });
+  await run.check("link-on", { by: "you" }, async () => ({ passed: true, proof: "Read the setting.", evidence: [ON] }));
+  // Reported after the check, before the next line: still part of the passed check, so dropped.
+  browser.contexts[0].emit("response", fakeResponse(502, "GET", "http://localhost:4321/api/after-check"));
+  await run.page("viewer");
+  await run.step(3, { by: "viewer" }, async () => {
+    browser.contexts[1].emit("response", fakeResponse(403, "GET", "http://localhost:4321/api/view/q3-plan"));
+    browser.contexts[1].emit("console", { type: () => "error", text: () => "Failed to load resource: 403" });
+    browser.contexts[1].emit("console", { type: () => "log", text: () => "not an error" });
+  });
+  browser.contexts[1].outline = "- heading \"You don't have access\" [level=1]";
+  await run.check("viewer-sees-it", { by: "viewer" }, async () => ({ passed: false, proof: "Read the heading.", evidence: [VIEWER_SAW] }));
+  await run.finish();
+  const { files, run: written } = run.recorder.result();
+  const report = JSON.parse(String(files.get("failure.json")));
+  assert.equal(report.line, 4);
+  assert.equal(report.since, 3, "the passed check at line 2 starts the window over");
+  assert.equal(report.summary, "The viewer got a 403 from GET /api/view/q3-plan at line 3.");
+  assert.deepEqual(report.users.map((u) => u.user), ["viewer", "you"]);
+  assert.deepEqual(report.users[0].requests, [{ line: 3, method: "GET", path: "/api/view/q3-plan", status: 403 }]);
+  assert.deepEqual(report.users[0].errors, [{ line: 3, text: "Failed to load resource: 403" }]);
+  assert.deepEqual(report.users[1].requests, [], "your 500 at line 1 and the 502 right after the check came before the window");
+  assert.equal(report.users[0].outline, "- heading \"You don't have access\" [level=1]");
+  assert.match(String(files.get("failure.md")), /^# What the app reported at line 4\n/);
+  assert.deepEqual(written.media.filter((m) => m.kind === "capture").map((m) => m.file), ["measure-1.txt", "measure-2.txt", "measure-3.txt", "measure-4.txt", "failure.json", "failure.md"]);
+
+  const passing = journeyRun();
+  await passing.run.page("you");
+  await passing.run.step(1, { by: "you" }, async () => {
+    passing.browser.contexts[0].emit("response", fakeResponse(404, "GET", "http://localhost:4321/favicon.ico"));
+  });
+  await passing.run.check("link-on", { by: "you" }, async () => ({ passed: true, proof: "Read the setting.", evidence: [ON] }));
+  await passing.run.finish();
+  assert.equal(passing.run.recorder.result().files.has("failure.md"), false);
+});
+
+/** @param {number} status @param {string} method @param {string} url */
+function fakeResponse(status, method, url) {
+  return { status: () => status, request: () => ({ method: () => method, url: () => url, frame: () => ({ url: () => "http://localhost:4321/" }) }) };
+}

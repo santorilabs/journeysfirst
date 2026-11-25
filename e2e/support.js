@@ -1,4 +1,4 @@
-// Shared pieces for the four self-journey replays. No model calls.
+// Shared pieces for the self-journey replays. No model calls.
 import { spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

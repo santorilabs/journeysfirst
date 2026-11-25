@@ -2,13 +2,14 @@
 // Each user gets their own browser context (their own login), with video.
 // It records through RunRecorder, so a Playwright run and an agent's own run
 // write the same run file. The reporter writes it to disk.
-import { compileFunction } from "node:vm";
 import { test as base } from "@playwright/test";
 import { CAPTION_CSS, CHECK_PAUSES, actionsFor, adoptCaptionStyles, canCaption, captionHtml, captionSettings, cleanScreenshot, fillValues, replaceCaption, shortCaption, userLabel } from "./captions.js";
 import { loadJourney } from "../format/format.js";
 import { delayData, measureScreen, slowReport, watchActions } from "./measure.js";
 import { MASK, applyMask, restoreMask } from "./mask.js";
+import { atCaller } from "./caller.js";
 import { RunRecorder } from "./recorder.js";
+import { captureUsers, failureMarkdown, failureReport, watchApp } from "./reported.js";
 import { isFullUrl, settleCheck } from "../format/runfile.js";
 import { missingTarget } from "../shared/target.js";
 
@@ -30,7 +31,8 @@ export const DEFAULT_PAUSE = 500;
  *   like "the new project is not in Your projects." It shows as "Failed: the new project is not in Your projects."
  * @typedef {import("@playwright/test").BrowserContextOptions} BrowserContextOptions
  * @typedef {{context: import("@playwright/test").BrowserContext, page: import("@playwright/test").Page, startsAt: number,
- *   captioned: boolean, caption: {dispose: () => Promise<void>} | null, actions: import("./measure.js").Watch | null}} UserPage
+ *   captioned: boolean, caption: {dispose: () => Promise<void>} | null, actions: import("./measure.js").Watch | null,
+ *   app: import("./reported.js").AppWatch}} UserPage
  * @typedef {boolean | "wide"} MeasureOption true: measure each user's screen after every line, at the run's width and at 375 px.
  *   "wide": never resize the page. false: do not measure.
  */
@@ -70,8 +72,13 @@ export class JourneyRun {
     /** The caption on every page now. A page opened later shows it too. @type {import("./captions.js").Caption | null} */
     this.caption = null;
     /** The line in progress, so a run cut short by a timeout still says where it stopped. */
-    /** @type {{line: number|string, by: string} | null} */
+    /** @type {{line: number|string, n: number, says: string, by: string} | null} */
     this.current = null;
+    /** The last line started, and the first line after the last check. A failure report covers from there. */
+    this.lastLine = /** @type {number|null} */ (null);
+    this.sinceLine = 1;
+    /** What the app reported at the first failed line, written when the run finishes. @type {import("./reported.js").Captured | null} */
+    this.failure = null;
     /** @type {Promise<import("../format/runfile.js").Run> | null} */
     this.finished = null;
   }
@@ -109,6 +116,7 @@ export class JourneyRun {
       // The bar's styles, on every document this user opens. See captions.js.
       if (this.captions) await context.addInitScript(adoptCaptionStyles, CAPTION_CSS);
       const actions = this.measure || this.delay ? await watchActions(context) : null;
+      const app = watchApp(context, () => this.current?.n ?? this.lastLine);
       if (this.delay) await delayData(context, this.delay);
       // The video starts while the page opens, not when newPage returns. On a
       // slow machine that takes over a second, so read the time first: steps
@@ -116,7 +124,7 @@ export class JourneyRun {
       const startsAt = this.recorder.elapsed();
       const page = await context.newPage();
       /** @type {UserPage} */
-      const opened = { context, page, startsAt, captioned: Boolean(this.captions) && canCaption(page), caption: null, actions };
+      const opened = { context, page, startsAt, captioned: Boolean(this.captions) && canCaption(page), caption: null, actions, app };
       if (opened.captioned && this.captions) await page.screencast.showActions(actionsFor(this.captions.position));
       if (login) await login(context, page);
       this.pages.set(user, opened);
@@ -169,7 +177,8 @@ export class JourneyRun {
     this.recorder.knows(by);
     this.#forgetActions();
     const at = this.recorder.elapsed();
-    this.current = { line: plan.n, by };
+    this.current = { line: plan.n, n: plan.n, says: plan.says, by };
+    this.lastLine = plan.n;
     await this.#narrate(caption ? { by, text: shortCaption(caption) } : { by, lead: userLabel(by), text: shortCaption(fillValues(plan.says, this.recorder.values)) });
     /** @type {import("./measure.js").ActionTime[]} */
     let actions = [];
@@ -194,7 +203,10 @@ export class JourneyRun {
       } finally {
         this.current = null;
       }
-      if (failure) throw failure;
+      if (failure) {
+        await this.#failed(plan.n, plan.says, by);
+        throw failure;
+      }
       await wait(this.pause);
     });
     await this.#measure(plan.n, by, actions);
@@ -216,7 +228,8 @@ export class JourneyRun {
     this.recorder.knows(by);
     this.#forgetActions();
     const at = this.recorder.elapsed();
-    this.current = { line: id, by };
+    this.current = { line: id, n: plan.n, says: plan.check, by };
+    this.lastLine = plan.n;
     await this.#narrate(caption ? { by, text: shortCaption(caption) } : { by, lead: "Checking", text: shortCaption(fillValues(plan.check, this.recorder.values)) });
     /** @type {import("./measure.js").ActionTime[]} */
     let actions = [];
@@ -249,6 +262,8 @@ export class JourneyRun {
       }
       // The verdict as the run will say it: a pass without its proof shows as not checked, with why.
       const settled = settleCheck(/** @type {import("../format/runfile.js").CheckStep} */ (this.recorder.recorded.get(plan.n)));
+      if (settled.verdict === "failed" || settled.verdict === "blocked") await this.#failed(plan.n, plan.check, by);
+      this.sinceLine = plan.n + 1;
       const why = settled.verdict === verdict && result.caption ? result.caption : ((settled.verdict === "passed" ? settled.proof : settled.reason) ?? plan.check);
       await this.#narrate({ by, verdict: settled.verdict, text: shortCaption(lowerFirst(why)) });
       await wait(this.pause * CHECK_PAUSES);
@@ -266,9 +281,24 @@ export class JourneyRun {
     return (await this.pages.get(user)?.actions?.take()) ?? [];
   }
 
+  /**
+   * Keep what the app reported to each user at the first line that failed.
+   * @param {number} line
+   * @param {string} says
+   * @param {string} by
+   */
+  async #failed(line, says, by) {
+    this.failure ??= { line, says, by, since: Math.min(this.sinceLine, line), users: await captureUsers(this.pages, this.recorder.secretValues()) };
+  }
+
   /** Drop what the pages reported before this line: setup, and what another user's line caused. */
   #forgetActions() {
-    for (const opened of this.pages.values()) opened.actions?.forget();
+    // After a check, what the app reported starts over when the next line does.
+    const afterCheck = this.lastLine !== null && this.sinceLine > this.lastLine;
+    for (const opened of this.pages.values()) {
+      opened.actions?.forget();
+      if (afterCheck) opened.app.clear();
+    }
   }
 
   /**
@@ -329,8 +359,9 @@ export class JourneyRun {
 
   async #finish() {
     if (this.current) {
-      const { line, by } = this.current;
+      const { line, n, says, by } = this.current;
       this.recorder.blocked(line, { by, cause: "test", reason: "The test stopped during this line: it timed out or was cancelled." });
+      await this.#failed(n, says, by);
     }
     for (const [user, { context, page, startsAt }] of this.pages) {
       const video = page.video();
@@ -343,6 +374,12 @@ export class JourneyRun {
     }
     for (const { line, user, ...measured } of this.measured) {
       this.recorder.attach({ name: `measure-${line}.txt`, body: this.recorder.redact(JSON.stringify(measured)), kind: "capture", tags: { user } });
+    }
+    if (this.failure) {
+      // Redacted now, so a secret set after the failure is still kept out.
+      const report = failureReport({ ...this.failure, redact: (text) => this.recorder.redact(text) });
+      this.recorder.attach({ name: "failure.json", body: JSON.stringify(report), kind: "capture", tags: { line: report.line } });
+      this.recorder.attach({ name: "failure.md", body: failureMarkdown(report), kind: "capture", tags: { line: report.line } });
     }
     const { run, files } = this.recorder.result();
     const secrets = this.recorder.secretValues();
@@ -457,7 +494,7 @@ function declareJourney(file, options, body) {
   if (typeof options === "function") [options, body] = [{}, options];
   const journey = loadJourney(file);
   const caseName = options.case ? journey.cases?.find((c) => c.id === options.case)?.name : null;
-  atCaller(journeyTest)(caseName ? `${journey.title}: ${caseName}` : journey.title, async ({ browser, request, _journeyRun, journeyCaptions, journeyVideo }, testInfo) => {
+  atCaller(journeyTest, declareJourney)(caseName ? `${journey.title}: ${caseName}` : journey.title, async ({ browser, request, _journeyRun, journeyCaptions, journeyVideo }, testInfo) => {
     const problem = missingTarget({ baseURL: testInfo.project.use?.baseURL, webServer: testInfo.config?.webServer });
     if (problem) throw new Error(problem);
     const captions = captionSettings(options.captions, journeyCaptions) ?? false;
@@ -471,43 +508,6 @@ function declareJourney(file, options, body) {
       throw new Error(`The journey run is ${written.result.replaceAll("_", " ")}:\n- ${/** @type {string[]} */ (written.not_verified).join("\n- ")}`);
     }
   });
-}
-
-/**
- * fn, called from code that sits at the place test.journey was called from.
- * Playwright names a test by the file and line its test() was called from,
- * read from the stack. Called from here, every journey test would be listed
- * at this file. A function compiled with the caller's file name and position
- * makes Playwright list the user's spec file and line instead. Playwright maps
- * that position through the spec's source map, as it does for its own calls.
- * @template {(...args: any[]) => any} F
- * @param {F} fn
- * @returns {F}
- */
-function atCaller(fn) {
-  const where = callerFrame();
-  if (!where) return fn;
-  const call = compileFunction("fn(...args)", ["fn", "args"], { filename: where.file, lineOffset: where.line - 1, columnOffset: where.column - 1 });
-  return /** @type {F} */ ((...args) => call(fn, args));
-}
-
-/** The file, line and column of the code that called test.journey, unmapped. */
-function callerFrame() {
-  const prepare = Error.prepareStackTrace;
-  const limit = Error.stackTraceLimit;
-  /** @type {{stack?: any}} */
-  const holder = {};
-  try {
-    Error.stackTraceLimit = 1;
-    Error.prepareStackTrace = (_, frames) => frames[0];
-    Error.captureStackTrace(holder, declareJourney);
-    const frame = holder.stack;
-    const file = frame?.getFileName();
-    return file ? { file, line: frame.getLineNumber() ?? 1, column: frame.getColumnNumber() ?? 1 } : null;
-  } finally {
-    Error.prepareStackTrace = prepare;
-    Error.stackTraceLimit = limit;
-  }
 }
 
 /** Playwright's test, plus test.journey. */

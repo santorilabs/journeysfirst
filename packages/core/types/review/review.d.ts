@@ -17,6 +17,28 @@ export type RunEntry = {
     id: string;
     run: ShownRun;
 };
+export type AppReport = {
+    line: number;
+    summary: string;
+    users: Array<{
+        user: string;
+        outline: string | null;
+        requests: Array<{
+            line: number | null;
+            method: string;
+            path: string;
+            status: number;
+        }>;
+        errors: Array<{
+            line: number | null;
+            text: string;
+        }>;
+        more?: {
+            requests?: number;
+            errors?: number;
+        };
+    }>;
+};
 /**
  * @typedef {import("node:http").IncomingMessage} Request
  * @typedef {import("node:http").ServerResponse} Response
@@ -26,6 +48,10 @@ export type RunEntry = {
  * @typedef {Partial<import("../format/runfile.js").ActionStep & import("../format/runfile.js").CheckStep>} StepFields an action or a check, field by field
  * @typedef {Run & {journey: {title?: string}, promise?: string, legacy?: boolean, problems?: string[]}} ShownRun a run as the page shows it
  * @typedef {{journey: string, id: string, run: ShownRun}} RunEntry
+ * @typedef {{line: number, summary: string, users: Array<{user: string, outline: string|null,
+ *   requests: Array<{line: number|null, method: string, path: string, status: number}>,
+ *   errors: Array<{line: number|null, text: string}>, more?: {requests?: number, errors?: number}}>}} AppReport
+ *   failure.json, written by the runner when a run fails (see src/runner/reported.js)
  */
 /**
  * Listens on 127.0.0.1 unless you pass another host, so the runs stay on this machine.

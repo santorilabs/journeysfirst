@@ -527,3 +527,36 @@ test("the reporter redacts a trace and does not leave the secret list on disk", 
   assert.equal(existsSync(secrets), false, "the secret list is removed from the test output");
   assert.ok(!readdirSync(join(dir, "share-by-link", "2026-11-17-1300-mask")).includes("secrets.json"));
 });
+
+test("a failed run's page shows what the app reported under the failed step, for each user", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "jf-review-"));
+  const failing = recordAllPassed(recorder({ outputDir: dir, id: "2026-11-08-1802-report00" }));
+  failing.check("viewer-blocked", { by: "viewer", verdict: "failed", proof: "Opened the link again.", evidence: [VIEWER_SAW], reason: "The link still works after sharing was turned off." });
+  const report = {
+    line: 7,
+    says: "The viewer can no longer see \"Q3 plan\".",
+    by: "viewer",
+    since: 5,
+    summary: "The viewer got a 403 from GET /api/view/q3-plan at line 6.",
+    users: [
+      { user: "viewer", requests: [{ line: 6, method: "GET", path: "/api/view/q3-plan", status: 403 }], errors: [{ line: 6, text: "<b>Failed</b> to load" }], outline: "- heading \"Q3 plan\" [level=1]" },
+      { user: "you", requests: [], errors: [], outline: null },
+    ],
+  };
+  failing.attach({ name: "failure.json", body: JSON.stringify(report), kind: "capture", tags: { line: 7 } });
+  failing.finish();
+  const server = serveReview({ dir, port: 0 });
+  await new Promise((resolve) => server.once("listening", resolve));
+  try {
+    const page = await (await fetch(`http://127.0.0.1:${server.address().port}/runs/share-by-link/2026-11-08-1802-report00`)).text();
+    const block = page.match(/<section class="reported">[\s\S]*?<\/section>/)?.[0] ?? "";
+    assert.match(block, /What the app reported<\/p><p>The viewer got a 403 from GET \/api\/view\/q3-plan at line 6\.<\/p>/);
+    assert.match(block, /<b>viewer<\/b>[\s\S]*line 6: <b>403<\/b> GET <code>\/api\/view\/q3-plan<\/code>/);
+    assert.match(block, /line 6: &lt;b&gt;Failed&lt;\/b&gt; to load/, "a console error is printed as text");
+    assert.match(block, /<summary>What viewer saw on screen<\/summary><pre>- heading &quot;Q3 plan&quot; \[level=1\]<\/pre>/);
+    assert.match(block, /<b>you<\/b><\/p><p class="empty">No failed requests or console errors\.<\/p><p class="empty">The screen outline was not captured\.<\/p>/);
+    assert.equal(page.match(/class="reported"/g)?.length, 1, "only the failed step has the block");
+  } finally {
+    server.close();
+  }
+});

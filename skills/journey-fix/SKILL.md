@@ -15,7 +15,7 @@ A fix moves the product toward its "What good means" lines, never away. It uses 
 
 ## A failed run
 
-1. **Read the run.** `not_verified`, then each failed step's `reason`, `proof`, evidence and screenshots. Open the user's video at that step's time.
+1. **Read the run.** `failure.md` first, if the run has one: what the app reported to each user at the first failed line. Then `not_verified`, then each failed step's `reason`, `proof`, evidence and screenshots. Open the user's video at that step's time.
 2. **Open the trace,** if the run kept one: `npx playwright show-trace <run folder>/trace.zip`. It can hold tokens and personal data, so never paste it into a PR or a chat.
 3. **Find the earliest step where the state was already wrong.** Walk back from the failure. Name that step, with the evidence that shows it.
 4. **Drive that step live** on a safe environment (see `journey-run`), as the user the line starts with, in their own login.

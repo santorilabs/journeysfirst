@@ -15,6 +15,8 @@ journey-runs/share-by-link/2026-11-08-1802-7d2e91fa/
   you.webm
   viewer.webm
   trace.zip      (only when the run did not pass)
+  failure.md     (only when the run did not pass: what the app reported to each user at the first failed line)
+  failure.json   (the same report, for the review page)
 ```
 
 `run.json` points to the other files by name. Publishing sends the whole folder except a trace, and anyone who can open the run sees every screenshot and the whole video. Keep anything secret off the screen while the run records: use test accounts and test values.

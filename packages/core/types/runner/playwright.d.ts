@@ -27,6 +27,7 @@ export type UserPage = {
         dispose: () => Promise<void>;
     } | null;
     actions: import("./measure.js").Watch | null;
+    app: import("./reported.js").AppWatch;
 };
 export type MeasureOption = boolean | "wide";
 /**
@@ -36,7 +37,8 @@ export type MeasureOption = boolean | "wide";
  *   like "the new project is not in Your projects." It shows as "Failed: the new project is not in Your projects."
  * @typedef {import("@playwright/test").BrowserContextOptions} BrowserContextOptions
  * @typedef {{context: import("@playwright/test").BrowserContext, page: import("@playwright/test").Page, startsAt: number,
- *   captioned: boolean, caption: {dispose: () => Promise<void>} | null, actions: import("./measure.js").Watch | null}} UserPage
+ *   captioned: boolean, caption: {dispose: () => Promise<void>} | null, actions: import("./measure.js").Watch | null,
+ *   app: import("./reported.js").AppWatch}} UserPage
  * @typedef {boolean | "wide"} MeasureOption true: measure each user's screen after every line, at the run's width and at 375 px.
  *   "wide": never resize the page. false: do not measure.
  */
@@ -68,11 +70,18 @@ export declare class JourneyRun {
     /** The caption on every page now. A page opened later shows it too. @type {import("./captions.js").Caption | null} */
     caption: import("./captions.js").Caption | null;
     /** The line in progress, so a run cut short by a timeout still says where it stopped. */
-    /** @type {{line: number|string, by: string} | null} */
+    /** @type {{line: number|string, n: number, says: string, by: string} | null} */
     current: {
         line: number | string;
+        n: number;
+        says: string;
         by: string;
     } | null;
+    /** The last line started, and the first line after the last check. A failure report covers from there. */
+    lastLine: number | null;
+    sinceLine: number;
+    /** What the app reported at the first failed line, written when the run finishes. @type {import("./reported.js").Captured | null} */
+    failure: import("./reported.js").Captured | null;
     /** @type {Promise<import("../format/runfile.js").Run> | null} */
     finished: Promise<import("../format/runfile.js").Run> | null;
     /**
