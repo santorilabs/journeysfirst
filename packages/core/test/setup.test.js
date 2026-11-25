@@ -228,7 +228,7 @@ test("upgrade writes through linked skill folders, the layout npx skills add mak
     assert.equal(read(dir, `.agents/skills/${name}/SKILL.md`), skill(name));
   }
   assert.ok(changes.some((c) => c.startsWith("updated .claude/skills/journey-onboard")), changes.join("\n"));
-  assert.ok(changes.includes("added AGENTS.md"), changes.join("\n"));
+  assert.ok(!existsSync(join(dir, "AGENTS.md")));
 });
 
 test("upgrade on a repo that only has .agents/skills also fills .claude/skills", () => {
@@ -240,7 +240,7 @@ test("upgrade on a repo that only has .agents/skills also fills .claude/skills",
   assert.equal(read(dir, ".claude/skills/journey-write/SKILL.md"), skill("journey-write"));
   assert.ok(changes.includes("added .agents/skills/journey-onboard"), changes.join("\n"));
   assert.ok(changes.includes("added .claude/skills/journey-onboard"), changes.join("\n"));
-  assert.match(read(dir, "AGENTS.md"), /\.claude\/skills\/journey-run\/SKILL\.md/);
+  assert.ok(!existsSync(join(dir, "AGENTS.md")));
   assert.match(read(dir, UPGRADE_WORKFLOW), /\$run journeysfirst upgrade \|/);
   assert.doesNotMatch(read(dir, UPGRADE_WORKFLOW), /--skills/);
   assert.match(nextSteps("upgrade", { root: dir }).join("\n"), /\.claude\/skills\/journey-onboard\/SKILL\.md/);
@@ -333,50 +333,49 @@ test("the CLI runs init and upgrade in the current folder, takes --skills, and p
   assert.match(flagged.stdout, /node demo\/serve\.mjs|example page in demo/);
 });
 
-test("init adds the Journeys section to AGENTS.md, and never makes a CLAUDE.md", () => {
+test("init shows the section but does not write agent instructions until approved", () => {
   const dir = repo();
   writeFileSync(join(dir, "AGENTS.md"), "# Working here\n");
-  const changes = init({ root: dir });
-  assert.equal(read(dir, "AGENTS.md"), `# Working here\n\n${journeysSection(".claude/skills")}`);
+  const args = ["init", "--terminal", "--skills", ".agents/skills"];
+  const proposed = cli(args, dir);
+  assert.equal(proposed.status, 0, proposed.stderr);
+  assert.match(proposed.stdout, /Proposed addition to AGENTS.md \(not written\)/);
+  assert.match(proposed.stdout, /write or update its journey/);
+  assert.match(proposed.stdout, /npx journeysfirst run journeys\/<name>\.journey\.yaml/);
+  assert.equal(read(dir, "AGENTS.md"), "# Working here\n");
+  const approved = cli(["init", "--agent-instructions", "--skills", ".agents/skills"], dir);
+  assert.equal(approved.status, 0, approved.stderr);
+  assert.equal(read(dir, "AGENTS.md"), `# Working here\n\n${journeysSection(".agents/skills")}`);
   assert.ok(!existsSync(join(dir, "CLAUDE.md")));
-  assert.ok(changes.includes("added the Journeys section to AGENTS.md"), changes.join("\n"));
-  assert.match(read(dir, "AGENTS.md"), /run the journeys it touches/);
-  assert.match(read(dir, "AGENTS.md"), /`npx journeysfirst init` or `npx journeysfirst upgrade` wrote this section\. Each upgrade writes it again\./);
-  assert.match(read(dir, "AGENTS.md"), /\.claude\/skills\/journey-run\/SKILL\.md/);
-  assert.match(read(dir, "AGENTS.md"), /review each run with `\.claude\/skills\/journey-review\/SKILL\.md`\. The change is done when the run passed and the review found nothing, or a person has seen the findings\./);
-  assert.match(read(dir, "AGENTS.md"), /never delete a finding/);
   const none = repo();
-  assert.ok(init({ root: none, skillsDir: ".agents/skills" }).includes("added AGENTS.md"));
-  assert.equal(read(none, "AGENTS.md"), journeysSection(".agents/skills"));
-  assert.ok(!existsSync(join(none, "CLAUDE.md")));
+  init({ root: none, terminal: true });
+  assert.ok(!existsSync(join(none, "AGENTS.md")));
+  assert.ok(init({ root: none, agentInstructions: true }).includes("added AGENTS.md"));
+  assert.equal(read(none, "AGENTS.md"), journeysSection(".claude/skills"));
 });
 
-test("a CLAUDE.md gets the section too, unless it imports AGENTS.md; a CLAUDE.md that is only @AGENTS.md is left as it is", () => {
-  const own = repo();
-  writeFileSync(join(own, "CLAUDE.md"), "c\n");
-  mkdirSync(join(own, ".claude"));
-  writeFileSync(join(own, ".claude/CLAUDE.md"), "see @AGENTS.md\n");
-  init({ root: own });
-  assert.equal(read(own, "AGENTS.md"), journeysSection(".claude/skills"));
-  assert.ok(read(own, "CLAUDE.md").includes(journeysSection(".claude/skills")));
-  assert.equal(read(own, ".claude/CLAUDE.md"), "see @AGENTS.md\n");
-  const old = repo();
-  init({ root: old });
-  writeFileSync(join(old, "CLAUDE.md"), "@AGENTS.md\n");
-  const changes = upgrade({ root: old });
-  assert.equal(read(old, "CLAUDE.md"), "@AGENTS.md\n");
-  assert.ok(changes.every((c) => c.startsWith("unchanged ")), changes.join("\n"));
+test("approved init uses an existing instructions file and does not create AGENTS.md", () => {
+  for (const name of ["CLAUDE.md", ".claude/CLAUDE.md", "GEMINI.md"]) {
+    const dir = repo();
+    mkdirSync(join(dir, ".claude"));
+    writeFileSync(join(dir, name), "# Working here\n");
+    assert.ok(init({ root: dir, terminal: true, agentInstructions: true }).includes(`added the Journeys section to ${name}`));
+    assert.equal(read(dir, name), `# Working here\n\n${journeysSection(".claude/skills")}`);
+    assert.ok(!existsSync(join(dir, "AGENTS.md")));
+  }
 });
 
-test("upgrade rewrites only the Journeys section, keeps the rest of the file, and changes nothing when it is current", () => {
+test("upgrade leaves instructions alone; approved init replaces only the managed section", () => {
   const dir = repo();
   writeFileSync(join(dir, "AGENTS.md"), "top\n");
-  init({ root: dir });
-  writeFileSync(join(dir, "AGENTS.md"), read(dir, "AGENTS.md").replace("run the journeys it touches", "an old wording") + "bottom\n");
-  const changes = upgrade({ root: dir });
+  init({ root: dir, agentInstructions: true });
+  const older = read(dir, "AGENTS.md").replace("write or update its journey", "an old wording") + "bottom\n";
+  writeFileSync(join(dir, "AGENTS.md"), older);
+  upgrade({ root: dir });
+  assert.equal(read(dir, "AGENTS.md"), older);
+  assert.ok(init({ root: dir, agentInstructions: true }).includes("updated the Journeys section in AGENTS.md"));
   assert.equal(read(dir, "AGENTS.md"), `top\n\n${journeysSection(".claude/skills")}bottom\n`);
-  assert.ok(changes.includes("updated the Journeys section in AGENTS.md"), changes.join("\n"));
-  assert.ok(upgrade({ root: dir }).every((c) => c.startsWith("unchanged ")));
+  assert.deepEqual(init({ root: dir, agentInstructions: true }), ["unchanged AGENTS.md"]);
 });
 
 test("after init or upgrade, a repo with no journeys/README.md goes to journey-onboard; upgrade also re-checks scripts and re-runs", () => {

@@ -8,15 +8,16 @@ export declare const RETIRED_SKILLS: string[];
 export declare function packageSkills(): string[];
 /**
  * Set up a repo that has no Journeys First skills yet.
- * @param {{root?: string, skillsDir?: string, demo?: boolean, terminal?: boolean}} [options]
+ * @param {{root?: string, skillsDir?: string, demo?: boolean, terminal?: boolean, agentInstructions?: boolean}} [options]
  *   demo: add the example page, journey and script even when the repo has a dev or start script.
  * @returns {string[]} one line per change
  */
-export declare function init({ root, skillsDir, demo, terminal }?: {
+export declare function init({ root, skillsDir, demo, terminal, agentInstructions }?: {
     root?: string;
     skillsDir?: string;
     demo?: boolean;
     terminal?: boolean;
+    agentInstructions?: boolean;
 }): string[];
 /**
  * Refresh the skills in a repo set up by any earlier version. Only folders named
@@ -34,14 +35,17 @@ export declare function upgrade({ root, skillsDir }?: {
  * @param {string} skillsDir
  */
 export declare function upgradeWorkflow(skillsDir: string): string;
-/**
- * The Journeys section of the repo's agent instructions. An agent reads it at
- * the start of every task, so it runs the journeys a change touches without
- * being asked. A skill loads only when an ask matches it; this section is what
- * starts work nobody asked for.
- * @param {string} skillsDir
- */
+/** @param {string} skillsDir */
 export declare function journeysSection(skillsDir: string): string;
+/** @param {{root?: string, skillsDir?: string}} [options] */
+export declare function instructionProposal({ root, skillsDir }?: {
+    root?: string;
+    skillsDir?: string;
+}): {
+    name: string;
+    text: string;
+    section: string;
+};
 /**
  * What the agent does after init or upgrade. A repo with no journeys/README.md
  * is not onboarded yet, even if it was set up before that file existed, so both

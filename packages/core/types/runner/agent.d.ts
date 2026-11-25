@@ -1,23 +1,76 @@
 import { RunRecorder, recording } from "./recorder.js";
-/**
- * Run the caller's own agent command on a fresh copy of the project and save
- * what it submits as a run. Sign-in and sandboxing belong to that command.
- * @param {{journey: string, command: string, caseId?: string, project?: string, mcp?: Record<string, string[]>, timeoutMs?: number}} options
- * @returns {Promise<{folder: string, run: import("../format/runfile.js").Run, problem?: string, exitCode: number}>}
- */
-export declare function runAgent({ journey, command, caseId, project, mcp, timeoutMs }: {
+export type RunOptions = {
     journey: string;
-    command: string;
     caseId?: string;
     project?: string;
     mcp?: Record<string, string[]>;
     timeoutMs?: number;
-}): Promise<{
+};
+export type AdapterOptions = RunOptions & {
+    container?: string;
+    allowHostRead?: boolean;
+    agentArgs: string[];
+};
+export type AgentResult = {
     folder: string;
     run: import("../format/runfile.js").Run;
     problem?: string;
     exitCode: number;
-}>;
+};
+export type SandboxOptions = {
+    work: string;
+    home: string;
+    auth: string;
+    container?: string;
+    hostHome?: string;
+    loginFile?: string;
+    runtime?: string;
+    node: string;
+};
+export type AgentAdapter = {
+    name: string;
+    setup: string;
+    detect(container?: string): boolean;
+    authProbe(): boolean;
+    sandboxArgs(options: SandboxOptions): string[];
+    mcpConfig(config: Record<string, string[]>, sandbox: string[], state: string, work: string, runtime: string, node: string): {
+        args: string[];
+        names: string[];
+    };
+    start(options: AdapterOptions): Promise<AgentResult>;
+};
+export type RunContext = {
+    base: string;
+    work: string;
+    state: string;
+    run: RunRecorder;
+    signal: AbortSignal;
+    prompt: string;
+};
+/** @typedef {{journey: string, caseId?: string, project?: string, mcp?: Record<string, string[]>, timeoutMs?: number}} RunOptions */
+/** @typedef {RunOptions & {container?: string, allowHostRead?: boolean, agentArgs: string[]}} AdapterOptions */
+/** @typedef {{folder: string, run: import("../format/runfile.js").Run, problem?: string, exitCode: number}} AgentResult */
+/** @typedef {{work: string, home: string, auth: string, container?: string, hostHome?: string, loginFile?: string, runtime?: string, node: string}} SandboxOptions */
+/** @typedef {{name: string, setup: string, detect(container?: string): boolean, authProbe(): boolean, sandboxArgs(options: SandboxOptions): string[], mcpConfig(config: Record<string,string[]>, sandbox: string[], state: string, work: string, runtime: string, node: string): {args: string[], names: string[]}, start(options: AdapterOptions): Promise<AgentResult>}} AgentAdapter */
+/** @typedef {{base: string, work: string, state: string, run: RunRecorder, signal: AbortSignal, prompt: string}} RunContext */
+/** @param {RunOptions & {command: string}} options */
+export declare function runAgent({ command, mcp, timeoutMs, ...options }: RunOptions & {
+    command: string;
+}): Promise<AgentResult>;
+/**
+ * @param {RunOptions & {agent: string, label: string, loginFile?: string, unverified?: boolean}} options
+ * @param {(context: RunContext) => Promise<{problem?: string, handoff?: string}>} execute
+ * @returns {Promise<AgentResult>}
+ */
+export declare function withAgentRun({ journey, caseId, project, agent, label, loginFile, unverified }: RunOptions & {
+    agent: string;
+    label: string;
+    loginFile?: string;
+    unverified?: boolean;
+}, execute: (context: RunContext) => Promise<{
+    problem?: string;
+    handoff?: string;
+}>): Promise<AgentResult>;
 /** @param {string | undefined} project @param {string} base @param {string} work @param {string} [loginFile] */
 export declare function prepareProject(project: string | undefined, base: string, work: string, loginFile?: string): void;
 /** @param {RunRecorder} run */

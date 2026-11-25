@@ -15,7 +15,7 @@ Each skill starts by telling an existing product from a new build. On an existin
 
 The same steps every time live in commands, not skills: `npx journeysfirst init`, `upgrade`, `validate`, `validate-run`, `merge-check`, `measured`, `add-findings`, `add-review`, `review` and `publish`.
 
-A skill loads only when an ask matches it. So `init` also adds a short Journeys section to the repo's agent instructions: run the journeys a change touches and review each run before saying it is done, propose a journey for a new promise, never edit a check to pass or delete a finding, keep `journeys/README.md` current. `upgrade` rewrites it. The section always goes in `AGENTS.md` (made if missing). A `CLAUDE.md` gets it too, unless it imports `@AGENTS.md`.
+A skill loads only when an ask matches it. During onboarding, show the proposed Journeys section and ask before adding it to the project's agent instructions. `init` prints the proposal. Once approved, run `npx journeysfirst init --agent-instructions` to write it to an existing instructions file, or to create `AGENTS.md` if none exists. `upgrade` leaves instructions alone.
 
 Every app also needs its own app skill, written from the [app skill template](../packages/core/templates/app-skill.md) (`node_modules/journeysfirst/templates/app-skill.md` once installed): safety, environments, accounts, seeding, inbound, sends, saved state. The generic skills say what to do. The app skill says where and how for that app.
 
@@ -31,7 +31,7 @@ npx skills add santorilabs/journeysfirst --skill '*' --agent claude-code codex -
 
 It puts the skills in `.agents/skills` and links them for Claude Code. `--agent` names the agents to install for. Use your own list, like `--agent claude-code cursor`. `npx skills add --help` lists the names. Without `--skill`, `--agent` and `-y`, the command asks several questions and starts with no agent picked.
 
-Then install the package and run `npx journeysfirst upgrade` (not `init`, since the skills are already there). That adds the Playwright config, the upgrade workflow and the Journeys section:
+Then install the package and run `npx journeysfirst upgrade` (not plain `init`, since the skills are already there). That adds the Playwright config and the upgrade workflow:
 
 ```bash
 npm install --save-dev journeysfirst @playwright/test

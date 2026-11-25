@@ -9,46 +9,69 @@ import { CAPTURE_LIMIT } from "./capture.js";
 import { maskText } from "./mask.js";
 
 // Local logins, installed packages and earlier runs stay out of the copy, so the agent starts as a new user.
-const OMIT = new Set([".git", ".codex", ".mcp.json", ".aws", ".config", ".docker", ".env", ".npmrc", ".netrc", "node_modules", "journey-runs", ".journeysfirst"]);
+const OMIT = new Set([".git", ".mcp.json", ".aws", ".config", ".docker", ".env", ".npmrc", ".netrc", "node_modules", "journey-runs", ".journeysfirst"]);
 
-/**
- * Run the caller's own agent command on a fresh copy of the project and save
- * what it submits as a run. Sign-in and sandboxing belong to that command.
- * @param {{journey: string, command: string, caseId?: string, project?: string, mcp?: Record<string, string[]>, timeoutMs?: number}} options
- * @returns {Promise<{folder: string, run: import("../format/runfile.js").Run, problem?: string, exitCode: number}>}
- */
-export async function runAgent({ journey, command, caseId, project, mcp = {}, timeoutMs = 1800000 }) {
+/** @typedef {{journey: string, caseId?: string, project?: string, mcp?: Record<string, string[]>, timeoutMs?: number}} RunOptions */
+/** @typedef {RunOptions & {container?: string, allowHostRead?: boolean, agentArgs: string[]}} AdapterOptions */
+/** @typedef {{folder: string, run: import("../format/runfile.js").Run, problem?: string, exitCode: number}} AgentResult */
+/** @typedef {{work: string, home: string, auth: string, container?: string, hostHome?: string, loginFile?: string, runtime?: string, node: string}} SandboxOptions */
+/** @typedef {{name: string, setup: string, detect(container?: string): boolean, authProbe(): boolean, sandboxArgs(options: SandboxOptions): string[], mcpConfig(config: Record<string,string[]>, sandbox: string[], state: string, work: string, runtime: string, node: string): {args: string[], names: string[]}, start(options: AdapterOptions): Promise<AgentResult>}} AgentAdapter */
+/** @typedef {{base: string, work: string, state: string, run: RunRecorder, signal: AbortSignal, prompt: string}} RunContext */
+
+/** @param {RunOptions & {command: string}} options */
+export async function runAgent({ command, mcp = {}, timeoutMs = 1800000, ...options }) {
   const name = basename(command.trim().split(/\s+/)[0] ?? "");
   const agent = /^[\w.-]+$/.test(name) ? name : "agent";
-  // Journeys First does not see inside the agent's sandbox, so the run says so.
-  const run = RunRecorder.start({ journey, case: caseId, ranBy: { agent }, playedBy: { you: agent }, tags: { sandbox: "unverified" } });
-  if (run.plan.everyone.some((user) => user !== "you")) {
-    throw new Error("run --agent only plays the 'you' seat. Use the recorder directly for journeys with more than one user.");
-  }
-  const base = realpathSync(mkdtempSync(join(tmpdir(), "journeysfirst-run-")));
-  const work = join(base, "work"), state = join(work, ".journeysfirst");
-  let problem;
-  try {
-    prepareProject(project, base, work);
+  return withAgentRun({ ...options, agent, label: agent, unverified: true }, async ({ work, prompt, signal }) => {
     if (Object.keys(mcp).length) {
       const mcpServers = Object.fromEntries(Object.entries(mcp).map(([name, argv]) => [name, {
         command: process.execPath, args: [".journeysfirst/capture.mjs", "mcp-proxy", name + ".txt", "--", ...argv],
       }]));
       writeFileSync(join(work, ".mcp.json"), JSON.stringify({ mcpServers }), { mode: 0o600 });
     }
-    const result = await processResult(command, [], { cwd: work, stdin: agentPrompt(run), timeout: timeoutMs, shell: true });
+    const result = await processResult(command, [], { cwd: work, stdin: prompt, timeout: timeoutMs, shell: true, signal });
+    const problem = result.timedOut ? "The agent reached the time limit." : result.code !== 0
+      ? `The agent command exited with status ${result.code ?? "unknown"}. Check that it runs in a terminal in the project folder.` : undefined;
+    return { problem, handoff: result.stdout.trim() ? result.stdout : undefined };
+  });
+}
+
+/**
+ * @param {RunOptions & {agent: string, label: string, loginFile?: string, unverified?: boolean}} options
+ * @param {(context: RunContext) => Promise<{problem?: string, handoff?: string}>} execute
+ * @returns {Promise<AgentResult>}
+ */
+export async function withAgentRun({ journey, caseId, project, agent, label, loginFile, unverified }, execute) {
+  const run = RunRecorder.start({ journey, case: caseId, ranBy: { agent }, playedBy: { you: label }, tags: unverified ? { sandbox: "unverified" } : undefined });
+  if (run.plan.everyone.some((user) => user !== "you")) {
+    throw new Error(`The ${label} launcher only plays the 'you' seat. Use the recorder directly for journeys with more than one user.`);
+  }
+  const base = realpathSync(mkdtempSync(join(tmpdir(), "journeysfirst-run-")));
+  const work = join(base, "work"), state = join(work, ".journeysfirst");
+  const interrupt = new AbortController();
+  const onInt = () => interrupt.abort("SIGINT");
+  const onTerm = () => interrupt.abort("SIGTERM");
+  let problem;
+  process.on("SIGINT", onInt);
+  process.on("SIGTERM", onTerm);
+  try {
+    prepareProject(project, base, work, loginFile);
+    const result = await execute({ base, work, state, run, signal: interrupt.signal, prompt: agentPrompt(run) });
     const errors = importResults(recording(run, "you"), state);
     if (errors.length) run.tag("result_import_errors", errors.map((error) => maskText(run.redact(error))));
-    if (result.timedOut) problem = "The agent reached the time limit.";
-    else if (result.code !== 0) problem = `The agent command exited with status ${result.code ?? "unknown"}. Check that it runs in a terminal in the project folder.`;
-    if (result.stdout.trim()) run.attach({ name: "handoff.txt", body: maskText(run.redact(result.stdout)), kind: "transcript" });
+    if (result.handoff) run.attach({ name: "handoff.txt", body: maskText(run.redact(result.handoff)), kind: "transcript" });
+    problem = result.problem;
   } catch (error) {
     problem = run.redact(error instanceof Error ? error.message : "The agent could not complete the journey.");
   } finally {
+    process.removeListener("SIGINT", onInt);
+    process.removeListener("SIGTERM", onTerm);
     rmSync(base, { recursive: true, force: true });
   }
+  const signal = interrupt.signal.reason;
+  if (signal) problem = [`${label} was interrupted (${signal}).`, problem].filter(Boolean).join(" ");
   const saved = run.finish(problem ? { attempt: { status: "aborted", reason: problem } } : undefined);
-  return { ...saved, problem, exitCode: problem ? 1 : 0 };
+  return { ...saved, problem, exitCode: signal === "SIGINT" ? 130 : signal === "SIGTERM" ? 143 : problem ? 1 : 0 };
 }
 
 /** @param {string | undefined} project @param {string} base @param {string} work @param {string} [loginFile] */
@@ -66,8 +89,8 @@ export function prepareProject(project, base, work, loginFile) {
   }
   const state = join(work, ".journeysfirst");
   mkdirSync(join(state, "captures"), { recursive: true });
-  for (const [from, to] of [["capture.js", "capture.js"], ["mask.js", "mask.js"], ["codex-capture.mjs", "capture.mjs"]]) {
-    copyFileSync(fileURLToPath(new URL(from, import.meta.url)), join(state, to));
+  for (const file of ["capture.js", "mask.js", "capture.mjs"]) {
+    copyFileSync(fileURLToPath(new URL(file, import.meta.url)), join(state, file));
   }
   writeFileSync(join(state, "package.json"), '{"type":"module"}\n');
 }

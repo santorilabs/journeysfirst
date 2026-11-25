@@ -1,131 +1,106 @@
 import { accessSync, chmodSync, closeSync, constants, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { homedir, tmpdir } from "node:os";
+import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
-import { RunRecorder, recording } from "./recorder.js";
-import { agentPrompt, importResults, prepareProject, processResult, readSmall } from "./agent.js";
-import { maskText } from "./mask.js";
+import { processResult, readSmall, withAgentRun } from "../agent.js";
+import { maskText } from "../mask.js";
 
 const PROFILE = "journeysfirst";
 const PROBE = "journeysfirst: workspace readable, auth directory denied";
 
-/**
- * Launch Codex with a fresh project and a separately protected provider login.
- * @param {{journey: string, caseId?: string, project?: string, mcp?: Record<string, string[]>, container?: string, allowHostRead?: boolean, timeoutMs?: number, agentArgs: string[]}} options
- */
-export async function runCodex({ journey, caseId, project, mcp, container, allowHostRead = false, timeoutMs = 180000, agentArgs }) {
+/** @param {import("../agent.js").AdapterOptions} options */
+async function start({ mcp, container, allowHostRead = false, timeoutMs = 180000, agentArgs, ...options }) {
   const selected = pickArgs(agentArgs);
-  const run = RunRecorder.start({ journey, case: caseId, ranBy: { agent: "codex" }, playedBy: { you: "Codex" } });
-  if (run.plan.everyone.some((user) => user !== "you")) {
-    throw new Error("The Codex launcher only plays the 'you' seat. Use the recorder directly for journeys with more than one user.");
-  }
   const key = process.env.OPENAI_API_KEY;
   const loginFile = codexLoginFile();
   if (!key && !loginFile) throw new Error("No Codex login found. Run `codex login`.");
-  if (key) run.value("OPENAI_API_KEY", key, { secret: true });
-  const base = realpathSync(mkdtempSync(join(tmpdir(), "journeysfirst-codex-")));
-  const work = join(base, "work"), home = join(base, "home"), auth = join(base, "codex");
-  const state = join(work, ".journeysfirst");
-  const authFile = join(auth, "auth.json");
   const runtime = container ? undefined : codexExecutable();
   const node = container ? "node" : realpathSync(process.execPath);
-  const interrupt = new AbortController();
-  /** @type {number | undefined} */
-  let signalExit;
-  const onInt = () => { signalExit ??= 130; interrupt.abort(); };
-  const onTerm = () => { signalExit ??= 143; interrupt.abort(); };
-  const launcher = launcherFor({ base, work, home, auth, container, runtime, node, signal: interrupt.signal });
-  let problem;
-  let probeDir;
-  /** @type {Buffer | undefined} */
-  let reusedLogin;
-  process.on("SIGINT", onInt);
-  process.on("SIGTERM", onTerm);
-  try {
-    prepareProject(project, base, work, loginFile);
-    mkdirSync(home);
-    mkdirSync(auth);
-    const hostHome = !container && !allowHostRead ? realpathSync(homedir()) : undefined;
-    const permissions = sandboxArgs({ work, home, auth, container, hostHome, loginFile, runtime, node });
-    const sandbox = ["sandbox", "-P", PROFILE, ...permissions];
-    writeFileSync(authFile, "Synthetic probe. No login is in this file.\n");
-    const checked = await launcher([...sandbox, "--", node, "-e", probeCode(), work, authFile, String(process.pid)], "", 15000);
-    rmSync(authFile, { force: true });
-    if (checked.code !== 0 || checked.stdout.trim() !== PROBE) {
-      throw new Error("Codex failed the scratch login probe: the sandbox must start Node, read the scratch project and deny the provider login. Check your Node and Codex installs, or use a compatible container.");
-    }
-    if (hostHome) {
-      probeDir = mkdtempSync(join(hostHome, ".journeysfirst-probe-"));
-      const canary = join(probeDir, "host.txt");
-      writeFileSync(canary, "Synthetic host home probe.\n");
-      const homeCheck = await launcher([...sandbox, "--", node, "-e", probeCode(), work, canary, String(process.pid)], "", 15000);
-      if (homeCheck.code !== 0 || homeCheck.stdout.trim() !== PROBE) {
-        throw new Error("Codex could not prove that its sandbox blocks your home directory. Use a container or explicitly pass --allow-host-read.");
-      }
-    }
-    if (loginFile && !container) {
-      const original = await launcher([...sandbox, "--", node, "-e", probeCode(), work, loginFile, String(process.pid)], "", 15000);
-      if (original.code !== 0 || original.stdout.trim() !== PROBE) {
-        throw new Error("Codex could not prove that its sandbox blocks the existing login file. Use a compatible container.");
-      }
-    }
-    if (key) {
-      const login = await launcher(["login", "--with-api-key"], key + "\n", 15000);
-      if (login.code !== 0) throw new Error("Codex could not sign in with OPENAI_API_KEY. Check that the provider key is valid.");
-    } else if (loginFile) {
-      try {
-        reusedLogin = readFileSync(loginFile);
-        writeFileSync(authFile, reusedLogin, { mode: 0o600, flag: "wx" });
-      } catch {
-        throw new Error("Could not reuse the Codex login. Run `codex login`.");
-      }
-    }
-    const servers = mcpConfig(mcp ?? {}, sandbox, state, work, runtime ?? "codex", node);
-    const prompt = agentPrompt(run);
-    const result = await launcher(["-a", "never", ...permissions, ...servers.args, "exec", "--json", "--ephemeral",
-      "--skip-git-repo-check", ...selected, "-"], prompt, timeoutMs);
-    const seat = recording(run, "you");
-    const importErrors = importResults(seat, state);
-    if (importErrors.length) run.tag("result_import_errors", importErrors.map((error) => maskText(run.redact(error))));
-    const final = finalMessage(result.stdout);
-    if (result.timedOut) problem = "Codex reached the time limit.";
-    else if (result.code !== 0) problem = "Codex exited before completing the journey.";
-    const failedServers = servers.names.flatMap((name) => {
-      const code = readSmall(join(state, name + ".txt.exit"));
-      return /^[1-9]\d{0,2}$/.test(code) ? [{ server: maskText(run.redact(name)), code: Number(code), cause: "environment" }] : [];
-    });
-    if (failedServers.length) {
-      run.tag("mcp_server_failures", failedServers);
-      problem = [problem, ...failedServers.map(({ server, code }) => `MCP server "${server}" exited with status ${code}.`)].filter(Boolean).join(" ");
-    }
-    if (final) run.attach({ name: "handoff.txt", body: maskText(run.redact(final)), kind: "transcript" });
-  } catch (error) {
-    problem = run.redact(error instanceof Error ? error.message : "Codex could not complete the journey.");
-  } finally {
-    if (signalExit) problem = `Codex was interrupted (${signalExit === 130 ? "SIGINT" : "SIGTERM"}).`;
+  return withAgentRun({ ...options, agent: "codex", label: "Codex", loginFile }, async ({ base, work, state, run, signal, prompt }) => {
+    if (key) run.value("OPENAI_API_KEY", key, { secret: true });
+    const home = join(base, "home"), auth = join(base, "codex");
+    const authFile = join(auth, "auth.json");
+    const launcher = launcherFor({ base, work, home, auth, container, runtime, node, signal });
+    let probeDir;
+    /** @type {Buffer | undefined} */
+    let reusedLogin;
+    let problem;
+    let handoff;
     try {
-      if (loginFile && reusedLogin) saveRefreshedLogin(loginFile, authFile, reusedLogin);
-    } catch {
-      problem = [problem, "Could not save the refreshed Codex login. Run `codex login`."].filter(Boolean).join(" ");
+      mkdirSync(home);
+      mkdirSync(auth);
+      const hostHome = !container && !allowHostRead ? realpathSync(homedir()) : undefined;
+      const permissions = sandboxArgs({ work, home, auth, container, hostHome, loginFile, runtime, node });
+      const sandbox = ["sandbox", "-P", PROFILE, ...permissions];
+      writeFileSync(authFile, "Synthetic probe. No login is in this file.\n");
+      const checked = await launcher([...sandbox, "--", node, "-e", probeCode(), work, authFile, String(process.pid)], "", 15000);
+      rmSync(authFile, { force: true });
+      if (checked.code !== 0 || checked.stdout.trim() !== PROBE) {
+        throw new Error("Codex failed the scratch login probe: the sandbox must start Node, read the scratch project and deny the provider login. Check your Node and Codex installs, or use a compatible container.");
+      }
+      if (hostHome) {
+        probeDir = mkdtempSync(join(hostHome, ".journeysfirst-probe-"));
+        const canary = join(probeDir, "host.txt");
+        writeFileSync(canary, "Synthetic host home probe.\n");
+        const homeCheck = await launcher([...sandbox, "--", node, "-e", probeCode(), work, canary, String(process.pid)], "", 15000);
+        if (homeCheck.code !== 0 || homeCheck.stdout.trim() !== PROBE) {
+          throw new Error("Codex could not prove that its sandbox blocks your home directory. Use a container or explicitly pass --allow-host-read.");
+        }
+      }
+      if (loginFile && !container) {
+        const original = await launcher([...sandbox, "--", node, "-e", probeCode(), work, loginFile, String(process.pid)], "", 15000);
+        if (original.code !== 0 || original.stdout.trim() !== PROBE) {
+          throw new Error("Codex could not prove that its sandbox blocks the existing login file. Use a compatible container.");
+        }
+      }
+      if (key) {
+        const login = await launcher(["login", "--with-api-key"], key + "\n", 15000);
+        if (login.code !== 0) throw new Error("Codex could not sign in with OPENAI_API_KEY. Check that the provider key is valid.");
+      } else if (loginFile) {
+        try {
+          reusedLogin = readFileSync(loginFile);
+          writeFileSync(authFile, reusedLogin, { mode: 0o600, flag: "wx" });
+        } catch {
+          throw new Error("Could not reuse the Codex login. Run `codex login`.");
+        }
+      }
+      const servers = mcpConfig(mcp ?? {}, sandbox, state, work, runtime ?? "codex", node);
+      const result = await launcher(["-a", "never", ...permissions, ...servers.args, "exec", "--json", "--ephemeral",
+        "--skip-git-repo-check", ...selected, "-"], prompt, timeoutMs);
+      handoff = finalMessage(result.stdout);
+      if (result.timedOut) problem = "Codex reached the time limit.";
+      else if (result.code !== 0) problem = "Codex exited before completing the journey.";
+      const failedServers = servers.names.flatMap((name) => {
+        const code = readSmall(join(state, name + ".txt.exit"));
+        return /^[1-9]\d{0,2}$/.test(code) ? [{ server: maskText(run.redact(name)), code: Number(code), cause: "environment" }] : [];
+      });
+      if (failedServers.length) {
+        run.tag("mcp_server_failures", failedServers);
+        problem = [problem, ...failedServers.map(({ server, code }) => `MCP server "${server}" exited with status ${code}.`)].filter(Boolean).join(" ");
+      }
+    } catch (error) {
+      problem = run.redact(error instanceof Error ? error.message : "Codex could not complete the journey.");
     } finally {
-      process.removeListener("SIGINT", onInt);
-      process.removeListener("SIGTERM", onTerm);
-      if (probeDir) rmSync(probeDir, { recursive: true, force: true });
-      rmSync(base, { recursive: true, force: true });
+      try {
+        if (loginFile && reusedLogin) saveRefreshedLogin(loginFile, authFile, reusedLogin);
+      } catch {
+        problem = [problem, "Could not save the refreshed Codex login. Run `codex login`."].filter(Boolean).join(" ");
+      } finally {
+        if (probeDir) rmSync(probeDir, { recursive: true, force: true });
+      }
     }
-  }
-  const saved = run.finish(problem ? { attempt: { status: "aborted", reason: problem } } : undefined);
-  return { ...saved, problem, exitCode: signalExit ?? (problem ? 1 : 0) };
+    return { problem, handoff };
+  });
 }
 
+/** @type {import("../agent.js").AgentAdapter} */
 export const codex = {
   name: "codex",
   setup: "Install the Codex CLI and run `codex login`.",
-  /** @param {string} [container] */
   detect: (container) => Boolean(container || codexExecutable()),
   authProbe: () => Boolean(process.env.OPENAI_API_KEY || codexLoginFile()),
   sandboxArgs,
   mcpConfig,
-  start: runCodex,
+  start,
 };
 
 /** @param {string[]} args */

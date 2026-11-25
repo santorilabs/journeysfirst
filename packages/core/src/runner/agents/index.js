@@ -1,6 +1,7 @@
 import { codex } from "./codex.js";
 
-const adapters = [codex];
+/** @type {readonly import("../agent.js").AgentAdapter[]} */
+export const adapters = Object.freeze([codex]);
 
 /** @param {string | undefined} name @param {string | undefined} container */
 export function selectAdapter(name, container) {

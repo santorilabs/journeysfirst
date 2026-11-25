@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { adapters, selectAdapter } from "../src/runner/agents/index.js";
 import { recording } from "../src/runner/recorder.js";
 import { JOURNEY, recordAllPassed, recorder } from "./helpers.js";
 
@@ -12,6 +13,24 @@ const cli = fileURLToPath(new URL("../bin/journeysfirst.js", import.meta.url));
 const node = process.execPath;
 const dir = () => mkdtempSync(join(tmpdir(), "jf-capture-"));
 const rows = (out) => readFileSync(out, "utf8").trim().split("\n").map((line) => JSON.parse(line));
+
+test("every known agent implements the runner adapter contract", async () => {
+  const files = readdirSync(new URL("../src/runner/agents/", import.meta.url)).filter((name) => name !== "index.js");
+  assert.deepEqual(adapters.map(({ name }) => name + ".js").sort(), files.sort());
+  for (const adapter of adapters) {
+    assert.equal(selectAdapter(adapter.name), adapter);
+    assert.ok(adapter.setup.trim());
+    assert.equal(typeof adapter.detect(), "boolean");
+    assert.equal(typeof adapter.authProbe(), "boolean");
+    const base = dir(), work = join(base, "work"), state = join(work, ".journeysfirst");
+    const sandbox = adapter.sandboxArgs({ work, home: join(base, "home"), auth: join(base, "auth"), node });
+    assert.ok(Array.isArray(sandbox) && sandbox.every((arg) => typeof arg === "string"));
+    const mcp = adapter.mcpConfig({ demo: [node, "server.js"] }, sandbox, state, work, adapter.name, node);
+    assert.deepEqual(mcp.names, ["demo"]);
+    assert.ok(mcp.args.some((arg) => arg.includes("mcp-proxy")));
+    await assert.rejects(adapter.start({ journey: join(base, "missing.journey.yaml"), agentArgs: [] }));
+  }
+});
 
 test("capture keeps terminal output and exit status intact but saves a private redacted file", () => {
   const out = join(dir(), "terminal.txt");

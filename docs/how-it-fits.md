@@ -54,10 +54,11 @@ A file may always import a file in its own folder. Past that, it may import only
 | `src/format` | `src/format/draft0`, `src/shared` |
 | `src/format/draft0` | `src/format` |
 | `src/runner` | `src/format`, `src/shared` |
+| `src/runner/agents` | `src/runner` |
 | `src/review` | `src/format`, `src/shared` |
 | `src/publish` | `src/format`, `src/review`, `src/shared` |
 | `src` | `src/format`, `src/shared` |
-| `bin` | `src`, `src/format`, `src/publish`, `src/review`, `src/shared`, `src/runner` |
+| `bin` | `src`, `src/format`, `src/publish`, `src/review`, `src/shared`, `src/runner`, `src/runner/agents` |
 
 Any folder may also import Node built-ins. The only packages the source may import are `yaml` and `@playwright/test`. `npm run check:names` checks that.
 
@@ -91,7 +92,8 @@ Files, in `src/runner/`:
 - `recorder.js`: `RunRecorder`. Any script or agent can use it, with or without Playwright.
 - `capture.js`: selected terminal output and MCP request and response summaries. The wrapper passes the child's stdio through without changing it.
 - `recording.js`: attaches a capture and resolves check evidence from its saved lines, for one seat at a time.
-- `agent.js`: `run --agent "<command>"`. Runs the caller's own agent command on a scratch copy of the project, gives it the journey on stdin, and saves what it submits as a run.
+- `agent.js`: prepares the scratch project, gives an agent the journey, and saves evidence and the handoff. It also runs custom agent commands.
+- `agents/`: known adapters implement `detect`, `authProbe`, `sandboxArgs`, `mcpConfig`, and `start`. The registry picks the first installed, signed-in adapter.
 - `playwright.js`: `test.journey` and the `journey` fixture (`page`, `step`, `check`, `value`). It uses `RunRecorder`.
 - `captions.js`: the caption bar each user's video shows for the line in progress, and screenshots taken without it. Only `playwright.js` uses it.
 - `measure.js`: what the runner reads from a user's screen after each line, for a review: the values in use, each control's box, and each click with the ms until the page first changed. It also holds the slow replay (`JOURNEYS_DELAY_MS`). Only `playwright.js` uses it.
@@ -149,7 +151,7 @@ Files, in `src/shared/`. None of them imports another source file.
 - `bin/journeysfirst.js`: the CLI (`validate`, `validate-run`, `merge-check`, `measured`, `add-findings`, `add-review`, `review`, `capture`, `mcp-proxy`, `report`, `summary`, `publish`, `dev-server`, `doctor`, `init`, `upgrade`, `--version`). It uses the runner for terminal and MCP capture. Playwright uses the runner for browser journeys.
 - `prepack` copies `skills/`, `spec/` and `docs/` from the repo root into this package, and `postpack` removes the copies. An install then has them at `node_modules/journeysfirst/spec` and `node_modules/journeysfirst/docs`.
 - `src/doctor.js`: `doctor`. Checks Node, Playwright, Chromium, the Playwright config, whether `baseURL` answers, and each journey file. The CLI is the only caller.
-- `src/setup.js`: `init` and `upgrade`. They copy the skills into `.agents/skills` and `.claude/skills` (or the folder `--skills` names), add `playwright.config.js` when there is none, ignore `journey-runs/`, write a Journeys section in `AGENTS.md`, and add the upgrade workflow, `.github/workflows/journeysfirst-upgrade.yml`. With no app to start, `init` also adds an example page, journey and script that pass. It imports Node built-ins and `src/shared/target.js`.
+- `src/setup.js`: `init` and `upgrade`. They copy the skills, add `playwright.config.js` when there is none, ignore `journey-runs/`, and add the upgrade workflow. Only `init --agent-instructions` writes the proposed Journeys section. With no app to start, `init` also adds an example page, journey and script that pass.
 - `src/index.js`: the main entry. It re-exports `format.js`, `runfile.js`, `checkRun` and `stableJson`.
 
 ## One run, from recorder to a sealed run on a service

@@ -28,12 +28,12 @@ import { exportReview } from "../src/review/export.js";
 import { affectedLines } from "../src/format/affected.js";
 import { mergeCheck } from "../src/format/merge-check.js";
 import { doctor } from "../src/doctor.js";
-import { init, nextSteps, upgrade } from "../src/setup.js";
+import { init, instructionProposal, nextSteps, upgrade } from "../src/setup.js";
 import { reviewLine } from "../src/shared/display.js";
 import { VERSION } from "../src/shared/version.js";
 import { captureCommand } from "../src/runner/capture.js";
 import { readMcpServers, runAgent } from "../src/runner/agent.js";
-import { selectAdapter } from "../src/runner/adapters.js";
+import { selectAdapter } from "../src/runner/agents/index.js";
 
 const USAGE = `Usage:
   journeysfirst --version
@@ -74,8 +74,8 @@ const USAGE = `Usage:
   journeysfirst doctor
       Checks Node, Playwright, Chromium, playwright.config.js, whether baseURL answers, and each journey file.
       A failed check says what to run next. Chromium is installed with: npx playwright install --only-shell chromium
-  journeysfirst init [--skills <folder>] [--demo | --terminal]
-      Set up this repo: copy the skills, add playwright.config.js if there is none, ignore journey-runs/, write a Journeys section in AGENTS.md, add the upgrade workflow.
+  journeysfirst init [--skills <folder>] [--demo | --terminal] [--agent-instructions]
+      Set up the skills and show a proposed Journeys section. Pass --agent-instructions to approve writing it to the project's agent instructions.
       Skills go to .agents/skills and .claude/skills. --skills <folder> copies to that folder only.
       With no dev or start script, also add an example page, journey and script that pass. --demo adds that example even when a dev or start script exists.
       When baseURL and webServer are both missing, init says what to set.
@@ -291,10 +291,18 @@ if (command === "run") {
   try {
     const demo = flags.demo === true || flags.demo === "true";
     const terminal = flags.terminal === true || flags.terminal === "true";
-    const changes = command === "init" ? init({ skillsDir: flags.skills, demo, terminal }) : upgrade({ skillsDir: flags.skills });
+    const agentInstructions = flags["agent-instructions"] === true;
+    if (flags["agent-instructions"] !== undefined && (command !== "init" || !agentInstructions)) {
+      throw new Error("Use journeysfirst init --agent-instructions to approve writing the proposed section.");
+    }
+    const changes = command === "init" ? init({ skillsDir: flags.skills, demo, terminal, agentInstructions }) : upgrade({ skillsDir: flags.skills });
     console.log(`journeysfirst ${VERSION} ${command}`);
     console.log(changes.map((line) => `  ${line}`).join("\n"));
     if (changes.every((line) => line.startsWith("unchanged "))) console.log("  Nothing changed.");
+    if (command === "init" && !agentInstructions) {
+      const { name, section } = instructionProposal({ skillsDir: flags.skills });
+      console.log(`\nProposed addition to ${name} (not written):\n${section}\nTo approve it, run npx journeysfirst init --agent-instructions${flags.skills ? " --skills " + JSON.stringify(flags.skills) : ""}.`);
+    }
     console.log(`Next:\n${nextSteps(command, { skillsDir: flags.skills }).map((line) => `  ${line}`).join("\n")}`);
   } catch (error) {
     console.error(error.message);
