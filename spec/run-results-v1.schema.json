@@ -22,10 +22,21 @@
       }
     },
     "result": {
-      "description": "passed: every check passed. failed: any check failed. not_fully_checked: nothing failed, but a check is blocked or not_checked.",
+      "description": "failed: a check failed or an action failed because of the product. passed: at least one check, every check passed, every action done, and the attempt did not abort. Otherwise not_fully_checked.",
       "enum": ["passed", "failed", "not_fully_checked"]
     },
     "summary": { "description": "One plain sentence about the run.", "$ref": "#/$defs/text" },
+    "attempt": {
+      "description": "Optional execution status. An aborted attempt cannot pass, but keeps its check verdicts and evidence.",
+      "type": "object",
+      "required": ["status"],
+      "properties": {
+        "status": { "enum": ["complete", "aborted"] },
+        "reason": { "description": "Why the attempt ended. Required when aborted.", "$ref": "#/$defs/text" }
+      },
+      "if": { "properties": { "status": { "const": "aborted" } } },
+      "then": { "required": ["reason"] }
+    },
     "started_at": { "description": "When the run started, as an ISO time like 2026-11-08T18:02:11Z.", "$ref": "#/$defs/time" },
     "finished_at": { "description": "When the run finished, as an ISO time.", "$ref": "#/$defs/time" },
     "ran_by": { "description": "Which agent ran it, like {agent: \"claude-code\", model: \"opus\"}.", "type": "object" },

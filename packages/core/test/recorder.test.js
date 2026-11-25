@@ -31,6 +31,20 @@ test("the run names the journeysfirst version that wrote it", () => {
   assert.deepEqual(validateRun(run), []);
 });
 
+test("an aborted attempt keeps recorded checks and proof without passing", () => {
+  const recorderRun = recordAllPassed(recorder());
+  const complete = recorderRun.result().run;
+  const attempt = { status: "aborted", reason: "The runner timed out." };
+  const { run } = recorderRun.result({ attempt });
+  assert.deepEqual(run.attempt, attempt);
+  assert.equal(run.result, "not_fully_checked");
+  assert.equal(run.summary, attempt.reason);
+  assert.deepEqual(run.steps, complete.steps);
+  assert.deepEqual(run.verified, complete.verified);
+  assert.deepEqual(validateRun(run), []);
+  assert.match(validateRun({ ...run, result: "passed" })[0], /the steps and aborted attempt give "not_fully_checked"/);
+});
+
 test("a claimed pass with no evidence becomes not_checked, and the run is not fully checked", () => {
   const run = recordAllPassed(recorder());
   run.check("link-on", { by: "you", verdict: "passed", proof: "It looked on." });

@@ -222,10 +222,10 @@ export class RunRecorder {
   /**
    * The run file and its files, without writing anything. Throws when a
    * secret value appears in the run metadata or an attached transcript.
-   * @param {{summary?: string}} [options]
+   * @param {{summary?: string, attempt?: Run["attempt"]}} [options]
    * @returns {{run: Run, files: Map<string, Buffer>}}
    */
-  result({ summary } = {}) {
+  result({ summary, attempt } = {}) {
     /** @type {(StepFields & {n: number}) | null} */
     let blockedBy = null;
     // Each recorded step passed stepProblems, so the list is a run's steps.
@@ -244,6 +244,7 @@ export class RunRecorder {
       journey: { name: this.name, version: this.plan.version, case: this.plan.case },
       result: undefined,
       summary,
+      attempt: attempt && { ...attempt },
       started_at: new Date(this.startMs).toISOString(),
       finished_at: new Date(this.now()).toISOString(),
       ran_by: Object.keys(this.ranBy).length ? this.ranBy : undefined,
@@ -259,7 +260,7 @@ export class RunRecorder {
       not_verified: undefined,
       steps,
     })));
-    run.summary ??= defaultSummary(run.result, run.steps);
+    run.summary ??= run.attempt?.status === "aborted" ? run.attempt.reason : defaultSummary(run.result, run.steps);
     if (this.#secrets.size && (run.media ?? []).some(({ file, kind }) =>
       kind === "transcript" && transcriptHasSecret(this.files.get(file), this.#secrets))) {
       throw new Error("A declared secret is in an attached transcript. Remove it from the transcript before writing the run.");
@@ -274,7 +275,7 @@ export class RunRecorder {
 
   /**
    * Finish and write the run folder: <outputDir>/<journey name>/<run id>/.
-   * @param {{summary?: string}} [options]
+   * @param {{summary?: string, attempt?: Run["attempt"]}} [options]
    * @returns {{folder: string, run: Run}}
    */
   finish(options) {
@@ -445,7 +446,8 @@ function* stringFields(value, path, shape = "") {
 
 const evidenceKeys = new Set(["source", "login", "key", ...Object.values(LOOKUP)]);
 const FORMAT_KEYS = new Map([
-  ["", new Set("format id journey result summary started_at finished_at ran_by journeysfirst tags repos users played_by repeat values media verified not_verified steps findings reviews".split(" "))],
+  ["", new Set("format id journey result summary attempt started_at finished_at ran_by journeysfirst tags repos users played_by repeat values media verified not_verified steps findings reviews".split(" "))],
+  ["attempt", new Set(["status", "reason"])],
   ["journey", new Set(["name", "version", "case"])],
   ["ran_by", new Set(["agent", "model"])],
   ["repos[]", new Set(["repo", "branch", "commit"])],

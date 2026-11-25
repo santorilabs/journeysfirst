@@ -57,6 +57,13 @@ export type Finding = {
     step?: number;
     ask?: string;
 };
+export type Attempt = {
+    status: "complete";
+    reason?: string;
+} | {
+    status: "aborted";
+    reason: string;
+};
 export type Run = {
     format: string;
     id: string;
@@ -67,6 +74,7 @@ export type Run = {
     };
     result: string;
     summary?: string;
+    attempt?: Attempt;
     started_at: string;
     finished_at?: string;
     ran_by?: {
@@ -110,9 +118,10 @@ export type Run = {
  * @typedef {{says: string, by: string, status: string, at?: number, took?: number, screenshots?: Screenshot[], cause?: string, reason?: string}} ActionStep
  * @typedef {{check: string, id: string, by: string, verdict: string, claimed?: string, proof?: string, evidence?: Evidence[], at?: number, took?: number, screenshots?: Screenshot[], cause?: string, reason?: string, added?: boolean}} CheckStep
  * @typedef {{id: string, criterion: string, says: string, evidence: Evidence[], step?: number, ask?: string}} Finding what a review against fixed criteria found. With ask, it is a question for a person.
+ * @typedef {{status: "complete", reason?: string} | {status: "aborted", reason: string}} Attempt
  * @typedef {{
  *   format: string, id: string, journey: {name: string, version: string, case: string|null}, result: string,
- *   summary?: string, started_at: string, finished_at?: string, ran_by?: {agent?: string, model?: string}, journeysfirst?: string,
+ *   summary?: string, attempt?: Attempt, started_at: string, finished_at?: string, ran_by?: {agent?: string, model?: string}, journeysfirst?: string,
  *   tags?: Record<string, unknown>, users?: Record<string, string|null>, played_by?: Record<string, string>, repeat?: {batch: string, n: number, of: number}, values?: Record<string, {value?: unknown, secret?: boolean}>,
  *   repos?: Array<{repo: string, commit?: string, branch?: string}>, media?: import("../shared/display.js").MediaItem[],
  *   verified?: string[], not_verified?: string[], findings?: Finding[], reviews?: Array<{by: string, at: string, on: string, says: string}>,
@@ -129,11 +138,12 @@ export { isCheck, screenshotFile };
 export declare function settleCheck(step: CheckStep): CheckStep;
 /**
  * The whole run's result. failed: any check failed, or an action failed
- * because of the product. passed: every check passed and every action is
- * done. Otherwise not_fully_checked.
+ * because of the product. passed: every check passed, every action is
+ * done, and the attempt did not abort. Otherwise not_fully_checked.
  * @param {Array<ActionStep|CheckStep>} steps
+ * @param {Attempt} [attempt]
  */
-export declare function runResult(steps: Array<ActionStep | CheckStep>): "failed" | "not_fully_checked" | "passed";
+export declare function runResult(steps: Array<ActionStep | CheckStep>, attempt?: Attempt): "failed" | "not_fully_checked" | "passed";
 /**
  * The run as the rules say it stands: every claimed pass without its proof is
  * settled to not_checked, and result, verified and not_verified are worked out
