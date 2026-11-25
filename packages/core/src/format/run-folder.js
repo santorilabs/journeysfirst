@@ -33,8 +33,8 @@ export function readRunJson(folder) {
 }
 
 /**
- * The newest run folder, by started_at, in one journey's folder of runs (like
- * journey-runs/share-by-link), or null when it has none.
+ * The newest run folder in one journey's folder of runs, or null when it
+ * has none. Prefer a non-pass when start and finish times are tied.
  * @param {string} dir
  * @param {(raw: any) => boolean} [keep] which runs count, from their run.json
  * @returns {string|null}
@@ -42,12 +42,18 @@ export function readRunJson(folder) {
 export function newestRunFolder(dir, keep = () => true) {
   if (!existsSync(dir)) return null;
   const started = (/** @type {any} */ raw) => Date.parse(raw?.started_at) || 0;
+  const finished = (/** @type {any} */ raw) => Date.parse(raw?.finished_at) || 0;
+  const passed = (/** @type {any} */ raw) => {
+    if (raw?.result !== "passed") return 0;
+    const { run, problems } = checkRun(raw);
+    return Number(!problems.length && run.result === "passed");
+  };
   const runs = readdirSync(dir)
     .map((id) => join(dir, id))
     .filter((folder) => existsSync(join(folder, "run.json")))
     .map((folder) => ({ folder, raw: readRunJson(folder) }))
     .filter(({ raw }) => keep(raw))
-    .sort((a, b) => started(b.raw) - started(a.raw));
+    .sort((a, b) => started(b.raw) - started(a.raw) || finished(b.raw) - finished(a.raw) || passed(a.raw) - passed(b.raw));
   return runs[0]?.folder ?? null;
 }
 

@@ -22,6 +22,11 @@ test("the spec's example run is valid, and matches the spec's example journey li
 const VALID = {
   "spec example": specRun(),
   "a recorded run": recorded(),
+  "a complete attempt": Object.assign(recorded(), { attempt: { status: "complete" } }),
+  "an aborted attempt with proven checks": Object.assign(recorded(), {
+    result: "not_fully_checked",
+    attempt: { status: "aborted", reason: "The runner timed out." },
+  }),
   "a run with secrets, a key and repeats": Object.assign(recorded(), {
     values: { phone: { secret: true }, link: { value: "/v/1" }, plan: { value: "Q3", secret: false } },
     repeat: { batch: "a1b2c3d4", n: 2, of: 5 },
@@ -44,6 +49,15 @@ const INVALID = {
   "a finished_at that is not a time": (r) => (r.finished_at = "later"),
   "no steps": (r) => (r.steps = []),
   "another result": (r) => (r.result = "ok"),
+  "attempt as text": (r) => (r.attempt = "aborted"),
+  "an attempt with no status": (r) => (r.attempt = {}),
+  "an attempt with another status": (r) => (r.attempt = { status: "running" }),
+  "an aborted attempt with no reason": (r) => (r.attempt = { status: "aborted" }),
+  "an aborted attempt with a blank reason": (r) => (r.attempt = { status: "aborted", reason: " " }),
+  "an aborted attempt claiming a passing result": (r) => Object.assign(r, recorded(), {
+    attempt: { status: "aborted", reason: "The runner timed out." },
+  }),
+  "a complete attempt with an invalid reason": (r) => (r.attempt = { status: "complete", reason: 7 }),
   "a project": (r) => (r.project = "acme"),
   "people instead of users": (r) => (r.people = { you: "a" }),
   "draft 0 outcomes": (r) => (r.outcomes = []),

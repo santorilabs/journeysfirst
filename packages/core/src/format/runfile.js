@@ -22,9 +22,10 @@ export const FULL_URL = /^https?:\/\/[^/?#\s]+/;
  * @typedef {{says: string, by: string, status: string, at?: number, took?: number, screenshots?: Screenshot[], cause?: string, reason?: string}} ActionStep
  * @typedef {{check: string, id: string, by: string, verdict: string, claimed?: string, proof?: string, evidence?: Evidence[], at?: number, took?: number, screenshots?: Screenshot[], cause?: string, reason?: string, added?: boolean}} CheckStep
  * @typedef {{id: string, criterion: string, says: string, evidence: Evidence[], step?: number, ask?: string}} Finding what a review against fixed criteria found. With ask, it is a question for a person.
+ * @typedef {{status: "complete", reason?: string} | {status: "aborted", reason: string}} Attempt
  * @typedef {{
  *   format: string, id: string, journey: {name: string, version: string, case: string|null}, result: string,
- *   summary?: string, started_at: string, finished_at?: string, ran_by?: {agent?: string, model?: string}, journeysfirst?: string,
+ *   summary?: string, attempt?: Attempt, started_at: string, finished_at?: string, ran_by?: {agent?: string, model?: string}, journeysfirst?: string,
  *   tags?: Record<string, unknown>, users?: Record<string, string|null>, played_by?: Record<string, string>, repeat?: {batch: string, n: number, of: number}, values?: Record<string, {value?: unknown, secret?: boolean}>,
  *   repos?: Array<{repo: string, commit?: string, branch?: string}>, media?: import("../shared/display.js").MediaItem[],
  *   verified?: string[], not_verified?: string[], findings?: Finding[], reviews?: Array<{by: string, at: string, on: string, says: string}>,
@@ -61,14 +62,16 @@ export function settleCheck(step) {
 
 /**
  * The whole run's result. failed: any check failed, or an action failed
- * because of the product. passed: every check passed and every action is
- * done. Otherwise not_fully_checked.
+ * because of the product. passed: every check passed, every action is
+ * done, and the attempt did not abort. Otherwise not_fully_checked.
  * @param {Array<ActionStep|CheckStep>} steps
+ * @param {Attempt} [attempt]
  */
-export function runResult(steps) {
+export function runResult(steps, attempt) {
   const checks = steps.filter(isCheck);
   const actions = /** @type {ActionStep[]} */ (steps.filter((s) => isMap(s) && !isCheck(s)));
   if (checks.some((s) => s.verdict === "failed") || actions.some((s) => s.status === "failed" && s.cause === "product")) return "failed";
+  if (attempt?.status === "aborted") return "not_fully_checked";
   if (checks.length > 0 && checks.every((s) => s.verdict === "passed") && actions.every((s) => s.status === "done")) return "passed";
   return "not_fully_checked";
 }
@@ -89,7 +92,7 @@ export function settle(run) {
     if (after !== step) settled.push(step.id);
     return after;
   });
-  return { run: { ...run, result: runResult(steps), ...verifiedLists(steps), steps }, settled };
+  return { run: { ...run, result: runResult(steps, run.attempt), ...verifiedLists(steps), steps }, settled };
 }
 
 /**
@@ -165,7 +168,11 @@ export function validateRun(run, plan) {
   const stepsOk = problems.length === stepCount;
 
   if (!RESULTS.includes(run.result)) problems.push(`result must be one of: ${RESULTS.join(", ")}.`);
-  else if (steps.length && stepsOk && run.result !== runResult(steps)) problems.push(`result is "${run.result}", but the steps give "${runResult(steps)}".`);
+  else if (steps.length && stepsOk) {
+    const expected = runResult(steps, run.attempt);
+    const basis = run.attempt?.status === "aborted" ? "the steps and aborted attempt" : "the steps";
+    if (run.result !== expected) problems.push(`result is "${run.result}", but ${basis} give "${expected}".`);
+  }
   if (steps.length && stepsOk) listProblems(run, steps).forEach((p) => problems.push(p));
 
   optionalFields(run, steps).forEach((p) => problems.push(p));
@@ -236,6 +243,14 @@ function optionalFields(run, steps) {
   /** @param {boolean} ok @param {string} message */
   const need = (ok, message) => ok || problems.push(message);
   need(run.summary === undefined || isText(run.summary), "summary must be a plain sentence.");
+  if (run.attempt !== undefined) {
+    const attempt = run.attempt;
+    if (!isMap(attempt) || !["complete", "aborted"].includes(attempt.status)) {
+      problems.push('attempt must be an object with status "complete" or "aborted".');
+    } else if ((attempt.status === "aborted" || attempt.reason !== undefined) && !isText(attempt.reason)) {
+      problems.push("attempt.reason must say why in a plain sentence when the attempt is aborted or a reason is given.");
+    }
+  }
   need(run.ran_by === undefined || isMap(run.ran_by), "ran_by must be an object, like {agent, model}.");
   need(run.journeysfirst === undefined || isText(run.journeysfirst), 'journeysfirst must be the version of Journeys First that wrote the run, like "0.0.3".');
   need(run.tags === undefined || isMap(run.tags), "tags must be an object, like {environment: \"staging\"}.");

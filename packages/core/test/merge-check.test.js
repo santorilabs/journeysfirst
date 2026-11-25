@@ -40,6 +40,52 @@ test("merge-check stops a journey with no run", () => {
   assert.match(lines[0].says, /no run in/);
 });
 
+test("merge-check stops a newer aborted attempt instead of falling back to a pass", () => {
+  const dir = project();
+  const outputDir = join(dir, "journey-runs");
+  const passed = recordAllPassed(recorder({ outputDir })).finish().run;
+  assert.equal(check(dir, "journey-runs").ok, true);
+
+  const attempt = { status: "aborted", reason: "The runner exited unexpectedly." };
+  let ms = Date.parse("2026-11-08T18:03:00Z");
+  const { run } = recordAllPassed(recorder({ outputDir, now: () => (ms += 500) })).finish({ attempt });
+  assert.deepEqual(run.steps, passed.steps);
+  const gate = spawnSync(process.execPath, [BIN, "merge-check"], { cwd: dir, encoding: "utf8" });
+  assert.equal(gate.status, 1, gate.stdout + gate.stderr);
+  assert.match(gate.stdout, /NO {2}share-by-link: attempt aborted: The runner exited unexpectedly\./);
+});
+
+test("merge-check stops an aborted attempt even when its blocked checks were blocked on main", () => {
+  const dir = project();
+  recordViewerBlocked(recorder({ outputDir: join(dir, "main-runs") })).finish();
+  recordViewerBlocked(recorder({ outputDir: join(dir, "journey-runs") })).finish({
+    attempt: { status: "aborted", reason: "The runner timed out." },
+  });
+  const { ok, lines } = check(dir, "journey-runs", "main-runs");
+  assert.equal(ok, false);
+  assert.equal(lines[0].says, "attempt aborted: The runner timed out.");
+});
+
+test("merge-check breaks start ties by finish time, then prefers a non-pass", () => {
+  const dir = project();
+  const outputDir = join(dir, "journey-runs");
+  const now = () => Date.parse("2026-11-08T18:02:11Z");
+  const pass = recordAllPassed(recorder({ outputDir, now, id: "a-passed" })).finish();
+  const aborted = recordAllPassed(recorder({ outputDir, now, id: "z-aborted" })).finish({
+    attempt: { status: "aborted", reason: "The runner timed out." },
+  });
+  assert.equal(pass.run.started_at, aborted.run.started_at);
+  assert.equal(pass.run.finished_at, aborted.run.finished_at);
+  assert.match(check(dir, "journey-runs").lines[0].says, /attempt aborted/);
+
+  const setFinish = ({ folder, run }, finished_at) => writeFileSync(join(folder, "run.json"), JSON.stringify({ ...run, finished_at }));
+  const later = "2026-11-08T18:04:00Z";
+  setFinish(pass, later);
+  assert.equal(check(dir, "journey-runs").ok, true);
+  setFinish(aborted, "2026-11-08T18:05:00Z");
+  assert.match(check(dir, "journey-runs").lines[0].says, /attempt aborted/);
+});
+
 test("merge-check stops a failed check, even when main failed it too", () => {
   const dir = project();
   for (const runs of ["journey-runs", "main-runs"]) {

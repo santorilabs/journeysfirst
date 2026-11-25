@@ -15,6 +15,14 @@ const after = (change, withPlan) => {
   return validateRun(run, withPlan ? plan() : undefined);
 };
 
+test("attempt status can prevent a pass without hiding a recorded failure", () => {
+  const { steps } = goodRun();
+  const aborted = { status: "aborted", reason: "The runner timed out." };
+  assert.equal(runResult(steps, { status: "complete" }), "passed");
+  assert.equal(runResult(steps, aborted), "not_fully_checked");
+  assert.equal(runResult(specRun().steps, aborted), "failed");
+});
+
 test("a recorded run is valid, and matches the journey's lines", () => {
   assert.deepEqual(validateRun(goodRun(), plan()), []);
 });

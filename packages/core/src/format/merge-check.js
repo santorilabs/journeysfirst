@@ -50,6 +50,7 @@ function judge(journey, name, id, runsDir, mainDir) {
   } catch (error) {
     return { ok: false, says: /** @type {Error} */ (error).message };
   }
+  if (run.attempt?.status === "aborted") return { ok: false, says: `attempt aborted: ${run.attempt.reason}` };
   const checks = run.steps.filter(isCheck);
   if (!checks.length) return { ok: false, says: "the run has no checks" };
   const notPassed = checks.filter((s) => s.verdict !== "passed");

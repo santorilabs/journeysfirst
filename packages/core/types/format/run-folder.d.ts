@@ -20,8 +20,8 @@ export declare function findJourney(run: {
  */
 export declare function readRunJson(folder: string): any;
 /**
- * The newest run folder, by started_at, in one journey's folder of runs (like
- * journey-runs/share-by-link), or null when it has none.
+ * The newest run folder in one journey's folder of runs, or null when it
+ * has none. Prefer a non-pass when start and finish times are tied.
  * @param {string} dir
  * @param {(raw: any) => boolean} [keep] which runs count, from their run.json
  * @returns {string|null}

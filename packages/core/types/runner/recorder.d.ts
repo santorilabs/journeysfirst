@@ -200,22 +200,24 @@ export declare class RunRecorder {
     /**
      * The run file and its files, without writing anything. Throws when a
      * secret value appears in the run metadata or an attached transcript.
-     * @param {{summary?: string}} [options]
+     * @param {{summary?: string, attempt?: Run["attempt"]}} [options]
      * @returns {{run: Run, files: Map<string, Buffer>}}
      */
-    result({ summary }?: {
+    result({ summary, attempt }?: {
         summary?: string;
+        attempt?: Run["attempt"];
     }): {
         run: Run;
         files: Map<string, Buffer>;
     };
     /**
      * Finish and write the run folder: <outputDir>/<journey name>/<run id>/.
-     * @param {{summary?: string}} [options]
+     * @param {{summary?: string, attempt?: Run["attempt"]}} [options]
      * @returns {{folder: string, run: Run}}
      */
     finish(options?: {
         summary?: string;
+        attempt?: Run["attempt"];
     }): {
         folder: string;
         run: Run;
