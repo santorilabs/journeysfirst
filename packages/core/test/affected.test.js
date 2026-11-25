@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { affectedJourneys, affectedLines, pathCovers } from "../src/format/affected.js";
-import { loadJourney, validateJourney } from "../src/format/format.js";
+import { journeyPlan, loadJourney, validateJourney } from "../src/format/format.js";
 
 const REPO = fileURLToPath(new URL("../../..", import.meta.url));
 
@@ -40,7 +40,8 @@ test("the self journeys are valid and each one is in the path map", () => {
     const journey = loadJourney(join(REPO, "journeys", `${name}.journey.yaml`));
     assert.deepEqual(validateJourney(journey), [], name);
     assert.equal(journey.format, "journeysfirst/v1");
-    assert.ok(journey.users?.length, name);
+    if (name === "let-an-agent-run-a-journey") assert.deepEqual(journeyPlan(journey).everyone, ["you"]);
+    else assert.ok(journey.users?.length, name);
   }
   const lines = affectedLines(REPO, ["packages/core/src/format/affected.js"]);
   assert.deepEqual(

@@ -5,6 +5,7 @@
 // journeysfirst add-findings <run folder> <findings file>        write a review's findings into a run
 // journeysfirst add-review <run folder> --on <id> --by <who> --says <words>   record a person's call on a check or a finding
 // journeysfirst review [dir] [--port n] [--host h] [--out dir]   browse or export the review UI
+// journeysfirst run <journey> --agent "<command>"                  run your own agent on a fresh project copy and save a run
 // journeysfirst publish <run folder> [--to url] [--journey file]   publish a run (token from JOURNEYSFIRST_TOKEN)
 // journeysfirst dev-server [--port n] [--host h]                 a local in-memory service to publish to
 // journeysfirst affected <path...>                               which journeys cover these changed paths
@@ -31,7 +32,8 @@ import { init, nextSteps, upgrade } from "../src/setup.js";
 import { reviewLine } from "../src/shared/display.js";
 import { VERSION } from "../src/shared/version.js";
 import { captureCommand } from "../src/runner/capture.js";
-import { readMcpServers, selectAdapter } from "../src/runner/agent.js";
+import { readMcpServers, runAgent } from "../src/runner/agent.js";
+import { selectAdapter } from "../src/runner/adapters.js";
 
 const USAGE = `Usage:
   journeysfirst --version
@@ -55,7 +57,7 @@ const USAGE = `Usage:
       Run a terminal command and save bounded, redacted output.
   journeysfirst mcp-proxy --out <new file> [--secret-env <NAME,NAME>] -- <server command> [args...]
       Relay an MCP server's stdio and save request labels and response summaries.
-  journeysfirst run <journey.yaml> [--agent <name>] [--project <folder>] [--case <id>] [--mcp <json>] [--container <image> | --allow-host-read] [--timeout <seconds>] -- [--model <name>]
+  journeysfirst run <journey.yaml> [--agent <name-or-command>] [--project <folder>] [--case <id>] [--mcp <json>] [--container <image> | --allow-host-read] [--timeout <seconds>] -- [--model <name>]
       Use a signed-in agent CLI to run in a scratch copy of the project. Records stdio servers from .mcp.json by default.
   journeysfirst publish <run folder> [--to <url>] [--journey <file>]   (default JOURNEYSFIRST_URL; token from JOURNEYSFIRST_TOKEN)
   journeysfirst dev-server [--port <n>] [--host <address>]   (default port 4500; host 127.0.0.1)
@@ -94,18 +96,21 @@ if (command === "run") {
         (flags.container && flags["allow-host-read"])) {
       throw new Error("Use journeysfirst run <journey.yaml>. See --help for options.");
     }
-    const timeoutMs = flags.timeout === undefined ? undefined : Number(flags.timeout) * 1000;
-    if (timeoutMs !== undefined && (!Number.isFinite(timeoutMs) || timeoutMs < 1000 || timeoutMs > 3600000)) {
-      throw new Error("Give --timeout a number of seconds between 1 and 3600.");
-    }
+    const timeoutMs = timeoutFlag(flags.timeout);
     const adapter = selectAdapter(flags.agent, flags.container);
-    if (!flags.agent) console.error(`Using ${adapter.name}. Pass --agent <name> to override.`);
-    if (!flags.container) console.error("Running without a container. Agent commands use its permission sandbox; the agent process runs on this machine.");
+    if (!flags.agent && adapter) console.error(`Using ${adapter.name}. Pass --agent <name> to override.`);
+    if (!adapter) {
+      if (!flags.agent?.trim() || flags.container || flags["allow-host-read"] || (end !== -1 && end < rest.length - 1)) {
+        throw new Error('Use journeysfirst run <journey.yaml> --agent "<command>". Put agent flags inside the command. A custom command cannot use --container or --allow-host-read.');
+      }
+      console.error("Running a custom agent command. Journeys First does not verify its sandbox.");
+    }
+    if (adapter && !flags.container) console.error("Running without a container. Agent commands use its permission sandbox; the agent process runs on this machine.");
     if (flags["allow-host-read"]) console.error("Host files, including files in your home directory, can be read by agent commands.");
     const project = flags.project ?? process.cwd();
-    const saved = await adapter.start({ journey: positional[0], caseId: flags.case, project,
-      mcp: readMcpServers(flags.mcp, project), container: flags.container, allowHostRead: flags["allow-host-read"],
-      timeoutMs, agentArgs: end === -1 ? [] : rest.slice(end + 1) });
+    const options = { journey: positional[0], caseId: flags.case, project, mcp: readMcpServers(flags.mcp, project), timeoutMs };
+    const saved = adapter ? await adapter.start({ ...options, container: flags.container, allowHostRead: flags["allow-host-read"],
+      agentArgs: end === -1 ? [] : rest.slice(end + 1) }) : await runAgent({ ...options, command: flags.agent });
     console.log(`Saved ${saved.run.result} run to ${saved.folder}.`);
     if (saved.problem) { console.error(saved.problem); process.exitCode = saved.exitCode; }
     else if (saved.run.result !== "passed") console.log("Exit 0 means the agent finished and a run was saved. The journey did not pass.");
@@ -323,6 +328,14 @@ function openRun(folder) {
   } catch (error) {
     throw new Error(error.message.replace("is not a valid run:", `is unverified against ${found.file}:`));
   }
+}
+
+/** @param {unknown} value seconds from --timeout */
+function timeoutFlag(value) {
+  if (value === undefined) return undefined;
+  const ms = Number(value) * 1000;
+  if (!Number.isFinite(ms) || ms < 1000 || ms > 3600000) throw new Error("Give --timeout a number of seconds between 1 and 3600.");
+  return ms;
 }
 
 function parseArgs(args) {

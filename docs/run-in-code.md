@@ -63,6 +63,10 @@ The sandbox allows outbound network access. If a server needs dependencies from 
 
 Exit status `0` means Codex finished and Journeys First saved a run. It does not mean the journey passed. Read the printed run result or use `npx journeysfirst merge-check` when a journey result must stop a merge.
 
+### Run a custom agent command
+
+Pass `--agent "<command>"` for a CLI without a built-in adapter. The command reads the journey from stdin and uses its own login and permissions. Journeys First marks these runs as having an unverified sandbox. Only run trusted commands and use disposable test projects. The runner writes a proxied `.mcp.json` in the scratch project; the command must support reading that file to record MCP.
+
 ### Record a terminal command or MCP exchange
 
 ```sh

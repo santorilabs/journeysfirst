@@ -91,6 +91,7 @@ Files, in `src/runner/`:
 - `recorder.js`: `RunRecorder`. Any script or agent can use it, with or without Playwright.
 - `capture.js`: selected terminal output and MCP request and response summaries. The wrapper passes the child's stdio through without changing it.
 - `recording.js`: attaches a capture and resolves check evidence from its saved lines, for one seat at a time.
+- `agent.js`: `run --agent "<command>"`. Runs the caller's own agent command on a scratch copy of the project, gives it the journey on stdin, and saves what it submits as a run.
 - `playwright.js`: `test.journey` and the `journey` fixture (`page`, `step`, `check`, `value`). It uses `RunRecorder`.
 - `captions.js`: the caption bar each user's video shows for the line in progress, and screenshots taken without it. Only `playwright.js` uses it.
 - `measure.js`: what the runner reads from a user's screen after each line, for a review: the values in use, each control's box, and each click with the ms until the page first changed. It also holds the slow replay (`JOURNEYS_DELAY_MS`). Only `playwright.js` uses it.

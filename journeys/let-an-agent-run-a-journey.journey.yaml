@@ -5,15 +5,14 @@ promise: |
   I can run one of my journeys with the agent CLI I already use.
   I can see what the agent did through MCP, what it proved, and what it told me at the end.
   The agent cannot read my home or its login, and an interrupted rerun cannot leave an old pass in charge.
-users: [agent]
 start: You have a signed-in, supported agent CLI, a journey for a signed-out test project, and a product MCP server with a read-only tool. You have no extra login set up for Journeys First.
 steps:
   - Route the product MCP server through mcp-proxy and start the journey with journeysfirst run --agent <agent>.
-  - check: The agent starts the journey using its existing CLI login, without asking for another login or key.
+  - check: You see the agent start the journey using its existing CLI login, without asking for another login or key.
     id: reuses-cli-login
   - check: Commands run by the agent cannot read your host home or the agent CLI's login file.
     id: cannot-read-home-or-login
-  - The agent calls the read-only MCP tool and submits the recorded response as evidence for a check.
+  - Have the agent call the read-only MCP tool and submit the recorded response as evidence for a check.
   - check: You see the MCP call and response recorded, and the saved check cites that response.
     id: mcp-call-recorded
   - Submit a passing result for a check without any recorded evidence.

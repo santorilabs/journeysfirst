@@ -1,17 +1,12 @@
-import { spawn } from "node:child_process";
-import { accessSync, chmodSync, closeSync, constants, copyFileSync, cpSync, fstatSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { accessSync, chmodSync, closeSync, constants, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { writeRunFolder } from "../format/run-folder.js";
-import { CAUSES } from "../format/runfile.js";
 import { RunRecorder, recording } from "./recorder.js";
-import { CAPTURE_LIMIT } from "./capture.js";
+import { agentPrompt, importResults, prepareProject, processResult, readSmall } from "./agent.js";
 import { maskText } from "./mask.js";
 
 const PROFILE = "journeysfirst";
 const PROBE = "journeysfirst: workspace readable, auth directory denied";
-const OMIT = new Set([".git", ".codex", ".env", ".npmrc", ".netrc", "node_modules", "journey-runs", ".journeysfirst"]);
 
 /**
  * Launch Codex with a fresh project and a separately protected provider login.
@@ -30,7 +25,6 @@ export async function runCodex({ journey, caseId, project, mcp, container, allow
   const base = realpathSync(mkdtempSync(join(tmpdir(), "journeysfirst-codex-")));
   const work = join(base, "work"), home = join(base, "home"), auth = join(base, "codex");
   const state = join(work, ".journeysfirst");
-  const captures = join(state, "captures");
   const authFile = join(auth, "auth.json");
   const runtime = container ? undefined : codexExecutable();
   const node = container ? "node" : realpathSync(process.execPath);
@@ -39,7 +33,7 @@ export async function runCodex({ journey, caseId, project, mcp, container, allow
   let signalExit;
   const onInt = () => { signalExit ??= 130; interrupt.abort(); };
   const onTerm = () => { signalExit ??= 143; interrupt.abort(); };
-  const launcher = launcherFor({ base, work, home, auth, container, signal: interrupt.signal });
+  const launcher = launcherFor({ base, work, home, auth, container, runtime, node, signal: interrupt.signal });
   let problem;
   let probeDir;
   /** @type {Buffer | undefined} */
@@ -47,24 +41,9 @@ export async function runCodex({ journey, caseId, project, mcp, container, allow
   process.on("SIGINT", onInt);
   process.on("SIGTERM", onTerm);
   try {
-    if (project) {
-      const source = realpathSync(project);
-      const inside = relative(source, base);
-      if (!inside || (!inside.startsWith("..") && !isAbsolute(inside))) throw new Error("Choose a project that does not contain the scratch directory.");
-      cpSync(source, work, { recursive: true, filter: (path) => {
-        if (path === source) return true;
-        if (path === loginFile) return false;
-        const name = basename(path);
-        return !OMIT.has(name) && !name.startsWith(".env.") && (!name.startsWith(".") || lstatSync(path).isFile());
-      } });
-    } else mkdirSync(work);
+    prepareProject(project, base, work, loginFile);
     mkdirSync(home);
     mkdirSync(auth);
-    mkdirSync(captures, { recursive: true });
-    for (const name of ["capture.js", "mask.js", "codex-capture.mjs"]) {
-      copyFileSync(fileURLToPath(new URL(name, import.meta.url)), join(state, name));
-    }
-    writeFileSync(join(state, "package.json"), '{"type":"module"}\n');
     const hostHome = !container && !allowHostRead ? realpathSync(homedir()) : undefined;
     const permissions = sandboxArgs({ work, home, auth, container, hostHome, loginFile, runtime, node });
     const sandbox = ["sandbox", "-P", PROFILE, ...permissions];
@@ -105,7 +84,7 @@ export async function runCodex({ journey, caseId, project, mcp, container, allow
     const result = await launcher(["-a", "never", ...permissions, ...servers.args, "exec", "--json", "--ephemeral",
       "--skip-git-repo-check", ...selected, "-"], prompt, timeoutMs);
     const seat = recording(run, "you");
-    const importErrors = readResults(seat, state);
+    const importErrors = importResults(seat, state);
     if (importErrors.length) run.tag("result_import_errors", importErrors.map((error) => maskText(run.redact(error))));
     const final = finalMessage(result.stdout);
     if (result.timedOut) problem = "Codex reached the time limit.";
@@ -134,8 +113,7 @@ export async function runCodex({ journey, caseId, project, mcp, container, allow
       rmSync(base, { recursive: true, force: true });
     }
   }
-  const { run: outcome, files } = run.result(problem ? { attempt: { status: "aborted", reason: problem } } : undefined);
-  const saved = writeRunFolder(run.outputDir, outcome, files, run.journey);
+  const saved = run.finish(problem ? { attempt: { status: "aborted", reason: problem } } : undefined);
   return { ...saved, problem, exitCode: signalExit ?? (problem ? 1 : 0) };
 }
 
@@ -158,32 +136,15 @@ function pickArgs(args) {
   return args;
 }
 
-/** @param {RunRecorder} run */
-function agentPrompt(run) {
-  const start = run.journey.cases?.find((item) => item.id === run.plan.case)?.start ?? run.journey.start;
-  return [
-    run.journey.promise, start, "",
-    ...run.plan.lines.map((line) => line.kind === "action" ? `${line.n}. ${line.says}` : `${line.n}. Check ${line.id}: ${line.check}`), "",
-    "Use only the signed-out project. Do not sign in to the product.",
-    "To record selected command output, run node .journeysfirst/codex-capture.mjs capture NAME.txt -- COMMAND ARGS.",
-    "Use distinct capture names. Product MCP servers, when configured, save captures as NAME.txt.",
-    "As you go, write one JSON object per line to .journeysfirst/results.jsonl.",
-    'Actions: {"line":1,"status":"done"}. Checks: {"id":"check-id","verdict":"passed","proof":"what you observed","refs":[{"file":"NAME.txt","line":1}]}.',
-    `For a failed or blocked line include a reason and a cause: ${CAUSES.join(", ")}. A failed check also needs proof.`,
-    "Do not claim a pass without a capture that proves it. Cite an output or response line, not a request line.",
-    "Finish with the message you would send to the person who asked you to run the journey.",
-  ].filter((line) => line !== undefined).join("\n");
-}
-
-/** @param {{base: string, work: string, home: string, auth: string, container?: string, signal: AbortSignal}} options */
-function launcherFor({ base, work, home, auth, container, signal }) {
+/** @param {{base: string, work: string, home: string, auth: string, container?: string, runtime?: string, node: string, signal: AbortSignal}} options */
+function launcherFor({ base, work, home, auth, container, runtime, node, signal }) {
   const env = {
-    PATH: container ? "/usr/local/bin:/usr/bin:/bin" : [dirname(process.execPath), ...(process.env.PATH ?? "").split(":")].join(":"),
+    PATH: container ? "/usr/local/bin:/usr/bin:/bin" : [dirname(node), ...(process.env.PATH ?? "").split(":")].join(":"),
     HOME: home, CODEX_HOME: auth, LANG: "C.UTF-8",
   };
   /** @param {string[]} args @param {string} stdin @param {number} timeout */
   return async (args, stdin, timeout) => {
-    if (!container) return processResult("codex", args, { cwd: work, env, stdin, timeout, signal });
+    if (!container) return processResult(runtime ?? "codex", args, { cwd: work, env, stdin, timeout, signal });
     if (!/^[\w][\w./:@-]*$/.test(container)) throw new Error("Give a local container image name.");
     const name = basename(base);
     try {
@@ -314,7 +275,7 @@ function codexExecutable() {
 function codexRuntimePaths(executable) {
   const pkg = dirname(dirname(executable));
   if (basename(pkg) !== "codex" || basename(dirname(pkg)) !== "@openai") return [executable];
-  const platform = process.platform === "win32" ? "win32" : process.platform;
+  const platform = process.platform;
   const native = join(dirname(pkg), `codex-${platform}-${process.arch}`);
   return existsDirectory(native) ? [pkg, native] : [pkg];
 }
@@ -338,65 +299,12 @@ function probeCode() {
 /** @param {Record<string,string[]>} config @param {string[]} sandbox @param {string} state @param {string} work @param {string} runtime @param {string} node */
 function mcpConfig(config, sandbox, state, work, runtime, node) {
   const args = Object.entries(config).flatMap(([name, argv]) => {
-    const args = [...sandbox, "--", node, join(state, "codex-capture.mjs"), "mcp-proxy", name + ".txt", "--", ...argv];
+    const args = [...sandbox, "--", node, join(state, "capture.mjs"), "mcp-proxy", name + ".txt", "--", ...argv];
     const prefix = `mcp_servers.${name}`;
     return ["-c", `${prefix}.command=${JSON.stringify(runtime)}`, "-c", `${prefix}.args=${JSON.stringify(args)}`,
       "-c", `${prefix}.cwd=${JSON.stringify(work)}`, "-c", `${prefix}.default_tools_approval_mode="approve"`];
   });
   return { args, names: Object.keys(config) };
-}
-
-/** @param {ReturnType<typeof recording>} seat @param {string} state */
-function readResults(seat, state) {
-  const output = readSmall(join(state, "results.jsonl"));
-  const names = new Set(readdirSync(join(state, "captures"), { withFileTypes: true }).filter((item) => item.isFile()).map((item) => item.name));
-  const attached = new Set();
-  const errors = [];
-  for (const [index, line] of output.split("\n").entries()) {
-    if (!line.trim()) continue;
-    try {
-      const entry = JSON.parse(line);
-      if (entry.line && ["done", "failed", "blocked", "not_run"].includes(entry.status)) {
-        seat.step(entry.line, { status: entry.status, reason: entry.reason, cause: entry.cause });
-      } else if (entry.id && ["passed", "failed", "blocked", "not_checked"].includes(entry.verdict)) {
-        const refs = Array.isArray(entry.refs) ? entry.refs : [];
-        for (const { file } of refs) {
-          if (!names.has(file)) continue;
-          if (!attached.has(file)) seat.attach(file, join(state, "captures", file), { login: "you" });
-          attached.add(file);
-        }
-        seat.check(entry.id, { verdict: entry.verdict, proof: entry.proof, reason: entry.reason, cause: entry.cause, refs });
-      } else throw new Error("Give an action line and status, or a check id and verdict.");
-    } catch (error) {
-      const message = error instanceof SyntaxError ? "Not a JSON object." : error instanceof Error ? error.message : "Invalid result.";
-      errors.push(`Result line ${index + 1}: ${message}`);
-    }
-  }
-  for (const file of names) {
-    if (!attached.has(file)) {
-      try { seat.attach(file, join(state, "captures", file)); } catch {}
-    }
-  }
-  return errors;
-}
-
-/** @param {string} path */
-function readSmall(path) {
-  try {
-    const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
-    try {
-      if (!fstatSync(fd).isFile()) return "";
-      const buf = Buffer.alloc(CAPTURE_LIMIT + 1);
-      let offset = 0;
-      while (offset < buf.length) {
-        const read = readSync(fd, buf, offset, buf.length - offset, null);
-        if (!read) break;
-        offset += read;
-      }
-      const text = buf.toString("utf8", 0, Math.min(offset, CAPTURE_LIMIT));
-      return offset > CAPTURE_LIMIT ? text.slice(0, text.lastIndexOf("\n") + 1) : text;
-    } finally { closeSync(fd); }
-  } catch { return ""; }
 }
 
 /** @param {string} text */
@@ -411,36 +319,4 @@ function finalMessage(text) {
     } catch {}
   }
   return final;
-}
-
-/**
- * @param {string} command
- * @param {string[]} args
- * @param {{cwd: string, env?: NodeJS.ProcessEnv, stdin: string, timeout: number, signal?: AbortSignal}} options
- * @returns {Promise<{code: number | null, stdout: string, timedOut: boolean}>}
- */
-function processResult(command, args, { cwd, env, stdin, timeout, signal }) {
-  return new Promise((done) => {
-    if (signal?.aborted) { done({ code: null, stdout: "", timedOut: false }); return; }
-    const child = spawn(command, args, { cwd, env, detached: true, stdio: ["pipe", "pipe", "ignore"] });
-    let stdout = "", timedOut = false;
-    const stop = () => { try { if (child.pid) process.kill(-child.pid, "SIGKILL"); } catch {} };
-    signal?.addEventListener("abort", stop, { once: true });
-    const timer = setTimeout(() => {
-      timedOut = true;
-      stop();
-    }, timeout);
-    child.stdin.on("error", () => {});
-    child.stdin.end(stdin);
-    child.stdout.setEncoding("utf8");
-    child.stdout.on("data", (chunk) => { stdout = (stdout + chunk).slice(-2 * 1024 * 1024); });
-    /** @param {number | null} code */
-    const finish = (code) => {
-      clearTimeout(timer);
-      signal?.removeEventListener("abort", stop);
-      done({ code, stdout, timedOut });
-    };
-    child.once("error", () => finish(null));
-    child.once("close", finish);
-  });
 }
