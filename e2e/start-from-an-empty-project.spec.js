@@ -14,7 +14,7 @@ test.journey("journeys/start-from-an-empty-project.journey.yaml", { video: true,
     const seen = newcomerPages();
     const tarball = broken ? packs().mainTgz : packs().branchTgz;
 
-    await journey.step("Read the page a newcomer sees.", { by: "you", caption: "You read the page a newcomer sees." }, async () => {
+    await journey.step("Read the page.", { by: "you", caption: "You read the page." }, async () => {
       await show(you, "The page a newcomer sees", seen.text);
       await show(teammate, "The page a newcomer sees", seen.text);
     });
@@ -51,7 +51,7 @@ test.journey("journeys/start-from-an-empty-project.journey.yaml", { video: true,
     let dir = "";
     let setupLog = "";
 
-    await journey.step("Install it and set the project up.", { by: "you", caption: "You install it and set the project up." }, async () => {
+    await journey.step("Install it.", { by: "you", caption: "You install it." }, async () => {
       try {
         dir = install(tarball);
         setupLog = run(dir, process.execPath, [binOf(dir), "init"]).output;
@@ -62,7 +62,7 @@ test.journey("journeys/start-from-an-empty-project.journey.yaml", { video: true,
     });
 
     let first = { status: 1, output: "" };
-    await journey.step("Run the first journey.", { by: "you", caption: "You run the first journey." }, async () => {
+    await journey.step("Try the sample it gives you.", { by: "you", caption: "You try the sample." }, async () => {
       if (dir) first = run(dir, process.execPath, [playwrightOf(dir), "test"], { JOURNEYS_PORT: freePort() });
       else first = { status: 1, output: setupLog };
       await show(you, "You run the first journey", first.output);
@@ -91,7 +91,7 @@ test.journey("journeys/start-from-an-empty-project.journey.yaml", { video: true,
     });
 
     let doctor = { status: 1, output: "" };
-    await journey.step("Leave the app address out of the setup.", { by: "you", caption: "You leave the app address out of the setup." }, async () => {
+    await journey.step("Leave out where the app lives.", { by: "you", caption: "You leave out where the app lives." }, async () => {
       if (dir) {
         writeFileSync(join(dir, "playwright.config.js"), `import { defineConfig } from "@playwright/test";\nexport default defineConfig({ testDir: "e2e", reporter: [["list"], ["journeysfirst/reporter"]] });\n`);
         await show(you, "The app address is left out", "The setup no longer has an address for the app, and it no longer starts one.");

@@ -29,7 +29,7 @@ test.journey("journeys/let-an-agent-write-a-journey.journey.yaml", { video: true
       await show(agent, "The agent finds the instructions", skills.length ? skills.join("\n") : `No instructions found.\n${init.output}`);
     });
 
-    await journey.step("The agent writes a journey for one thing the page does.", { by: "agent", caption: "The agent writes a journey." }, async () => {
+    await journey.step("The agent writes down one thing the page should do.", { by: "agent", caption: "The agent writes down one thing the page should do." }, async () => {
       mkdirSync(join(dir, "journeys"), { recursive: true });
       mkdirSync(join(dir, "e2e"), { recursive: true });
       writeFileSync(join(dir, "journeys/see-that-you-are-in.journey.yaml"), `format: ${format || "missing"}\ntitle: See that you are in\npromise: I want to open the page and see that I am in.\nstart: The example page is what the browser will open.\nsteps:\n  - Open the page and choose I am in.\n  - check: The page says you are in.\n    id: you-are-in\n`);
@@ -38,7 +38,7 @@ test.journey("journeys/let-an-agent-write-a-journey.journey.yaml", { video: true
     });
 
     let played = { status: 1, output: "" };
-    await journey.step("The agent runs that journey.", { by: "agent", caption: "The agent runs that journey." }, async () => {
+    await journey.step("The agent tries that.", { by: "agent", caption: "The agent tries that." }, async () => {
       played = run(dir, process.execPath, [playwrightOf(dir), "test", "--grep", "See that you are in"], { JOURNEYS_PORT: freePort() });
       await show(agent, "The agent runs that journey", played.output);
     });

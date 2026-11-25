@@ -29,7 +29,7 @@ test.journey("journeys/hand-a-project-to-a-new-agent.journey.yaml", { video: tru
       await show(agent, "The agent finds the instructions", found.command ? `${found.command}\nfrom ${found.from}` : "No setup instruction was found.");
     });
 
-    await journey.step("The agent installs it and sets the project up.", { by: "agent", caption: "The agent installs it and sets the project up." }, async () => {
+    await journey.step("The agent sets the project up.", { by: "agent", caption: "The agent sets the project up." }, async () => {
       try {
         dir = install(tarball);
         const again = discoverInit([dir]);
@@ -43,7 +43,7 @@ test.journey("journeys/hand-a-project-to-a-new-agent.journey.yaml", { video: tru
     });
 
     let first = { status: 1, output: setupLog };
-    await journey.step("The agent runs the first journey.", { by: "agent", caption: "The agent runs the first journey." }, async () => {
+    await journey.step("The agent tries the sample.", { by: "agent", caption: "The agent tries the sample." }, async () => {
       if (dir) first = run(dir, process.execPath, [playwrightOf(dir), "test"], { JOURNEYS_PORT: freePort() });
       await show(agent, "The agent runs the first journey", first.output);
     });

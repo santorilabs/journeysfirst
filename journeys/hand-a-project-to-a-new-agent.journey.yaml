@@ -3,26 +3,26 @@ format: journeysfirst/v1
 title: Hand a project to a new agent
 promise: |
   I want to hand this project to an agent that has never seen it.
-  The agent should find Journeys First, install it, set the project up, and pass a first run.
-  It should use only what is already in the project and the package. I should not have to explain it.
+  The agent should figure out what this is, set it up, and get a first try to pass.
+  It should use only what I handed it. I should not have to explain anything.
 users: [agent, teammate]
-start: The agent has the project files and the package, and no notes from an earlier session. You are not in the session. The teammate has not seen a run.
+start: The agent has only this project, and no memory of an earlier session. You are not in the session. A teammate has not seen a result yet.
 steps:
   - The agent finds Journeys First in the project.
   - The agent finds the instructions that come with it.
-  - The agent installs it and sets the project up.
-  - The agent runs the first journey.
-  - check: The agent sees the first run pass.
+  - The agent sets the project up.
+  - The agent tries the sample.
+  - check: The agent sees the sample pass.
     id: agent-sees-the-pass
-  - check: The agent did not open a file from outside the project and the package.
+  - check: The agent did not look outside what you handed it.
     id: only-what-is-here
     added: true
   - check: You did not have to answer a question.
     id: you-were-not-asked
-  - check: The teammate sees the same passing run.
+  - check: The teammate sees the same passing result.
     id: teammate-sees-the-run
     added: true
   - check: The teammate does not see a step left undone.
     id: teammate-sees-no-gap
     added: true
-notes: The agent starts with no memory of this product. It may read the project and the installed package. It may not read notes, chat, or another repo.
+notes: The agent may read the project and the installed package. It may not read notes, chat, or another repo. The sample is the one setup adds when the project has no app of its own.

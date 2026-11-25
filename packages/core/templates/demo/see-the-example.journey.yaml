@@ -1,9 +1,10 @@
 # journeysfirst example. Replace this with a journey for your product.
 format: journeysfirst/v1
-title: See the example page
-promise: You can open the example page and see that you are in.
-start: The example page from journeysfirst init is what the browser will open. This is a journeysfirst example, not your product.
+title: See that you are in
+promise: I want to open the page and see that I am in.
+start: A sample page is waiting. It is not your own app.
 steps:
-  - Open the example page and choose I am in.
-  - check: The page says you are in.
+  - Open the page and choose "I am in".
+  - check: You see "You are in."
     id: you-are-in
+notes: This is a journeysfirst example. Delete it when the sample is no longer what you open.

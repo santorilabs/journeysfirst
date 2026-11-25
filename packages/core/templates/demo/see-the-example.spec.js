@@ -6,7 +6,7 @@ import { test } from "journeysfirst/playwright";
 test.journey("journeys/see-the-example.journey.yaml", { video: false, measure: false }, async ({ journey }) => {
   const you = await journey.page("you", { account: "signed out" });
 
-  await journey.step("Open the example page and choose I am in.", { by: "you" }, async () => {
+  await journey.step("Open the page and choose \"I am in\".", { by: "you" }, async () => {
     await you.goto("/");
     await you.getByRole("button", { name: "I am in" }).click();
   });

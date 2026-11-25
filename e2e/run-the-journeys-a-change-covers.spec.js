@@ -23,7 +23,7 @@ test.journey("journeys/run-the-journeys-a-change-covers.journey.yaml", { video: 
     let output = "";
     /** @type {string[]} */
     let chosen = [];
-    await journey.step("Run every journey that covers that page.", { by: "you", caption: "You run the journeys that cover that page." }, async () => {
+    await journey.step("Try again every journey that covers that page.", { by: "you", caption: "You try again every journey that covers that page." }, async () => {
       if (broken) {
         output = "run journeys/open-the-page.journey.yaml\nrun journeys/read-the-notes.journey.yaml\n";
         chosen = ["Open the page", "Read the notes"];

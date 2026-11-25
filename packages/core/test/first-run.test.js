@@ -40,7 +40,7 @@ test("init on a fresh repo writes an example journey that passes", () => {
   assert.equal(ids.length, 1, result.output);
   const { run } = readRunFolder(join(runs, ids[0]), { journey });
   assert.equal(run.result, "passed");
-  assert.deepEqual(run.verified, ["The page says you are in."]);
+  assert.deepEqual(run.verified, ["You see \"You are in.\""]);
 });
 
 test("a journey with neither baseURL nor webServer fails with what to set", () => {

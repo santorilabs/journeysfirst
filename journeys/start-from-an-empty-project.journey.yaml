@@ -3,9 +3,9 @@ format: journeysfirst/v1
 title: See what it is before you install
 promise: I just found Journeys First. I wanna see what it is about and if I wanna install it
 users: [teammate]
-start: You have not installed it. You and the teammate are both looking at the page a newcomer sees.
+start: Nothing is installed. You and a teammate are reading the same public page.
 steps:
-  - Read the page a newcomer sees.
+  - Read the page.
   - check: You see what Journeys First is.
     id: what-it-is
   - check: You see who it is for.
@@ -15,25 +15,25 @@ steps:
   - check: The teammate sees the same way to get started.
     id: teammate-sees-how-to-start
     added: true
-  - check: The teammate sees "Journeys First", the same product you see.
+  - check: The teammate sees "Journeys First", the same thing you see.
     id: teammate-sees-the-same-product
     added: true
-  - Install it and set the project up.
-  - Run the first journey.
-  - check: You see the first run pass.
+  - Install it.
+  - Try the sample it gives you.
+  - check: You see the sample pass.
     id: first-run-passes
-  - check: The teammate sees that the first run passed.
+  - check: The teammate sees that it passed.
     id: teammate-sees-the-pass
     added: true
-  - check: The teammate does not see an error from that run.
+  - check: The teammate does not see an error.
     id: teammate-sees-no-error
     added: true
-  - Leave the app address out of the setup.
+  - Leave out where the app lives.
   - Ask what is wrong.
-  - check: You see that the app address is missing, and you see what to put there.
+  - check: You see that it does not know where the app is, and you see what to tell it.
     id: missing-address
     added: true
-  - check: The teammate does not see the broken setup listed as a pass.
+  - check: The teammate does not see this called a success.
     id: teammate-no-false-pass
     added: true
-notes: The page a newcomer sees is the README, the package page, and the overview shipped with the repo. The first run is the sample the setup adds when the project has no app of its own. The app address is the address a run opens.
+notes: The public page is the README, the package page, and the overview shipped with the repo. The sample is the one setup adds when the project has no app of its own. Where the app lives is the address a run opens.
