@@ -188,7 +188,7 @@ function batchRow(entries) {
         <span class="title">${badge(result)} ${esc(title(first.run))}${first.run.journey?.case ? ` <span class="how">(${esc(first.run.journey.case)})</span>` : ""}</span>
         <span class="summary">${esc(summary)}</span>
         <span class="runs">${links}</span>
-        <span class="meta">${esc(when(first.run.started_at))} · ${esc(first.run.ran_by?.agent ?? "unknown")}</span>
+        ${indexMeta(first.run)}
       </div>`;
 }
 
@@ -196,9 +196,43 @@ function batchRow(entries) {
 function runRow({ journey, id, run }) {
   return `<a class="row" href="/runs/${esc(journey)}/${esc(id)}">
         <span class="title">${badge(run.result)} ${esc(title(run))}${run.journey?.case ? ` <span class="how">(${esc(run.journey.case)})</span>` : ""}${found(run)}</span>
-        ${run.summary ? `<span class="summary">${esc(run.summary)}</span>` : ""}
-        <span class="meta">${esc(when(run.started_at))} · ${esc(run.ran_by?.agent ?? "unknown")}${run.legacy ? " · draft 0" : ""}${run.problems?.length ? ` · ${run.problems.length} problem(s) in the run file` : ""}</span>
+        <span class="summary">${checkSummary(run)}</span>
+        ${indexMeta(run)}
       </a>`;
+}
+
+/** @param {ShownRun} run */
+function indexMeta(run) {
+  const labels = [run.started_at && `Started: ${when(run.started_at)}`, run.ran_by?.agent && `Run by: ${run.ran_by.agent}`, run.legacy && "Draft 0",
+    run.problems?.length && `${run.problems.length} problems in the run file`];
+  return `<span class="meta row-meta">${labels.filter(Boolean).map((label) => `<span>${esc(label)}</span>`).join("")}</span>`;
+}
+
+/** @param {ShownRun} run */
+function checkSummary(run) {
+  const checks = run.steps.filter(isCheck);
+  if (!checks.length) return "No checks recorded.";
+  const passed = checks.filter((step) => step.verdict === "passed").length;
+  const failed = checks.filter((step) => step.verdict === "failed").length;
+  const remaining = checks.length - passed - failed;
+  if (checks.length === 1) return `1 check ${passed ? "passed" : failed ? "failed" : "not verified"}.`;
+  return `${passed} of ${checks.length} checks passed${failed ? `, ${failed} failed` : ""}${remaining ? `, ${remaining} not verified` : ""}.`;
+}
+
+/** @param {ShownRun} run */
+function runDetails(run) {
+  const people = new Set([...Object.keys(run.users ?? {}), ...Object.keys(run.played_by ?? {})]);
+  const rows = [
+    ["Started", when(run.started_at)],
+    ["Run by", [run.ran_by?.agent, run.ran_by?.model].filter(Boolean).join(", ")],
+    ["Case", run.journey?.case],
+    ["Journey version", run.journey?.version],
+    ...Object.entries(run.tags ?? {}),
+    ...(run.repos ?? []).map((r) => ["Repository", `${r.repo}${r.branch ? ` ${r.branch}` : ""}${r.commit ? ` @ ${String(r.commit).slice(0, 7)}` : ""}`]),
+    ...[...people].map((u) => [`Role: ${u === "you" ? "You" : u}`, [run.played_by?.[u] && `Played by ${run.played_by[u]}`, run.users?.[u] && `Account: ${run.users[u]}`].filter(Boolean).join(". ")]),
+    ...Object.entries(run.values ?? {}).map(([name, v]) => [`\${${name}}`, v.secret ? "Hidden" : JSON.stringify(v.value)]),
+  ].filter(([, value]) => value !== "" && value !== undefined);
+  return rows.length ? `<details class="run-details"><summary>Run details</summary><dl>${rows.map(([name, value]) => `<dt>${esc(name)}</dt><dd>${esc(value)}</dd>`).join("")}</dl></details>` : "";
 }
 
 /**
@@ -218,29 +252,16 @@ function runPage(run, journey, id, folder) {
     const card = stepCard(step, i + 1, fileUrl, Boolean(at)) + (report?.line === i + 1 ? reportedSection(report) : "");
     return { n: i + 1, text: String(step.check ?? step.says ?? ""), isCheck: isCheck(step), state: stepState(step), by: step.by || undefined, at: at?.seconds, card };
   });
-  // The first check that did not pass, else the last step.
-  const openAt = steps.find((s) => s.isCheck && s.state !== "passed")?.n ?? steps.length;
-  const users = Object.entries(run.users ?? {}).map(([u, account]) => `${u}: ${account ?? "not captured"}${run.played_by?.[u] ? `, played by ${run.played_by[u]}` : ""}`);
-  const values = Object.entries(run.values ?? {}).map(([name, v]) => `\${${name}} = ${v.secret ? "hidden" : JSON.stringify(v.value)}`);
-  const meta = [
-    when(run.started_at),
-    run.journey?.case && `case ${run.journey.case}`,
-    run.ran_by && `ran by ${[run.ran_by.agent, run.ran_by.model].filter(Boolean).join(" · ")}`,
-    `journey version ${run.journey?.version ?? ""}`,
-    ...Object.entries(run.tags ?? {}).map(([k, v]) => `${k}: ${v}`),
-    ...(run.repos ?? []).map((r) => `${r.repo}${r.branch ? ` ${r.branch}` : ""}${r.commit ? ` @ ${String(r.commit).slice(0, 7)}` : ""}`),
-    ...users,
-    ...values,
-  ].filter(Boolean);
+  const openAt = (steps.find((s) => s.state === "failed") ?? steps.find((s) => s.isCheck && s.state !== "passed"))?.n ?? steps.length;
   return layout(
     title(run),
     `<p><a href="/">All runs</a></p>
      <h1>${esc(run.promise ?? title(run))}</h1>
-     <p class="verdict-row">${badge(run.result)} ${run.summary ? `<span class="summary ${esc(run.result)}">${esc(run.summary)}</span>` : ""}${found(run)}</p>
+     <p class="verdict-row">${badge(run.result)} <span class="summary">${checkSummary(run)}</span></p>
      ${run.problems?.length ? `<section class="problems"><p><b>This run file breaks the rules.</b> What is shown below is what the rules allow, not what the file claims.</p><ul>${run.problems.map((p) => `<li>${esc(p)}</li>`).join("")}</ul></section>` : ""}
-     <p class="meta">${meta.map(esc).join(" · ")}</p>
      ${findingsSection(run)}
      ${steps.length ? runPlayerHtml({ steps, videos, openAt }) : '<p class="empty">This run has no steps.</p>'}
+     ${runDetails(run)}
      ${traceSection((run.media ?? []).filter((m) => m.kind === "trace"), folder, fileUrl)}
      ${reviewsSection(run)}
      <script>${RUN_PLAYER_SCRIPT}</script>`,
@@ -260,10 +281,11 @@ function stepCard(step, n, fileUrl, inVideo) {
   const shots = (step.screenshots ?? []).map((s) => `<img src="${fileUrl(screenshotFile(s))}" alt="What ${esc(step.by || "the user")} saw at step ${n}"${screenshotPage(s) ? ` title="${esc(screenshotPage(s))}"` : ""}>`).join("");
   return `<p>${badge(state)}${step.added ? ' <span class="how">added by the agent</span>' : ""}</p>
     ${step.claimed ? `<p class="how">Claimed ${esc(step.claimed)}, but ${esc(lowerFirst(step.reason ?? "it had no evidence."))}</p>` : ""}
-    ${step.reason && !step.claimed ? `<p class="error">${step.cause ? `${esc(step.cause)}: ` : ""}${esc(step.reason)}</p>` : ""}
-    ${step.proof ? `<p>${esc(step.proof)}</p>` : ""}
-    ${evidenceList(step.evidence ?? [])}
-    ${shots ? (inVideo ? `<details><summary>Screenshot</summary>${shots}</details>` : shots) : inVideo ? "" : '<p class="empty">No screenshot.</p>'}`;
+    ${step.reason && !step.claimed ? `<p class="error">${esc(step.reason)}</p>` : ""}
+    ${step.cause && !step.claimed ? `<p class="how">Cause: ${esc(step.cause)}</p>` : ""}
+    ${step.proof && step.proof !== step.reason ? `<p>${esc(step.proof)}</p>` : ""}
+    ${evidenceList(step.evidence ?? [], { open: true, repeated: [step.reason, step.proof] })}
+    ${shots ? (inVideo ? `<details><summary>Screenshot</summary>${shots}</details>` : shots) : ""}`;
 }
 
 /**
@@ -335,11 +357,39 @@ const cueTime = (s) => {
 /** Cue text: no markup, and never an arrow that would end the cue's line. @param {string} text */
 const vttText = (text) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\s*\n\s*/g, " ");
 
-/** @param {import("../format/runfile.js").Evidence[]} items */
-function evidenceList(items) {
+/** @param {unknown} value @param {ReadonlyArray<string | undefined>} repeated @returns {string} */
+function evidenceValue(value, repeated) {
+  if (value === undefined || (typeof value === "string" && repeated.includes(value))) return "";
+  if (Array.isArray(value)) {
+    if (!value.length) return "No items";
+    const items = value.map((item) => evidenceValue(item, repeated)).filter(Boolean);
+    return items.length ? `<ul class="evidence-values">${items.map((item) => `<li>${item}</li>`).join("")}</ul>` : "";
+  }
+  if (value && typeof value === "object") {
+    const rows = Object.entries(value).map(([key, item]) => evidenceField(key.replace(/([a-z0-9])([A-Z])/g, "$1 $2"), item, repeated)).join("");
+    return rows ? `<dl>${rows}</dl>` : Object.keys(value).length ? "" : "No fields";
+  }
+  return esc(value === null ? "null" : value === "" ? '""' : value);
+}
+
+/** @param {string} label @param {unknown} value @param {ReadonlyArray<string | undefined>} [repeated] @returns {string} */
+function evidenceField(label, value, repeated = []) {
+  const shown = evidenceValue(value, repeated);
+  return shown ? `<dt>${esc(label)}</dt><dd>${shown}</dd>` : "";
+}
+
+/** @param {import("../format/runfile.js").Evidence[]} items @param {{open?: boolean, repeated?: ReadonlyArray<string | undefined>}} [options] */
+function evidenceList(items, { open = false, repeated } = {}) {
   if (!items.length) return "";
-  const rows = items.map((e) => `<li><b>${esc(e.source)}</b> ${e.key === undefined ? `from ${esc(e.login)}'s login` : `read with ${esc(e.key)}`}<pre>${esc(JSON.stringify(e, null, 2))}</pre></li>`).join("");
-  return `<details><summary>Evidence (${items.length})</summary><ul class="evidence">${rows}</ul></details>`;
+  const rows = items.map((e) => {
+    const fields = evidenceField("Query", e.query) + evidenceField("Address", e.url) + evidenceField("Expected", e.expected) +
+      evidenceField("Got", e.got, repeated) + evidenceField("Observed", e.saw, repeated);
+    return `<li><b>${esc(typeof e.source === "string" ? e.source.charAt(0).toUpperCase() + e.source.slice(1) : "Evidence")}</b>
+    ${e.key !== undefined ? `<span class="how"> · Key: ${esc(e.key)}</span>` : e.login && e.login !== "you" ? `<span class="how"> · Login: ${esc(e.login)}</span>` : ""}
+    ${fields ? `<dl>${fields}</dl>` : ""}
+    <details><summary>Raw JSON</summary><pre>${esc(JSON.stringify(e, null, 2))}</pre></details></li>`;
+  }).join("");
+  return `<details${open ? " open" : ""}><summary>Evidence (${items.length})</summary><ul class="evidence">${rows}</ul></details>`;
 }
 
 /**
@@ -360,12 +410,11 @@ function traceSection(traces, folder, fileUrl) {
 }
 
 /**
- * What a review against fixed criteria found, under the verdict: findings by
- * pass, then the questions for a person. A finding never changes the verdict.
+ * What the review found, under the verdict. A finding never changes the verdict.
  * @param {ShownRun} run
  */
 function findingsSection(run) {
-  const head = '<section class="start" aria-label="Review"><p class="how">Review</p>';
+  const head = '<section class="start" aria-label="Findings"><h2>Findings</h2>';
   if (!Array.isArray(run.findings)) return `${head}<p>Not reviewed.</p></section>`;
   const items = findingsOf(run);
   if (!items.length) return `${head}<p>Reviewed. Nothing found.</p></section>`;
@@ -377,16 +426,17 @@ function findingsSection(run) {
     groups.set(name, [...(groups.get(name) ?? []), f]);
   }
   const reviews = reviewsOf(run);
-  /** @param {Finding} f */
-  const item = (f) => `<li>
+  /** @param {Finding} f @param {string} group */
+  const item = (f, group) => `<li>
       <p class="says">${esc(f.says)}</p>
       ${f.ask !== undefined ? `<p>${esc(f.ask)}</p>` : ""}
-      <p class="how">${f.step !== undefined ? `<a href="?step=${esc(f.step)}">step ${esc(f.step)}</a> · ` : ""}${esc(f.criterion)}</p>
+      ${f.step !== undefined ? `<p class="how"><a href="?step=${esc(f.step)}#steps">Step ${esc(f.step)}</a></p>` : ""}
       ${reviews.filter((r) => r.on === f.id).map((r) => `<p class="call"><b>${esc(r.by)}</b>: ${esc(r.says)} <span class="how">${esc(when(r.at))}</span></p>`).join("")}
       ${evidenceList(Array.isArray(f.evidence) ? f.evidence.filter((e) => e && typeof e === "object") : [])}
+      <details><summary>Review criterion</summary><p>${esc(group)}: ${esc(f.criterion)}</p></details>
     </li>`;
-  const body = [...groups].filter(([, list]) => list.length).map(([name, list]) => `<h2 class="pass">${esc(name)}</h2><ul class="findings">${list.map(item).join("")}</ul>`);
-  return `${head}${body.join("")}</section>`;
+  const body = [...groups].flatMap(([name, list]) => list.map((f) => item(f, name)));
+  return `${head}<ul class="findings">${body.join("")}</ul></section>`;
 }
 
 /**
@@ -442,6 +492,7 @@ main{max-width:1180px;margin:0 auto;padding:32px 16px 64px}h1{font-size:30px;mar
 .meta,.how,.empty{color:var(--muted);font-size:14px}
 .row{display:flex;flex-direction:column;gap:4px;padding:16px 0;border-top:1px solid var(--rule);text-decoration:none}
 .row .title{font-weight:600}
+.row-meta{display:flex;flex-wrap:wrap;gap:4px 16px}a.row:hover .title{text-decoration:underline}
 .runs{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:14px}.runs a{text-decoration:none}
 .verdict{display:inline-block;font-size:12px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;padding:3px 8px;border-radius:999px;white-space:nowrap;color:var(--wait);background:var(--tint)}
 .verdict.passed,.verdict.done{color:var(--pass);background:#e8f6ec}.verdict.failed{color:var(--fail);background:#fdebef}
@@ -449,13 +500,17 @@ img{width:100%;border:1px solid var(--rule);border-radius:12px;display:block;mar
 ${RUN_PLAYER_CSS}
 button{font:inherit;font-size:13px;padding:2px 10px;border-radius:999px;border:0;background:var(--ink);color:#fff;cursor:pointer}
 .error{color:var(--fail);font-size:14px}
-.verdict-row{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}.summary{font-weight:600}.summary.failed{color:var(--fail)}
+.verdict-row{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}.summary{font-weight:600}
 .problems{border:1px solid var(--fail);border-radius:12px;padding:4px 16px;margin:12px 0;font-size:14px}.problems ul{padding-left:20px}
 details{margin-top:6px;font-size:14px}summary{cursor:pointer;color:var(--muted)}
 pre{background:var(--tint);border-radius:8px;padding:8px 10px;font-size:12px;overflow-x:auto;white-space:pre-wrap;word-break:break-word;margin:6px 0}
 .evidence{list-style:none;padding:0;margin:6px 0}.evidence li{padding:6px 0;border-top:1px solid var(--rule)}
+.evidence dl,.run-details dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;margin:6px 0}
+.evidence dt,.run-details dt{font-weight:600}.evidence dd,.run-details dd{margin:0;overflow-wrap:anywhere;white-space:pre-wrap}
+.evidence dd dl{margin:0}.evidence ul.evidence-values{margin:0;padding-left:16px}.evidence-values li{padding:0;border:0}
+.run-details{border-top:1px solid var(--rule);margin-top:20px;padding-top:8px}.run-details dl{max-width:620px}
 .start{border-top:1px solid var(--rule);padding:8px 0}.start ul{margin:4px 0;padding-left:20px}
-.found{font-weight:400}.pass{font-size:15px;margin:12px 0 0}
+.start h2{font-size:17px;margin:4px 0}.found{font-weight:400}
 .start .findings{list-style:none;padding:0;margin:4px 0 8px}.findings li{padding:10px 0;border-top:1px solid var(--rule)}.findings li:first-child{border-top:0}
 .reported{border-top:1px solid var(--rule);margin-top:12px;padding-top:4px}.reported-user{padding:4px 0}.reported-user p{margin:4px 0}.reported code{font-size:13px;word-break:break-all}
 .findings p{margin:2px 0}.findings .says{font-weight:600}.findings a{color:var(--muted)}
