@@ -61,6 +61,9 @@ test("review --out works from a nested folder without a server and leaves out pr
   const id = "2026-11-08-1802-7d2e";
   const source = join(dir, "share-by-link", id);
   writeFileSync(join(source, "private.txt"), "private data");
+  const raw = JSON.parse(readFileSync(join(source, "run.json"), "utf8"));
+  raw.steps[2].says += " \ud800";
+  writeFileSync(join(source, "run.json"), JSON.stringify(raw));
   const old = join(dir, "share-by-link", "05333fcf-bbc6-467b-b741-b927c8264fdf");
   symlinkSync(join(source, "step-1.png"), join(old, "step-open.png"));
   const parent = mkdtempSync(join(tmpdir(), "jf-static-"));
@@ -70,10 +73,9 @@ test("review --out works from a nested folder without a server and leaves out pr
   const run = join(out, "runs", "share-by-link", id);
   const pageHtml = readFileSync(join(run, "index.html"), "utf8");
   assert.match(pageHtml, /src="assets\/step-1.png"/);
-  assert.match(pageHtml, /src="assets\/viewer.webm.vtt"/);
+  assert.match(pageHtml, /src="data:text\/vtt;charset=utf-8,WEBVTT%0A/);
   assert.doesNotMatch(pageHtml, /trace.zip|private data|(?:href|src)="\//);
-  assert.deepEqual(readdirSync(join(run, "assets")).sort(), ["step-1.png", "step-3.png", "viewer.webm", "viewer.webm.vtt"]);
-  assert.match(readFileSync(join(run, "assets", "viewer.webm.vtt"), "utf8"), /^WEBVTT/);
+  assert.deepEqual(readdirSync(join(run, "assets")).sort(), ["step-1.png", "step-3.png", "viewer.webm"]);
   const oldPage = readFileSync(join(out, "runs", "share-by-link", "05333fcf-bbc6-467b-b741-b927c8264fdf", "index.html"), "utf8");
   assert.doesNotMatch(oldPage, /step-open.png/);
   const browser = await chromium.launch();
@@ -82,6 +84,10 @@ test("review --out works from a nested folder without a server and leaves out pr
     const index = pathToFileURL(join(out, "index.html")).href;
     await page.goto(index);
     await page.locator(`a[href="runs/share-by-link/${id}/index.html"]`).click();
+    await page.locator("track").evaluate((track) => { track.track.mode = "hidden"; });
+    await page.waitForFunction(() => document.querySelector("track")?.readyState === 2);
+    assert.ok(await page.locator("track").evaluate((track) => track.track.cues.length > 0));
+    assert.ok(await page.locator("track").evaluate((track) => Array.from(track.track.cues).some((cue) => cue.text.includes("�"))));
     await page.locator('.line[data-step="2"]').click();
     assert.equal(new URL(page.url()).searchParams.get("step"), "2");
     await page.getByRole("link", { name: "All runs" }).click();
