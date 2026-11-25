@@ -155,7 +155,7 @@ function loadServers(file, sandbox, state, work) {
     const args = [...sandbox, "--", "node", join(state, "codex-capture.mjs"), "mcp-proxy", name + ".txt", "--", ...argv];
     const prefix = `mcp_servers.${name}`;
     return ["-c", `${prefix}.command="codex"`, "-c", `${prefix}.args=${JSON.stringify(args)}`,
-      "-c", `${prefix}.cwd=${JSON.stringify(work)}`];
+      "-c", `${prefix}.cwd=${JSON.stringify(work)}`, "-c", `${prefix}.default_tools_approval_mode="approve"`];
   });
 }
 

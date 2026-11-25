@@ -146,7 +146,12 @@ if (args[0] === "sandbox") {
     setInterval(() => {}, 500);
   } else {
     assert.equal(fs.readFileSync(auth, "utf8"), "fake auth");
-    assert.ok(args.some(a => a.startsWith("mcp_servers.demo.args=") && a.includes("mcp-proxy")));
+    const proxy = JSON.parse(args.find(a => a.startsWith("mcp_servers.demo.args=")).split("=").slice(1).join("="));
+    assert.deepEqual(proxy.slice(0, 3), ["sandbox", "-P", "journeysfirst"]);
+    assert.ok(proxy.includes("mcp-proxy"));
+    assert.ok(proxy.some(a => a.includes(JSON.stringify(process.env.CODEX_HOME) + '="deny"')));
+    assert.deepEqual(args.filter(a => a.includes("default_tools_approval_mode")), ['mcp_servers.demo.default_tools_approval_mode="approve"']);
+    assert.deepEqual(args.slice(0, 2), ["-a", "never"]);
     const cmd = spawnSync(process.execPath, [".journeysfirst/codex-capture.mjs", "capture", "command.txt", "--",
       process.execPath, "-e", "console.log('Sharing is on')"], { encoding: "utf8" });
     assert.equal(cmd.status, 0);
