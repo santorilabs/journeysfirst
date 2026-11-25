@@ -70,7 +70,7 @@ test("a seat records checks only from output lines of its own approved captures"
   assert.equal(result.status, 0);
   const run = recordAllPassed(recorder({ outputDir: root }));
   const seat = recording(run, "you");
-  const file = seat.attach("terminal.txt", out);
+  const file = seat.attach("terminal.txt", out, { login: "you" });
   const passed = { verdict: "passed", proof: "Read the setting." };
   assert.throws(() => seat.check("link-on", passed), /needs at least one captured evidence reference/);
   assert.throws(() => seat.check("link-on", { ...passed, refs: [{ file, line: 2 }] }), /attached to this seat/);
@@ -80,6 +80,27 @@ test("a seat records checks only from output lines of its own approved captures"
   assert.equal(saved.result, "passed");
   assert.equal(saved.steps[1].evidence[0].got, "Link sharing: on\n");
   assert.equal(saved.media[0].kind, "transcript");
+});
+
+test("admin and unknown captures cannot prove a seat's check", () => {
+  const root = dir();
+  const out = join(root, "mcp.txt");
+  const captured = spawnSync(node, [cli, "capture", "--out", out, "--", node, "-e", "console.log('Link sharing: on')"]);
+  assert.equal(captured.status, 0);
+  const run = recordAllPassed(recorder({ outputDir: root }));
+  const seat = recording(run, "you");
+  const key = seat.attach("admin.txt", out, { key: "SERVICE_ROLE_KEY" });
+  const other = seat.attach("other.txt", out, { login: "viewer" });
+  const unknown = seat.attach("unknown.txt", out);
+  const passed = { verdict: "passed", proof: "Read the setting." };
+  for (const file of [key, other]) {
+    assert.throws(() => seat.check("link-on", { ...passed, refs: [{ file, line: 1 }] }), /own session/);
+  }
+  assert.throws(() => seat.check("link-on", { ...passed, refs: [{ file: unknown, line: 1 }] }), /Name the session/);
+  seat.check("link-on", { verdict: "failed", reason: "The app returned the wrong value.", proof: passed.proof, refs: [{ file: key, line: 1 }] });
+  const { run: saved } = run.finish();
+  assert.equal(saved.steps[1].evidence[0].key, "SERVICE_ROLE_KEY");
+  assert.equal(saved.steps[1].evidence[0].login, undefined);
 });
 
 test("a newly declared secret in an attached capture prevents sealing the run", () => {

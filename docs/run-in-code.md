@@ -54,7 +54,7 @@ In the script that owns the run, import `recording` from `journeysfirst/recorder
 
 ```js
 const seat = recording(run, "you");
-const file = seat.attach("terminal.txt", "terminal.txt");
+const file = seat.attach("terminal.txt", "terminal.txt", { login: "you" });
 seat.step(actionLine);
 seat.check(checkId, {
   verdict: "passed",
@@ -63,7 +63,7 @@ seat.check(checkId, {
 });
 ```
 
-Pick a line that actually proves the check. References are one-based lines of output or responses from captures the runner attached to that seat. A request or a capture notice is not evidence. The helper checks that the line exists, not that the claim follows from it. Keep raw captures private and finish the run with `run.finish()`.
+Pick a line that actually proves the check. References are one-based lines of output or responses from captures the runner attached to that seat. A request or a capture notice is not evidence. When attaching a capture, say whose session it used with `login`. For an admin or service key, use `key` with its name, never its value. If the session is unknown, attach it without an identity and do not cite it as evidence. A pass can cite only its own seat's session. The helper checks the source and line, not that the claim follows from it. Keep raw captures private and finish the run with `run.finish()`.
 
 ### Record with your own tools
 

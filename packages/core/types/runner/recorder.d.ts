@@ -162,7 +162,7 @@ export declare class RunRecorder {
     }): string;
     /**
      * Text with each secret's value replaced by its `${name}`, for a file the
-     * run attaches. result() checks run.json for secrets, not attached files.
+     * run attaches. result() checks run.json and attached transcripts for secrets.
      * @param {string} text
      */
     redact(text: string): string;
@@ -199,7 +199,7 @@ export declare class RunRecorder {
     }): void;
     /**
      * The run file and its files, without writing anything. Throws when a
-     * secret value appears anywhere in the run.
+     * secret value appears in the run metadata or an attached transcript.
      * @param {{summary?: string}} [options]
      * @returns {{run: Run, files: Map<string, Buffer>}}
      */
