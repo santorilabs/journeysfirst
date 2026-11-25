@@ -3,7 +3,6 @@ import { accessSync, closeSync, constants, copyFileSync, cpSync, fstatSync, mkdi
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { writeRunFolder } from "../format/run-folder.js";
 import { CAUSES } from "../format/runfile.js";
 import { RunRecorder, recording } from "./recorder.js";
 import { CAPTURE_LIMIT } from "./capture.js";
@@ -94,11 +93,7 @@ export async function runCodex({ journey, caseId, project, mcp, container, allow
     if (probeDir) rmSync(probeDir, { recursive: true, force: true });
     rmSync(base, { recursive: true, force: true });
   }
-  const { run: outcome, files } = run.result(problem ? { summary: problem } : undefined);
-  if (problem && outcome.result === "passed") {
-    throw new Error(`${problem} No run was saved because a passing run needs a clean exit.`);
-  }
-  const saved = writeRunFolder(run.outputDir, outcome, files, run.journey);
+  const saved = run.finish(problem ? { attempt: { status: "aborted", reason: problem } } : undefined);
   return { ...saved, problem };
 }
 

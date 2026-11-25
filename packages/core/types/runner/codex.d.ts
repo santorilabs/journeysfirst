@@ -13,6 +13,6 @@ export declare function runCodex({ journey, caseId, project, mcp, container, all
     agentArgs: string[];
 }): Promise<{
     folder: string;
-    run: import("../format/runfile.js").Run;
+    run: import("./recorder.js").Run;
     problem: string | undefined;
 }>;

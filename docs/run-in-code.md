@@ -53,7 +53,7 @@ To use Docker, pass `--container <local image>`. The image needs Node and Codex,
 
 For MCP, pass `--mcp <file.json>` with server names and command arrays, such as `{"example":["node","server.js"]}`. List only servers whose tools you trust Codex to call without a prompt. Journeys First approves calls only for those servers, which run through the same permission profile and the MCP proxy. Do not put admin credentials in the project or server config. If a proxied server exits with an error, the launcher reports an environment failure and exits nonzero. A tool response marked as a failure changes a check only if Codex submits it as such, with proof. A missing or invalid submission stays unverified.
 
-`--timeout <seconds>` sets a limit for Codex. If Codex times out or exits with an error, the launcher saves partial results. If the submitted results would count as a pass, it does not save a run and exits with an error. It keeps only the last delivered agent message as `handoff.txt`, not the model's reasoning. Review the transcript for private data before sharing. The handoff is evidence of what Codex said, not what a human understood.
+`--timeout <seconds>` sets a limit for Codex. If Codex times out or exits with an error, the launcher saves an aborted attempt with the evidence collected so far and exits nonzero. The attempt cannot pass, even if every check passed before the error. It keeps only the last delivered agent message as `handoff.txt`, not the model's reasoning. Review the transcript for private data before sharing. The handoff is evidence of what Codex said, not what a human understood.
 
 ### Record a terminal command or MCP exchange
 

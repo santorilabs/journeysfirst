@@ -235,6 +235,7 @@ test("timeout saves completed steps and leaves missing checks unverified", () =>
   const { result, run } = codexFixture("timeout");
   assert.equal(result.status, 1);
   assert.match(result.stderr, /time limit/);
+  assert.deepEqual(run.attempt, { status: "aborted", reason: "Codex reached the time limit." });
   assert.equal(run.steps[0].status, "done");
   assert.equal(run.steps[1].verdict, "not_checked");
   assert.equal(run.media, undefined);
@@ -245,6 +246,7 @@ test("a crashed MCP server leaves an environment failure even if Codex exits cle
   assert.equal(result.status, 1, result.stderr);
   assert.match(result.stderr, /MCP server "demo" exited with status 32/);
   assert.equal(run.summary, 'MCP server "demo" exited with status 32.');
+  assert.deepEqual(run.attempt, { status: "aborted", reason: run.summary });
   assert.deepEqual(run.tags.mcp_server_failures, [{ server: "demo", code: 32, cause: "environment" }]);
   assert.equal(run.result, "not_fully_checked");
   assert.equal(run.steps[1].verdict, "not_checked");
@@ -268,15 +270,20 @@ test("Codex imports failure causes and records rejected result lines", () => {
   assert.match(run.tags.result_import_errors[0], /Result line 3: .*needs a cause/);
 });
 
-test("a nonzero agent exit cannot seal a passed run even with every line submitted", () => {
+test("a nonzero agent exit saves an aborted attempt without changing proven checks", () => {
   const { result, run } = codexFixture("complete");
   assert.equal(result.status, 1);
-  assert.match(result.stderr, /No run was saved because a passing run needs a clean exit/);
-  assert.equal(run, undefined);
+  assert.match(result.stderr, /Codex exited before completing the journey/);
+  assert.deepEqual(run.attempt, { status: "aborted", reason: "Codex exited before completing the journey." });
+  assert.equal(run.result, "not_fully_checked");
   const clean = codexFixture("complete-clean");
   assert.equal(clean.result.status, 0, clean.result.stderr);
   assert.equal(clean.run.result, "passed");
   assert.equal(clean.run.steps.at(-1).verdict, "passed");
+  assert.equal(clean.run.attempt, undefined);
+  assert.deepEqual(run.verified, clean.run.verified);
+  const untimed = (steps) => steps.map(({ at, ...step }) => step);
+  assert.deepEqual(untimed(run.steps), untimed(clean.run.steps));
 });
 
 test("the single-seat Codex launcher refuses a journey that names another seat", () => {
