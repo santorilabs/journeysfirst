@@ -12,7 +12,7 @@
 // journeysfirst report <run folder>                              write report.html into the run folder
 // journeysfirst summary <run folder>                             print a markdown summary for a pull request
 // journeysfirst doctor                                           check Node, Playwright, the config, baseURL and the journeys
-// journeysfirst init [--skills dir] [--demo]                     set up this repo: skills, Playwright config, .gitignore, and an example that passes when there is no app
+// journeysfirst init [--skills dir] [--demo | --terminal]        set up this repo for Journeys First
 // journeysfirst upgrade [--skills dir]                           refresh the skills after installing a new version
 import { FORMAT_V0, caseIds, journeyVersion, journeyWarnings, loadJourney, validateJourney } from "../src/format/format.js";
 import { startDevServer } from "../src/publish/dev-server.js";
@@ -60,11 +60,12 @@ const USAGE = `Usage:
   journeysfirst doctor
       Checks Node, Playwright, Chromium, playwright.config.js, whether baseURL answers, and each journey file.
       A failed check says what to run next. Chromium is installed with: npx playwright install --only-shell chromium
-  journeysfirst init [--skills <folder>] [--demo]
+  journeysfirst init [--skills <folder>] [--demo | --terminal]
       Set up this repo: copy the skills, add playwright.config.js if there is none, ignore journey-runs/, write a Journeys section in AGENTS.md, add the upgrade workflow.
       Skills go to .agents/skills and .claude/skills. --skills <folder> copies to that folder only.
       With no dev or start script, also add an example page, journey and script that pass. --demo adds that example even when a dev or start script exists.
       When baseURL and webServer are both missing, init says what to set.
+      --terminal skips the browser setup and demo for terminal or MCP journeys.
   journeysfirst upgrade [--skills <folder>]   after installing a new version: refresh the copied skills and delete retired ones
       With no --skills, upgrade refreshes .agents/skills and .claude/skills. The app's own skill is never touched.`;
 
@@ -213,7 +214,8 @@ if (command === "--version" || command === "version") {
 } else if (command === "init" || command === "upgrade") {
   try {
     const demo = flags.demo === true || flags.demo === "true";
-    const changes = command === "init" ? init({ skillsDir: flags.skills, demo }) : upgrade({ skillsDir: flags.skills });
+    const terminal = flags.terminal === true || flags.terminal === "true";
+    const changes = command === "init" ? init({ skillsDir: flags.skills, demo, terminal }) : upgrade({ skillsDir: flags.skills });
     console.log(`journeysfirst ${VERSION} ${command}`);
     console.log(changes.map((line) => `  ${line}`).join("\n"));
     if (changes.every((line) => line.startsWith("unchanged "))) console.log("  Nothing changed.");

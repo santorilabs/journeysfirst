@@ -8,14 +8,15 @@ export declare const RETIRED_SKILLS: string[];
 export declare function packageSkills(): string[];
 /**
  * Set up a repo that has no Journeys First skills yet.
- * @param {{root?: string, skillsDir?: string, demo?: boolean}} [options]
+ * @param {{root?: string, skillsDir?: string, demo?: boolean, terminal?: boolean}} [options]
  *   demo: add the example page, journey and script even when the repo has a dev or start script.
  * @returns {string[]} one line per change
  */
-export declare function init({ root, skillsDir, demo }?: {
+export declare function init({ root, skillsDir, demo, terminal }?: {
     root?: string;
     skillsDir?: string;
     demo?: boolean;
+    terminal?: boolean;
 }): string[];
 /**
  * Refresh the skills in a repo set up by any earlier version. Only folders named

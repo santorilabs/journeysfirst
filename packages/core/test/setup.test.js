@@ -281,6 +281,35 @@ test("upgrade refuses a repo with no Journeys First skills, and points to init",
   assert.throws(() => upgrade({ root: repo() }), /npx journeysfirst init/);
 });
 
+test("terminal init and upgrade keep skills without browser setup, even with a dev script", () => {
+  const dir = repo();
+  writeFileSync(join(dir, "package.json"), JSON.stringify({ scripts: { dev: "convex dev" } }));
+  const result = cli(["init", "--terminal", "--skills", ".agents/skills"], dir);
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(existsSync(join(dir, ".agents/skills/journey-run/SKILL.md")));
+  const refreshed = cli(["upgrade", "--skills", ".agents/skills"], dir);
+  assert.equal(refreshed.status, 0, refreshed.stderr);
+  for (const { stdout } of [result, refreshed]) assert.doesNotMatch(stdout, /playwright|Chromium|webServer/i);
+  assert.ok(!existsSync(join(dir, "playwright.config.js")));
+  assert.ok(!existsSync(join(dir, "demo")));
+});
+
+test("browser setup only recommends installing the headless shell when its revision is missing", () => {
+  const dir = repo();
+  const dependency = join(dir, "node_modules", "@playwright", "test");
+  const cache = join(dir, "browsers", "chromium_headless_shell-1234");
+  mkdirSync(dependency, { recursive: true });
+  mkdirSync(cache, { recursive: true });
+  writeFileSync(join(dependency, "package.json"), "{}");
+  writeFileSync(join(dependency, "cli.js"), `
+    if (process.argv.slice(2).join(" ") !== "install --dry-run --only-shell chromium") process.exit(1);
+    console.log("  Install location:    " + ${JSON.stringify(cache)});
+  `);
+  assert.match(nextSteps("init", { root: dir }).join("\n"), /playwright install --only-shell chromium/);
+  writeFileSync(join(cache, "INSTALLATION_COMPLETE"), "");
+  assert.doesNotMatch(nextSteps("init", { root: dir }).join("\n"), /playwright install --only-shell chromium/);
+});
+
 test("the CLI runs init and upgrade in the current folder, takes --skills, and prints each change", () => {
   const dir = repo();
   const first = cli(["init", "--skills", ".agents/skills"], dir);
