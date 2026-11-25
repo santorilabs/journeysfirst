@@ -93,11 +93,12 @@ export declare function indexPage(runs: RunEntry[], runUrl?: (journey: string, i
  * @param {string} journey
  * @param {string} id
  * @param {string} folder the run folder on disk, to say where its trace is
- * @param {{file: (name: string | undefined) => string | undefined, captions: (name: string) => string | undefined}} [assets] approved exported assets
+ * @param {{file: (name: string | undefined) => string | undefined, captions: (name: string) => string | undefined, includeTranscripts?: boolean}} [assets] approved exported assets
  */
 export declare function runPage(run: ShownRun, journey: string, id: string, folder: string, assets?: {
     file: (name: string | undefined) => string | undefined;
     captions: (name: string) => string | undefined;
+    includeTranscripts?: boolean;
 }): string;
 /**
  * Each line in a video as a WebVTT captions track: from its time in the video

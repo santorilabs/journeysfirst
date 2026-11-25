@@ -12,6 +12,7 @@ import { findJourney } from "../format/run-folder.js";
 import { LABELS, REVIEW_PASSES, batchResult, esc, isCheck, reviewCountText, runTitle, screenshotFile, screenshotPage, stepState, videoAt } from "../shared/display.js";
 import { FILE_NAME, runResult } from "../format/runfile.js";
 import { RUN_PLAYER_CSS, RUN_PLAYER_SCRIPT, runPlayerHtml } from "./run-player.js";
+import { transcriptPanels } from "./transcripts.js";
 
 /**
  * @typedef {import("node:http").IncomingMessage} Request
@@ -250,7 +251,7 @@ function runDetails(run) {
  * @param {string} journey
  * @param {string} id
  * @param {string} folder the run folder on disk, to say where its trace is
- * @param {{file: (name: string | undefined) => string | undefined, captions: (name: string) => string | undefined}} [assets] approved exported assets
+ * @param {{file: (name: string | undefined) => string | undefined, captions: (name: string) => string | undefined, includeTranscripts?: boolean}} [assets] approved exported assets
  */
 export function runPage(run, journey, id, folder, assets) {
   /** @param {string | undefined} name */
@@ -260,9 +261,10 @@ export function runPage(run, journey, id, folder, assets) {
   const videos = media.map((v) => ({ user: String(v.tags?.user), src: /** @type {string} */ (fileUrl(v.file)),
     captions: assets ? assets.captions(v.file) : `/captions/${esc(journey)}/${esc(id)}/${esc(v.file)}.vtt` }));
   const report = assets ? null : appReport(run, folder);
+  const transcripts = !assets || assets.includeTranscripts ? transcriptPanels(run, folder) : new Map();
   const steps = run.steps.map((/** @type {StepFields} */ step, i) => {
     const at = videoAt(step, media);
-    const card = stepCard(step, i + 1, fileUrl, Boolean(at)) + (report?.line === i + 1 ? reportedSection(report) : "");
+    const card = stepCard(step, i + 1, fileUrl, Boolean(at)) + (report?.line === i + 1 ? reportedSection(report) : "") + (transcripts.get(i + 1) ?? "");
     return { n: i + 1, text: String(step.check ?? step.says ?? ""), isCheck: isCheck(step), state: stepState(step), by: step.by || undefined, at: at?.seconds, card };
   });
   const openAt = (steps.find((s) => s.state === "failed") ?? steps.find((s) => s.isCheck && s.state !== "passed"))?.n ?? steps.length;
@@ -274,6 +276,7 @@ export function runPage(run, journey, id, folder, assets) {
      ${run.problems?.length ? `<section class="problems"><p><b>This run file breaks the rules.</b> What is shown below is what the rules allow, not what the file claims.</p><ul>${run.problems.map((p) => `<li>${esc(p)}</li>`).join("")}</ul></section>` : ""}
      ${findingsSection(run)}
      ${steps.length ? runPlayerHtml({ steps, videos, openAt }) : '<p class="empty">This run has no steps.</p>'}
+     ${transcripts.get(0) ?? ""}
      ${runDetails(run)}
      ${assets ? "" : traceSection((run.media ?? []).filter((m) => m.kind === "trace"), folder, liveFile)}
      ${reviewsSection(run)}
@@ -520,6 +523,7 @@ button{font:inherit;font-size:13px;padding:2px 10px;border-radius:999px;border:0
 .problems{border:1px solid var(--fail);border-radius:12px;padding:4px 16px;margin:12px 0;font-size:14px}.problems ul{padding-left:20px}
 details{margin-top:6px;font-size:14px}summary{cursor:pointer;color:var(--muted)}
 pre{background:var(--tint);border-radius:8px;padding:8px 10px;font-size:12px;overflow-x:auto;white-space:pre-wrap;word-break:break-word;margin:6px 0}
+.transcript pre{max-height:24rem;overflow:auto}
 .evidence{list-style:none;padding:0;margin:6px 0}.evidence li{padding:6px 0;border-top:1px solid var(--rule)}
 .evidence dl,.run-details dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;margin:6px 0}
 .evidence dt,.run-details dt{font-weight:600}.evidence dd,.run-details dd{margin:0;overflow-wrap:anywhere;white-space:pre-wrap}
