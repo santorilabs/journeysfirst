@@ -8,6 +8,7 @@
 // journeysfirst publish <run folder> [--to url] [--journey file]   publish a run (token from JOURNEYSFIRST_TOKEN)
 // journeysfirst dev-server [--port n] [--host h]                 a local in-memory service to publish to
 // journeysfirst merge-check [runs folder] [--main <runs folder>]   may this change merge, from the runs of every journey
+// journeysfirst doctor                                           check Node, Playwright, the config, baseURL and the journeys
 // journeysfirst init [--skills dir] [--demo]                     set up this repo: skills, Playwright config, .gitignore, and an example that passes when there is no app
 // journeysfirst upgrade [--skills dir]                           refresh the skills after installing a new version
 import { FORMAT_V0, caseIds, journeyVersion, journeyWarnings, loadJourney, validateJourney } from "../src/format/format.js";
@@ -19,6 +20,7 @@ import { addFindings, addReview, findJourney, newestRunFolder, readRunFolder, re
 import { measuredReport } from "../src/review/measured.js";
 import { serveReview } from "../src/review/review.js";
 import { mergeCheck } from "../src/format/merge-check.js";
+import { doctor } from "../src/doctor.js";
 import { init, nextSteps, upgrade } from "../src/setup.js";
 import { reviewLine } from "../src/shared/display.js";
 import { VERSION } from "../src/shared/version.js";
@@ -43,6 +45,9 @@ const USAGE = `Usage:
   journeysfirst merge-check [runs folder] [--main <runs folder>]   (default journey-runs)
       Ok only when every journey in journeys/ has a valid run in which every check passed.
       A blocked check is ok only if the same check was blocked in main's newest run, in --main.
+  journeysfirst doctor
+      Checks Node, Playwright, Chromium, playwright.config.js, whether baseURL answers, and each journey file.
+      A failed check says what to run next. Chromium is installed with: npx playwright install --only-shell chromium
   journeysfirst init [--skills <folder>] [--demo]
       Set up this repo: copy the skills, add playwright.config.js if there is none, ignore journey-runs/, write a Journeys section in AGENTS.md, add the upgrade workflow.
       Skills go to .agents/skills and .claude/skills. --skills <folder> copies to that folder only.
@@ -153,6 +158,16 @@ if (command === "--version" || command === "version") {
     for (const line of lines) console.log(`${line.ok ? "ok " : "NO "} ${line.journey}${line.case ? ` (${line.case})` : ""}: ${line.says}`);
     const stopped = lines.filter((line) => !line.ok).length;
     console.log(ok ? `All ${lines.length} journeys may merge.` : `${stopped} of ${lines.length} journeys stop the merge. Fix them, or ask a person.`);
+    process.exit(ok ? 0 : 1);
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
+} else if (command === "doctor") {
+  try {
+    const { ok, lines } = await doctor();
+    for (const line of lines) console.log(`${line.ok ? "ok" : "NO"} ${line.name}: ${line.says}`);
+    if (!ok) console.log("Fix the lines marked NO, then run journeysfirst doctor again.");
     process.exit(ok ? 0 : 1);
   } catch (error) {
     console.error(error.message);

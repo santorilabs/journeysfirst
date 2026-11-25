@@ -144,7 +144,7 @@ Just ask your agent. It picks the right skill:
 | "Review the last run." | [journey-review](skills/journey-review/SKILL.md) |
 | "That run failed. Fix it." | [journey-fix](skills/journey-fix/SKILL.md) |
 
-After the first run, a replay is a plain Playwright test: `npx playwright test`. It needs no model, unless one of the users is an agent. For every command, run `npx journeysfirst --help`.
+After the first run, a replay is a plain Playwright test: `npx playwright test`. It needs no model, unless one of the users is an agent. `npx journeysfirst doctor` checks Node, Playwright, Chromium, the config, the app's address and each journey file. For every command, run `npx journeysfirst --help`.
 
 ## Limitations
 
