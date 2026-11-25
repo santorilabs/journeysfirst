@@ -69,9 +69,9 @@ export async function runCodex({ journey, caseId, project, mcp, container, allow
       const login = await launcher(["login", "--with-api-key"], key + "\n", 15000);
       if (login.code !== 0) throw new Error("Codex could not sign in with OPENAI_API_KEY. Check that the provider key is valid.");
     }
-    const servers = mcp ? loadServers(mcp, sandbox, state, work) : [];
+    const servers = mcp ? loadServers(mcp, sandbox, state, work) : { args: [], names: [] };
     const prompt = agentPrompt(run);
-    const result = await launcher(["-a", "never", ...permissions, ...servers, "exec", "--json", "--ephemeral",
+    const result = await launcher(["-a", "never", ...permissions, ...servers.args, "exec", "--json", "--ephemeral",
       "--skip-git-repo-check", ...selected, "-"], prompt, timeoutMs);
     const seat = recording(run, "you");
     const importErrors = readResults(seat, state);
@@ -79,6 +79,14 @@ export async function runCodex({ journey, caseId, project, mcp, container, allow
     const final = finalMessage(result.stdout);
     if (result.timedOut) problem = "Codex reached the time limit.";
     else if (result.code !== 0) problem = "Codex exited before completing the journey.";
+    const failedServers = servers.names.flatMap((name) => {
+      const code = readSmall(join(state, name + ".txt.exit"));
+      return /^[1-9]\d{0,2}$/.test(code) ? [{ server: maskText(run.redact(name)), code: Number(code), cause: "environment" }] : [];
+    });
+    if (failedServers.length) {
+      run.tag("mcp_server_failures", failedServers);
+      problem = [problem, ...failedServers.map(({ server, code }) => `MCP server "${server}" exited with status ${code}.`)].filter(Boolean).join(" ");
+    }
     if (final) run.attach({ name: "handoff.txt", body: maskText(run.redact(final)), kind: "transcript" });
   } catch (error) {
     problem = run.redact(error instanceof Error ? error.message : "Codex could not complete the journey.");
@@ -187,7 +195,7 @@ function probeCode() {
 function loadServers(file, sandbox, state, work) {
   const config = JSON.parse(readFileSync(file, "utf8"));
   if (!config || Object.getPrototypeOf(config) !== Object.prototype) throw new Error("Give --mcp a JSON object of server names and command arrays.");
-  return Object.entries(config).flatMap(([name, argv]) => {
+  const args = Object.entries(config).flatMap(([name, argv]) => {
     if (!/^[\w-]+$/.test(name) || !Array.isArray(argv) || !argv.length || !argv.every((item) => typeof item === "string")) {
       throw new Error("Each MCP server needs a plain name and an array of command words.");
     }
@@ -196,6 +204,7 @@ function loadServers(file, sandbox, state, work) {
     return ["-c", `${prefix}.command="codex"`, "-c", `${prefix}.args=${JSON.stringify(args)}`,
       "-c", `${prefix}.cwd=${JSON.stringify(work)}`, "-c", `${prefix}.default_tools_approval_mode="approve"`];
   });
+  return { args, names: Object.keys(config) };
 }
 
 /** @param {ReturnType<typeof recording>} seat @param {string} state */

@@ -151,7 +151,14 @@ if (args[0] === "sandbox") {
   assert.match(input, /Check link-on/);
   assert.match(input, /cause: product, test, environment/);
   assert.doesNotMatch(input, /private setup hint/);
-  if (fs.existsSync("timeout.txt")) {
+  if (fs.existsSync("mcp-crash.txt")) {
+    const argsJson = args.find(a => a.startsWith("mcp_servers.demo.args=")).slice("mcp_servers.demo.args=".length);
+    const proxy = JSON.parse(argsJson);
+    const [command, ...argv] = proxy.slice(proxy.indexOf("--") + 1);
+    const child = spawnSync(command, argv, { input: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "status" } }) + "\\n", encoding: "utf8" });
+    assert.equal(child.status, 32);
+    assert.equal(child.stdout, "");
+  } else if (fs.existsSync("timeout.txt")) {
     fs.writeFileSync(".journeysfirst/results.jsonl", '{"line":1,"status":"done"}\\n');
     setInterval(() => {}, 500);
   } else if (fs.existsSync("failures.txt")) {
@@ -201,7 +208,8 @@ function codexFixture(mode, flags = []) {
   writeFileSync(join(root, "share-by-link.journey.yaml"), journey + "\nnotes: private setup hint\n");
   writeFileSync(join(project, ".env.local"), "Private product login");
   if (mode) writeFileSync(join(project, mode + ".txt"), "");
-  writeFileSync(join(root, "mcp.json"), '{"demo":["node","server.js"]}');
+  const server = mode === "mcp-crash" ? [node, "-e", "process.stdin.once('data', () => process.exit(32))"] : ["node", "server.js"];
+  writeFileSync(join(root, "mcp.json"), JSON.stringify({ demo: server }));
   const args = [cli, "run", "share-by-link.journey.yaml", "--agent", "codex", "--project", project, "--mcp", "mcp.json", "--timeout", mode === "timeout" ? "1" : "5", ...flags, "--"];
   const env = { ...process.env, PATH: bin + ":" + process.env.PATH, OPENAI_API_KEY: "synthetic-fixture-key" };
   const result = spawnSync(process.execPath, args, { cwd: root, env, encoding: "utf8", timeout: 10000 });
@@ -230,6 +238,17 @@ test("timeout saves completed steps and leaves missing checks unverified", () =>
   assert.equal(run.steps[0].status, "done");
   assert.equal(run.steps[1].verdict, "not_checked");
   assert.equal(run.media, undefined);
+});
+
+test("a crashed MCP server leaves an environment failure even if Codex exits cleanly", () => {
+  const { result, folder, run } = codexFixture("mcp-crash");
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stderr, /MCP server "demo" exited with status 32/);
+  assert.equal(run.summary, 'MCP server "demo" exited with status 32.');
+  assert.deepEqual(run.tags.mcp_server_failures, [{ server: "demo", code: 32, cause: "environment" }]);
+  assert.equal(run.result, "not_fully_checked");
+  assert.equal(run.steps[1].verdict, "not_checked");
+  assert.match(readFileSync(join(folder, "demo.txt"), "utf8"), /client tools\/call status/);
 });
 
 test("a failed sandbox probe never sends the API key to login", () => {
