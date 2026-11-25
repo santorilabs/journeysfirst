@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { recording } from "../src/runner/recorder.js";
-import { recordAllPassed, recorder } from "./helpers.js";
+import { JOURNEY, recordAllPassed, recorder } from "./helpers.js";
 
 const cli = fileURLToPath(new URL("../bin/journeysfirst.js", import.meta.url));
 const node = process.execPath;
@@ -114,4 +114,96 @@ test("a newly declared secret in an attached capture prevents sealing the run", 
   run.value("fixture", value, { secret: true });
   assert.throws(() => run.finish(), { message: "A declared secret is in an attached transcript. Remove it from the transcript before writing the run." });
   assert.equal(existsSync(join(root, "share-by-link")), false);
+});
+
+const fakeCodex = `#!/usr/bin/env node
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const { spawnSync } = require("node:child_process");
+const path = require("node:path");
+const args = process.argv.slice(2);
+const input = fs.readFileSync(0, "utf8");
+const auth = path.join(process.env.CODEX_HOME, "auth.json");
+assert.equal(process.env.OPENAI_API_KEY, undefined);
+assert.ok(!fs.existsSync(".env.local"));
+assert.ok(!fs.existsSync(path.join(process.env.HOME, ".convex")));
+if (args[0] === "sandbox") {
+  assert.match(args.join(" "), /default_permissions="journeysfirst"/);
+  assert.ok(args.join(" ").includes(JSON.stringify(process.env.CODEX_HOME) + '="deny"'));
+  assert.match(fs.readFileSync(auth, "utf8"), /Synthetic probe/);
+  if (!fs.existsSync("unsafe.txt")) console.log("journeysfirst: workspace readable, auth directory denied");
+} else if (args[0] === "login") {
+  assert.equal(input.trim(), "synthetic-fixture-key");
+  assert.ok(!fs.existsSync(auth));
+  fs.writeFileSync(auth, "fake auth");
+} else {
+  assert.ok(args.includes("exec") && args.includes("--json") && !args.some(a => a.includes("dangerously")));
+  assert.match(input, /1\\. /);
+  assert.match(input, /Check link-on/);
+  assert.doesNotMatch(input, /private setup hint/);
+  if (fs.existsSync("timeout.txt")) {
+    fs.writeFileSync(".journeysfirst/results.jsonl", '{"line":1,"status":"done"}\\n');
+    setInterval(() => {}, 500);
+  } else {
+    assert.equal(fs.readFileSync(auth, "utf8"), "fake auth");
+    assert.ok(args.some(a => a.startsWith("mcp_servers.demo.args=") && a.includes("mcp-proxy")));
+    const cmd = spawnSync(process.execPath, [".journeysfirst/codex-capture.mjs", "capture", "command.txt", "--",
+      process.execPath, "-e", "console.log('Sharing is on')"], { encoding: "utf8" });
+    assert.equal(cmd.status, 0);
+    fs.writeFileSync(".journeysfirst/results.jsonl", [
+      { line: 1, status: "done" },
+      { id: "link-on", verdict: "passed", proof: "The command showed it.", refs: [{ file: "command.txt", line: 1 }] },
+      { id: "viewer-blocked", verdict: "passed", proof: "No capture." },
+    ].map(JSON.stringify).join("\\n"));
+    console.log(JSON.stringify({ type: "item.completed", item: { type: "reasoning", text: "Private reasoning" } }));
+    console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "Sharing worked. The rest was not checked." } }));
+  }
+}
+`;
+
+function codexFixture(mode) {
+  const root = dir();
+  const bin = join(root, "bin");
+  const project = join(root, "project");
+  mkdirSync(bin);
+  mkdirSync(project);
+  writeFileSync(join(bin, "codex"), fakeCodex, { mode: 0o700 });
+  writeFileSync(join(root, "share-by-link.journey.yaml"), JOURNEY + "\nnotes: private setup hint\n");
+  writeFileSync(join(project, ".env.local"), "Private product login");
+  if (mode) writeFileSync(join(project, mode + ".txt"), "");
+  writeFileSync(join(root, "mcp.json"), '{"demo":["node","server.js"]}');
+  const args = [cli, "run", "share-by-link.journey.yaml", "--agent", "codex", "--project", project, "--mcp", "mcp.json", "--timeout", mode === "timeout" ? "1" : "5", "--"];
+  const env = { ...process.env, PATH: bin + ":" + process.env.PATH, OPENAI_API_KEY: "synthetic-fixture-key" };
+  const result = spawnSync(process.execPath, args, { cwd: root, env, encoding: "utf8", timeout: 10000 });
+  const runs = join(root, "journey-runs", "share-by-link");
+  const folder = join(runs, readdirSync(runs)[0]);
+  return { result, folder, run: JSON.parse(readFileSync(join(folder, "run.json"), "utf8")) };
+}
+
+test("Codex gets the journey without hints, safe auth setup, wrapped MCP config and an evidence-backed result", () => {
+  const { result, folder, run } = codexFixture();
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stderr, /without a container/);
+  assert.equal(run.steps[1].verdict, "passed");
+  assert.equal(run.steps[1].evidence[0].login, "you");
+  assert.equal(run.steps.find((step) => step.id === "viewer-blocked").verdict, "not_checked");
+  assert.equal(run.result, "not_fully_checked");
+  assert.equal(readFileSync(join(folder, "handoff.txt"), "utf8"), "Sharing worked. The rest was not checked.");
+  assert.doesNotMatch(JSON.stringify(run), /synthetic-fixture-key|Private reasoning/);
+});
+
+test("timeout saves completed steps and leaves missing checks unverified", () => {
+  const { result, run } = codexFixture("timeout");
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /time limit/);
+  assert.equal(run.steps[0].status, "done");
+  assert.equal(run.steps[1].verdict, "not_checked");
+  assert.equal(run.media, undefined);
+});
+
+test("a failed sandbox probe never sends the API key to login", () => {
+  const { result, run } = codexFixture("unsafe");
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /could not prove that its sandbox blocks the provider login/);
+  assert.equal(run.steps[1].verdict, "not_checked");
 });

@@ -31,6 +31,7 @@ import { init, nextSteps, upgrade } from "../src/setup.js";
 import { reviewLine } from "../src/shared/display.js";
 import { VERSION } from "../src/shared/version.js";
 import { captureCommand } from "../src/runner/capture.js";
+import { runCodex } from "../src/runner/codex.js";
 
 const USAGE = `Usage:
   journeysfirst --version
@@ -53,6 +54,8 @@ const USAGE = `Usage:
       Run a terminal command and save bounded, redacted output.
   journeysfirst mcp-proxy --out <new file> [--secret-env <NAME,NAME>] -- <server command> [args...]
       Relay an MCP server's stdio and save request labels and response summaries.
+  journeysfirst run <journey.yaml> --agent codex [--project <folder>] [--case <id>] [--mcp <json>] [--container <image>] [--timeout <seconds>] -- [--model <name>]
+      Give Codex a signed-out scratch project and save a run. Requires Codex with a working permission sandbox.
   journeysfirst publish <run folder> [--to <url>] [--journey <file>]   (default JOURNEYSFIRST_URL; token from JOURNEYSFIRST_TOKEN)
   journeysfirst dev-server [--port <n>] [--host <address>]   (default port 4500; host 127.0.0.1)
   journeysfirst affected <path...>
@@ -80,7 +83,29 @@ const USAGE = `Usage:
 const [command, ...rest] = process.argv.slice(2);
 const { positional, flags } = parseArgs(rest);
 
-if (command === "capture" || command === "mcp-proxy") {
+if (command === "run") {
+  try {
+    const end = rest.indexOf("--");
+    const { positional, flags } = parseArgs(end === -1 ? rest : rest.slice(0, end));
+    if (positional.length !== 1 || flags.agent !== "codex" ||
+        Object.keys(flags).some((name) => !["agent", "project", "case", "mcp", "container", "timeout"].includes(name)) ||
+        Object.values(flags).some((value) => typeof value !== "string")) {
+      throw new Error("Use journeysfirst run <journey.yaml> --agent codex. See --help for options.");
+    }
+    const timeoutMs = flags.timeout === undefined ? undefined : Number(flags.timeout) * 1000;
+    if (timeoutMs !== undefined && (!Number.isFinite(timeoutMs) || timeoutMs < 1000 || timeoutMs > 3600000)) {
+      throw new Error("Give --timeout a number of seconds between 1 and 3600.");
+    }
+    if (!flags.container) console.error("Running without a container. Codex commands use its permission sandbox; the agent process runs on this machine.");
+    const saved = await runCodex({ journey: positional[0], caseId: flags.case, project: flags.project,
+      mcp: flags.mcp, container: flags.container, timeoutMs, agentArgs: end === -1 ? [] : rest.slice(end + 1) });
+    console.log(`Saved ${saved.run.result} run to ${saved.folder}.`);
+    if (saved.problem) { console.error(saved.problem); process.exitCode = 1; }
+  } catch (error) {
+    console.error(error.message);
+    process.exitCode = 1;
+  }
+} else if (command === "capture" || command === "mcp-proxy") {
   try {
     const end = rest.indexOf("--");
     const { positional, flags } = parseArgs(rest.slice(0, end));

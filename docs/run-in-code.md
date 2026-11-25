@@ -41,6 +41,20 @@ The full example is [examples/share-by-link/tests/share-by-link.spec.js](../exam
 
 ## Without Playwright
 
+### Let Codex run a journey
+
+```sh
+npx journeysfirst run journeys/onboarding.journey.yaml --agent codex --project ./signed-out-project -- --model gpt-5.4
+```
+
+Put a recent Codex CLI on PATH and set `OPENAI_API_KEY` for its provider login. Use a trusted, signed-out project. Journeys First copies it to a scratch folder and skips dependency folders, local login files, and prior runs. Codex gets the journey's promise, start, and steps, with a clean home. A run does not prove what happens with a signed-in product.
+
+To use Docker, pass `--container <local image>`. The image needs Node and Codex, and it must support Codex's own Linux sandbox. Without an image the Codex process runs on this machine. Shell commands still use a permission profile. Before passing the provider key to Codex login, the launcher tests that this profile lets commands read the project but denies the auth directory. It stops if the test fails. The product does not receive the provider key.
+
+For MCP, pass `--mcp <file.json>` with server names and command arrays, such as `{"example":["node","server.js"]}`. These trusted, signed-out commands run through the same permission profile and the MCP proxy. Do not put admin credentials in the project or server config. A response marked as a failure is recorded as a failure only if Codex submits it as such, with proof. A missing or invalid submission stays unverified.
+
+`--timeout <seconds>` sets a limit for Codex. The launcher saves partial results after a timeout, not a pass. It keeps only the last delivered agent message as `handoff.txt`, not the model's reasoning. Review the transcript for private data before sharing. The handoff is evidence of what Codex said, not what a human understood.
+
 ### Record a terminal command or MCP exchange
 
 ```sh
