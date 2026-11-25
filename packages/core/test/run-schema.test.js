@@ -54,6 +54,9 @@ const INVALID = {
   "an attempt with another status": (r) => (r.attempt = { status: "running" }),
   "an aborted attempt with no reason": (r) => (r.attempt = { status: "aborted" }),
   "an aborted attempt with a blank reason": (r) => (r.attempt = { status: "aborted", reason: " " }),
+  "an aborted attempt claiming a passing result": (r) => Object.assign(r, recorded(), {
+    attempt: { status: "aborted", reason: "The runner timed out." },
+  }),
   "a complete attempt with an invalid reason": (r) => (r.attempt = { status: "complete", reason: 7 }),
   "a project": (r) => (r.project = "acme"),
   "people instead of users": (r) => (r.people = { you: "a" }),

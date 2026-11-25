@@ -5,6 +5,13 @@
   "description": "One run of a journey: what each user did, what was seen, and how each check was proven. The file is run.json in the run's folder. Tools keep any field they don't know. `npx journeysfirst validate-run` also checks what this schema cannot: steps match the journey line by line, result and verified match the steps, every by and login is in users, and ids are unique.",
   "type": "object",
   "required": ["format", "id", "journey", "result", "started_at", "steps"],
+  "if": {
+    "required": ["attempt"],
+    "properties": {
+      "attempt": { "type": "object", "required": ["status"], "properties": { "status": { "const": "aborted" } } }
+    }
+  },
+  "then": { "properties": { "result": { "not": { "const": "passed" } } } },
   "properties": {
     "format": { "description": "Always journeysfirst-run/v1.", "const": "journeysfirst-run/v1" },
     "id": {
