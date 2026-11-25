@@ -10,10 +10,19 @@ import { test } from "node:test";
 import { loadJourney } from "../src/format/format.js";
 import { readRunFolder } from "../src/format/run-folder.js";
 import { measuredReport } from "../src/review/measured.js";
+import { understandsHandoff } from "../../../examples/convex-onboarding/owner-assessment.mjs";
 
 const EXAMPLE = new URL("../../../examples/share-by-link/", import.meta.url).pathname;
 const PLAYWRIGHT = new URL("../../../node_modules/.bin/playwright", import.meta.url).pathname;
 const JOURNEY = loadJourney(join(EXAMPLE, "journeys/share-by-link.journey.yaml"));
+
+test("the Convex handoff needs a clear answer about signing in", () => {
+  const state = "The CLI returned hello from Convex and MCP is blocked.";
+  assert.equal(understandsHandoff(state + " No login was mentioned.", "CLI"), false);
+  assert.equal(understandsHandoff(state + " No login was mentioned, but do I need to log in?", "CLI"), false);
+  assert.equal(understandsHandoff(state + " It sounds like I don't need to log in, but I need clarification.", "CLI"), false);
+  assert.equal(understandsHandoff(state + " I don't need to log in for the CLI result.", "CLI"), true);
+});
 
 /** Run the example and return its exit code and the one run folder it wrote. */
 function runExample(env, args = []) {

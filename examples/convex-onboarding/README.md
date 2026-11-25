@@ -21,7 +21,7 @@ for role in agent human owner; do
     cp "$bundle/convex/hello.js" "$root/$role/convex/"
     cp "$bundle/journeys/"*.journey.yaml "$root/$role/journeys/"
   fi
-  cp "$bundle/capture.mjs" "$root/$role/"
+  cp "$bundle/capture.mjs" "$bundle/owner-assessment.mjs" "$root/$role/"
   (
     cd "$root/$role"
     export HOME="$root/home-$role"

@@ -5,6 +5,7 @@ import { createInterface } from "node:readline";
 import { createInterface as createPrompt } from "node:readline/promises";
 import { stripVTControlCharacters } from "node:util";
 import { RunRecorder } from "journeysfirst/recorder";
+import { understandsHandoff } from "./owner-assessment.mjs";
 
 const role = process.argv[2];
 if (!["agent", "human", "owner"].includes(role)) throw new Error("Use node capture.mjs agent|human|owner.");
@@ -209,11 +210,7 @@ async function ownerHandoff() {
   const reply = await turn("Agent reply to human");
   main.step(6, measure(main, replyAt, "agent"));
   const owner = await turn("Human understanding of the handoff");
-  const text = owner.toLowerCase();
-  const understands = text.includes(path.toLowerCase()) && text.includes("hello from convex")
-    && (path === "MCP" || /mcp (?:is |still )?(?:blocked|not connected)/.test(text))
-    && /(?:no login|no sign.in|don.t need to log in)/.test(text);
-  check(main, "owner-knows-state", main.elapsed(), understands, "Read the agent's setup handoff",
+  check(main, "owner-knows-state", main.elapsed(), understandsHandoff(owner, path), "Read the agent's setup handoff",
     { reply, owner }, "The human restates the working query path, MCP status, and whether login is needed.",
     "The human could not tell what worked, what was blocked, or whether sign-in was needed.");
   const hasDashboardAddress = !!hint && /^View the Convex dashboard at https?:\/\//.test(hint);
