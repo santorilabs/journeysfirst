@@ -5,8 +5,10 @@
 // init also adds an example page, journey and script that pass. init does it once;
 // upgrade refreshes the skills, the workflow and the Journeys section.
 // Each returns one line per skill and per change, for the CLI to print.
+import { execFileSync } from "node:child_process";
 import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { createRequire } from "node:module";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { MISSING_TARGET } from "./shared/target.js";
 
@@ -15,6 +17,7 @@ import { MISSING_TARGET } from "./shared/target.js";
 const PACKAGED_SKILLS = fileURLToPath(new URL("../skills", import.meta.url));
 const SKILLS = existsSync(PACKAGED_SKILLS) ? PACKAGED_SKILLS : fileURLToPath(new URL("../../../skills", import.meta.url));
 const CONFIG_TEMPLATE = fileURLToPath(new URL("../templates/playwright.config.js", import.meta.url));
+const TERMINAL_MODE = ".journeysfirst-terminal";
 const DEMO = fileURLToPath(new URL("../templates/demo", import.meta.url));
 /** Text in every example file, so a repo that only has the example still counts as a first install. */
 const EXAMPLE_MARK = "journeysfirst example";
@@ -75,21 +78,23 @@ function citedSkillsDir(root, skillsDir) {
 
 /**
  * Set up a repo that has no Journeys First skills yet.
- * @param {{root?: string, skillsDir?: string, demo?: boolean}} [options]
+ * @param {{root?: string, skillsDir?: string, demo?: boolean, terminal?: boolean}} [options]
  *   demo: add the example page, journey and script even when the repo has a dev or start script.
  * @returns {string[]} one line per change
  */
-export function init({ root = process.cwd(), skillsDir, demo = false } = {}) {
+export function init({ root = process.cwd(), skillsDir, demo = false, terminal = false } = {}) {
+  if (terminal && demo) throw new Error("Choose either --terminal or --demo.");
   const dirs = skillDestinations(skillsDir);
   for (const dir of dirs) {
     const there = packageSkills().filter((name) => existsSync(join(root, dir, name)));
     if (there.length) throw new Error(`${dir} already has ${there.join(", ")}. Run npx journeysfirst upgrade to refresh the skills.`);
   }
-  const example = exampleMode(root, demo);
+  const example = terminal ? { add: false, notes: [] } : exampleMode(root, demo);
   const cited = skillsDir ?? DEFAULT_SKILLS_DIR;
+  if (terminal) writeFileSync(join(root, TERMINAL_MODE), "JourneysFirst records terminal runs without Playwright.\n");
   return [
     ...dirs.flatMap((dir) => copySkills(root, dir)),
-    ...addConfig(root, { example: example.add }),
+    ...(terminal ? [`added ${TERMINAL_MODE}: skip browser setup`] : addConfig(root, { example: example.add })),
     ...(example.add ? addExample(root) : []),
     ...example.notes,
     ...ignoreRuns(root),
@@ -116,7 +121,8 @@ export function upgrade({ root = process.cwd(), skillsDir } = {}) {
     return `removed ${join(dir, name)} (this version no longer ships it)`;
   }));
   const cited = skillsDir ?? DEFAULT_SKILLS_DIR;
-  return [...dirs.flatMap((dir) => copySkills(root, dir)), ...removed, ...addConfig(root), ...ignoreRuns(root), ...writeWorkflow(root, cited), ...addSection(root, cited)];
+  const config = existsSync(join(root, TERMINAL_MODE)) ? [] : addConfig(root);
+  return [...dirs.flatMap((dir) => copySkills(root, dir)), ...removed, ...config, ...ignoreRuns(root), ...writeWorkflow(root, cited), ...addSection(root, cited)];
 }
 
 /**
@@ -359,20 +365,38 @@ export function nextSteps(command, { root = process.cwd(), skillsDir } = {}) {
   const pkg = readPackage(root);
   const readme = join(root, "journeys/README.md");
   const firstInstall = !hasOwnWork(root);
-  if (command === "upgrade" && !firstInstall) {
+  const browser = !existsSync(join(root, TERMINAL_MODE));
+  if (browser && command === "upgrade" && !firstInstall) {
     steps.push(`Check each saved script in e2e/ against the evidence rules in ${skill("journey-run")}. A read made with a service or admin key must say key, with the env var name the product's own code reads for that key (like SUPABASE_SERVICE_ROLE_KEY), not login.`);
     if (existsSync(readme) && !/^## Foundation\b/m.test(readFileSync(readme, "utf8"))) {
       steps.push(`journeys/README.md has no Foundation section. Add it before you run the journeys: follow "Find the foundation" in ${skill("journey-onboard")}.`);
     }
     steps.push(`Run the journeys again with ${skill("journey-run")} and compare each result with the run from before the upgrade.`);
   }
-  if (!pkg?.devDependencies?.["@playwright/test"] && !pkg?.dependencies?.["@playwright/test"]) {
+  if (browser && !pkg?.devDependencies?.["@playwright/test"] && !pkg?.dependencies?.["@playwright/test"]) {
     steps.push("Install Playwright, which runs the journeys: npm install --save-dev @playwright/test");
   }
-  if (firstInstall) steps.push("Install the browser the journeys use: npx playwright install --only-shell chromium");
+  if (browser && firstInstall && !chromiumInstalled(root)) {
+    steps.push("Install the browser the journeys use: npx playwright install --only-shell chromium");
+  }
   if (!existsSync(readme)) steps.push(`No journeys/README.md yet: follow ${skill("journey-onboard")}.`);
   else if (command === "init") steps.push(`Follow ${skill("journey-write")} and ${skill("journey-run")}.`);
   return steps;
+}
+
+/** @param {string} root */
+function chromiumInstalled(root) {
+  try {
+    const require = createRequire(resolve(root, "package.json"));
+    const cli = join(dirname(require.resolve("@playwright/test/package.json")), "cli.js");
+    const plan = execFileSync(process.execPath, [cli, "install", "--dry-run", "--only-shell", "chromium"], {
+      cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 5000,
+    });
+    const target = plan.match(/^\s*Install location:\s*([^\r\n]*[\\/]chromium_headless_shell-[^\r\n]+)$/m)?.[1].trim();
+    return Boolean(target && existsSync(join(target, "INSTALLATION_COMPLETE")));
+  } catch {
+    return false;
+  }
 }
 
 /**
