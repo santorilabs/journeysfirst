@@ -45,10 +45,11 @@ const USAGE = `Usage:
       A blocked check is ok only if the same check was blocked in main's newest run, in --main.
   journeysfirst init [--skills <folder>] [--demo]
       Set up this repo: copy the skills, add playwright.config.js if there is none, ignore journey-runs/, write a Journeys section in AGENTS.md, add the upgrade workflow.
+      Skills go to .agents/skills and .claude/skills. --skills <folder> copies to that folder only.
       With no dev or start script, also add an example page, journey and script that pass. --demo adds that example even when a dev or start script exists.
       When baseURL and webServer are both missing, init says what to set.
   journeysfirst upgrade [--skills <folder>]   after installing a new version: refresh the copied skills and delete retired ones
-      --skills defaults to .claude/skills. The app's own skill is never touched.`;
+      With no --skills, upgrade refreshes .agents/skills and .claude/skills. The app's own skill is never touched.`;
 
 const [command, ...rest] = process.argv.slice(2);
 const { positional, flags } = parseArgs(rest);

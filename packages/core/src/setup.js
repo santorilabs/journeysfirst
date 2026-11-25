@@ -34,7 +34,8 @@ const SECTION_START = "<!-- journeysfirst:start -->";
 const SECTION_END = "<!-- journeysfirst:end -->";
 
 export const DEFAULT_SKILLS_DIR = ".claude/skills";
-const FALLBACK_SKILLS_DIR = ".agents/skills";
+/** init copies here unless --skills names one folder. .claude is first so a link from it into .agents is written through. */
+export const DEFAULT_SKILL_DIRS = [".claude/skills", ".agents/skills"];
 
 /** Skills an earlier release shipped and this one does not. upgrade deletes their copies. */
 export const RETIRED_SKILLS = ["install-journeysfirst", "prove-check", "onboard", "write-journey", "run-journey", "fix-journey-run"];
@@ -51,15 +52,25 @@ function hasOurSkills(root, dir) {
 }
 
 /**
- * When upgrade is called without --skills, look in .claude/skills first and
- * fall back to .agents/skills (where `npx skills add` installs for Codex and others).
- * @param {string} root @param {string | undefined} skillsDir
+ * Folders init writes. No --skills means both defaults. --skills names one.
+ * @param {string | undefined} skillsDir
+ * @returns {string[]}
  */
-function resolveUpgradeSkillsDir(root, skillsDir) {
+function skillDestinations(skillsDir) {
+  return skillsDir ? [skillsDir] : [...DEFAULT_SKILL_DIRS];
+}
+
+/**
+ * The folder the Journeys section and the next steps name. .claude/skills when
+ * it is one of the folders, so a repo with both copies keeps the same links.
+ * @param {string} root
+ * @param {string | undefined} skillsDir
+ */
+function citedSkillsDir(root, skillsDir) {
   if (skillsDir) return skillsDir;
   if (hasOurSkills(root, DEFAULT_SKILLS_DIR)) return DEFAULT_SKILLS_DIR;
-  if (hasOurSkills(root, FALLBACK_SKILLS_DIR)) return FALLBACK_SKILLS_DIR;
-  return DEFAULT_SKILLS_DIR;
+  const other = DEFAULT_SKILL_DIRS.find((dir) => dir !== DEFAULT_SKILLS_DIR && hasOurSkills(root, dir));
+  return other ?? DEFAULT_SKILLS_DIR;
 }
 
 /**
@@ -68,18 +79,22 @@ function resolveUpgradeSkillsDir(root, skillsDir) {
  *   demo: add the example page, journey and script even when the repo has a dev or start script.
  * @returns {string[]} one line per change
  */
-export function init({ root = process.cwd(), skillsDir = DEFAULT_SKILLS_DIR, demo = false } = {}) {
-  const there = packageSkills().filter((name) => existsSync(join(root, skillsDir, name)));
-  if (there.length) throw new Error(`${skillsDir} already has ${there.join(", ")}. Run npx journeysfirst upgrade to refresh the skills.`);
+export function init({ root = process.cwd(), skillsDir, demo = false } = {}) {
+  const dirs = skillDestinations(skillsDir);
+  for (const dir of dirs) {
+    const there = packageSkills().filter((name) => existsSync(join(root, dir, name)));
+    if (there.length) throw new Error(`${dir} already has ${there.join(", ")}. Run npx journeysfirst upgrade to refresh the skills.`);
+  }
   const example = exampleMode(root, demo);
+  const cited = skillsDir ?? DEFAULT_SKILLS_DIR;
   return [
-    ...copySkills(root, skillsDir),
+    ...dirs.flatMap((dir) => copySkills(root, dir)),
     ...addConfig(root, { example: example.add }),
     ...(example.add ? addExample(root) : []),
     ...example.notes,
     ...ignoreRuns(root),
-    ...writeWorkflow(root, skillsDir),
-    ...addSection(root, skillsDir),
+    ...writeWorkflow(root, cited),
+    ...addSection(root, cited),
   ];
 }
 
@@ -90,15 +105,18 @@ export function init({ root = process.cwd(), skillsDir = DEFAULT_SKILLS_DIR, dem
  * @returns {string[]} one line per change
  */
 export function upgrade({ root = process.cwd(), skillsDir } = {}) {
-  const dir = resolveUpgradeSkillsDir(root, skillsDir);
-  if (!hasOurSkills(root, dir)) {
-    throw new Error(`No Journeys First skills in ${dir}. Run npx journeysfirst init, or pass --skills <folder> if the skills are somewhere else.`);
+  // No --skills: refresh both default folders, and add the one an older init skipped.
+  const dirs = skillsDir ? [skillsDir] : [...DEFAULT_SKILL_DIRS];
+  if (!dirs.some((dir) => hasOurSkills(root, dir))) {
+    const where = skillsDir ?? DEFAULT_SKILL_DIRS.join(" or ");
+    throw new Error(`No Journeys First skills in ${where}. Run npx journeysfirst init, or pass --skills <folder> if the skills are somewhere else.`);
   }
-  const removed = RETIRED_SKILLS.filter((name) => existsSync(join(root, dir, name))).map((name) => {
+  const removed = dirs.flatMap((dir) => RETIRED_SKILLS.filter((name) => existsSync(join(root, dir, name))).map((name) => {
     rmSync(join(root, dir, name), { recursive: true });
     return `removed ${join(dir, name)} (this version no longer ships it)`;
-  });
-  return [...copySkills(root, dir), ...removed, ...addConfig(root), ...ignoreRuns(root), ...writeWorkflow(root, dir), ...addSection(root, dir)];
+  }));
+  const cited = skillsDir ?? DEFAULT_SKILLS_DIR;
+  return [...dirs.flatMap((dir) => copySkills(root, dir)), ...removed, ...addConfig(root), ...ignoreRuns(root), ...writeWorkflow(root, cited), ...addSection(root, cited)];
 }
 
 /**
@@ -335,7 +353,7 @@ function addSection(root, skillsDir) {
  * @returns {string[]}
  */
 export function nextSteps(command, { root = process.cwd(), skillsDir } = {}) {
-  const dir = command === "upgrade" ? resolveUpgradeSkillsDir(root, skillsDir) : (skillsDir ?? DEFAULT_SKILLS_DIR);
+  const dir = command === "upgrade" ? citedSkillsDir(root, skillsDir) : (skillsDir ?? DEFAULT_SKILLS_DIR);
   const skill = (/** @type {string} */ name) => `${dir}/${name}/SKILL.md`;
   const steps = [];
   const pkg = readPackage(root);

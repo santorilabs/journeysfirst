@@ -39,7 +39,7 @@ npx journeysfirst upgrade
 npx playwright install --only-shell chromium
 ```
 
-Or `npx journeysfirst init`, which copies the skills into `.claude/skills` (Claude Code). For another agent, pass its folder: `npx journeysfirst init --skills .agents/skills` (Codex, Devin). The Journeys section then names that folder. The app skill keeps its own name (`<app>-journeys`), so `init` and `upgrade` never touch it.
+Or `npx journeysfirst init`, which copies the skills into `.agents/skills` and `.claude/skills`. Pass `--skills <folder>` to copy to one folder. The Journeys section names `.claude/skills` when that folder was written, and the folder you named otherwise. The app skill keeps its own name (`<app>-journeys`), so `init` and `upgrade` never touch it.
 
 **Cursor.** Rules live in `.cursor/rules/`. Run `init --skills .agents/skills`, then add a rule that points at the files:
 

@@ -1,5 +1,7 @@
 export declare const UPGRADE_WORKFLOW = ".github/workflows/journeysfirst-upgrade.yml";
 export declare const DEFAULT_SKILLS_DIR = ".claude/skills";
+/** init copies here unless --skills names one folder. .claude is first so a link from it into .agents is written through. */
+export declare const DEFAULT_SKILL_DIRS: string[];
 /** Skills an earlier release shipped and this one does not. upgrade deletes their copies. */
 export declare const RETIRED_SKILLS: string[];
 /** @returns {string[]} the names of the skills this package ships */

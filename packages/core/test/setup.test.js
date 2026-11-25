@@ -231,16 +231,37 @@ test("upgrade writes through linked skill folders, the layout npx skills add mak
   assert.ok(changes.includes("added AGENTS.md"), changes.join("\n"));
 });
 
-test("upgrade falls back to .agents/skills when .claude/skills has none of our skills", () => {
+test("upgrade on a repo that only has .agents/skills also fills .claude/skills", () => {
   const dir = repo();
   mkdirSync(join(dir, ".agents/skills/journey-write"), { recursive: true });
   writeFileSync(join(dir, ".agents/skills/journey-write/SKILL.md"), "an older copy\n");
   const changes = upgrade({ root: dir });
   assert.equal(read(dir, ".agents/skills/journey-write/SKILL.md"), skill("journey-write"));
+  assert.equal(read(dir, ".claude/skills/journey-write/SKILL.md"), skill("journey-write"));
   assert.ok(changes.includes("added .agents/skills/journey-onboard"), changes.join("\n"));
-  assert.match(read(dir, "AGENTS.md"), /\.agents\/skills\/journey-run\/SKILL\.md/);
-  assert.match(read(dir, UPGRADE_WORKFLOW), /journeysfirst upgrade --skills \.agents\/skills/);
-  assert.match(nextSteps("upgrade", { root: dir }).join("\n"), /\.agents\/skills\/journey-onboard\/SKILL\.md/);
+  assert.ok(changes.includes("added .claude/skills/journey-onboard"), changes.join("\n"));
+  assert.match(read(dir, "AGENTS.md"), /\.claude\/skills\/journey-run\/SKILL\.md/);
+  assert.match(read(dir, UPGRADE_WORKFLOW), /\$run journeysfirst upgrade \|/);
+  assert.doesNotMatch(read(dir, UPGRADE_WORKFLOW), /--skills/);
+  assert.match(nextSteps("upgrade", { root: dir }).join("\n"), /\.claude\/skills\/journey-onboard\/SKILL\.md/);
+});
+
+test("init copies the skills into .agents/skills and .claude/skills, and --skills copies to one folder", () => {
+  const dir = repo();
+  const changes = init({ root: dir });
+  assert.deepEqual(readdirSync(join(dir, ".agents/skills")).sort(), packageSkills());
+  assert.deepEqual(readdirSync(join(dir, ".claude/skills")).sort(), packageSkills());
+  for (const name of packageSkills()) assert.equal(read(dir, `.agents/skills/${name}/SKILL.md`), skill(name));
+  assert.ok(changes.includes("added .agents/skills/journey-onboard"), changes.join("\n"));
+  assert.ok(changes.includes("added .claude/skills/journey-onboard"), changes.join("\n"));
+  const one = repo();
+  init({ root: one, skillsDir: ".claude/skills" });
+  assert.ok(existsSync(join(one, ".claude/skills/journey-run/SKILL.md")));
+  assert.ok(!existsSync(join(one, ".agents")));
+  const agents = repo();
+  mkdirSync(join(agents, ".agents/skills/journey-run"), { recursive: true });
+  writeFileSync(join(agents, ".agents/skills/journey-run/SKILL.md"), "already\n");
+  assert.throws(() => init({ root: agents }), /\.agents\/skills already has journey-run[\s\S]*npx journeysfirst upgrade/);
 });
 
 test("CLI --help exits 0 and accepts --flag=value syntax", () => {
@@ -249,6 +270,7 @@ test("CLI --help exits 0 and accepts --flag=value syntax", () => {
     const res = cli([arg], dir);
     assert.equal(res.status, 0, `${arg}: ${res.stdout}${res.stderr}`);
     assert.match(res.stdout, /^Usage:/);
+    assert.match(res.stdout, /Skills go to \.agents\/skills and \.claude\/skills/);
   }
   const eqInit = cli(["init", "--skills=.agents/skills"], dir);
   assert.equal(eqInit.status, 0, eqInit.stdout + eqInit.stderr);
