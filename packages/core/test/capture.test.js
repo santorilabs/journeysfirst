@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { adapters, selectAdapter } from "../src/runner/agents/index.js";
+import { importResults } from "../src/runner/agent.js";
 import { recording } from "../src/runner/recorder.js";
 import { JOURNEY, recordAllPassed, recorder } from "./helpers.js";
 
@@ -13,6 +14,14 @@ const cli = fileURLToPath(new URL("../bin/journeysfirst.js", import.meta.url));
 const node = process.execPath;
 const dir = () => mkdtempSync(join(tmpdir(), "jf-capture-"));
 const rows = (out) => readFileSync(out, "utf8").trim().split("\n").map((line) => JSON.parse(line));
+
+test("import refuses a capture directory that is a link, even to an empty directory", () => {
+  const base = realpathSync(dir());
+  const state = join(base, "work", ".journeysfirst");
+  mkdirSync(state, { recursive: true });
+  symlinkSync(dir(), join(state, "captures"), "dir");
+  assert.throws(() => importResults({}, base), /Capture folders must stay inside the scratch project/);
+});
 
 test("every known agent implements the runner adapter contract", async () => {
   const files = readdirSync(new URL("../src/runner/agents/", import.meta.url)).filter((name) => name !== "index.js");

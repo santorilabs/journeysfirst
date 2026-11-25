@@ -1,4 +1,4 @@
-import { closeSync, fstatSync, openSync, readSync } from "node:fs";
+import { closeSync, constants, fstatSync, openSync, readSync } from "node:fs";
 import { CAPTURE_LIMIT } from "./capture.js";
 
 /**
@@ -62,7 +62,7 @@ export function recording(run, by) {
 
 /** @param {string} path */
 function readCapture(path) {
-  const fd = openSync(path, "r");
+  const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
     const stat = fstatSync(fd);
     if (!stat.isFile() || stat.size > CAPTURE_LIMIT) throw new Error("Give a capture file no larger than 64 KiB.");

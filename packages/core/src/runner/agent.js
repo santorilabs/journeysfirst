@@ -57,7 +57,7 @@ export async function withAgentRun({ journey, caseId, project, agent, label, log
   try {
     prepareProject(project, base, work, loginFile);
     const result = await execute({ base, work, state, run, signal: interrupt.signal, prompt: agentPrompt(run) });
-    const errors = importResults(recording(run, "you"), state);
+    const errors = importResults(recording(run, "you"), base);
     if (errors.length) run.tag("result_import_errors", errors.map((error) => maskText(run.redact(error))));
     if (result.handoff) run.attach({ name: "handoff.txt", body: maskText(run.redact(result.handoff)), kind: "transcript" });
     problem = result.problem;
@@ -113,10 +113,13 @@ export function agentPrompt(run) {
   ].filter((line) => line !== undefined).join("\n");
 }
 
-/** @param {ReturnType<typeof recording>} seat @param {string} state */
-export function importResults(seat, state) {
+/** @param {ReturnType<typeof recording>} seat @param {string} base */
+export function importResults(seat, base) {
+  const state = join(base, "work", ".journeysfirst");
+  const captures = join(state, "captures");
+  if (realpathSync(captures) !== captures) throw new Error("Capture folders must stay inside the scratch project and cannot be links.");
   const output = readSmall(join(state, "results.jsonl"));
-  const names = new Set(readdirSync(join(state, "captures"), { withFileTypes: true }).filter((item) => item.isFile()).map((item) => item.name));
+  const names = new Set(readdirSync(captures, { withFileTypes: true }).filter((item) => item.isFile()).map((item) => item.name));
   const attached = new Set();
   const errors = [];
   for (const [index, line] of output.split("\n").entries()) {
@@ -129,7 +132,7 @@ export function importResults(seat, state) {
         const refs = Array.isArray(entry.refs) ? entry.refs : [];
         for (const { file } of refs) {
           if (!names.has(file)) continue;
-          if (!attached.has(file)) seat.attach(file, join(state, "captures", file), { login: "you" });
+          if (!attached.has(file)) seat.attach(file, join(captures, file), { login: "you" });
           attached.add(file);
         }
         seat.check(entry.id, { verdict: entry.verdict, proof: entry.proof, reason: entry.reason, cause: entry.cause, refs });
@@ -141,7 +144,7 @@ export function importResults(seat, state) {
   }
   for (const file of names) {
     if (!attached.has(file)) {
-      try { seat.attach(file, join(state, "captures", file)); } catch {}
+      try { seat.attach(file, join(captures, file)); } catch {}
     }
   }
   return errors;

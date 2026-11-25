@@ -75,8 +75,8 @@ export declare function withAgentRun({ journey, caseId, project, agent, label, l
 export declare function prepareProject(project: string | undefined, base: string, work: string, loginFile?: string): void;
 /** @param {RunRecorder} run */
 export declare function agentPrompt(run: RunRecorder): string;
-/** @param {ReturnType<typeof recording>} seat @param {string} state */
-export declare function importResults(seat: ReturnType<typeof recording>, state: string): string[];
+/** @param {ReturnType<typeof recording>} seat @param {string} base */
+export declare function importResults(seat: ReturnType<typeof recording>, base: string): string[];
 /** @param {string} path */
 export declare function readSmall(path: string): string;
 /**
