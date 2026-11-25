@@ -331,7 +331,7 @@ assert.equal(settings.sandbox.failIfUnavailable, true);
 assert.equal(settings.sandbox.allowUnsandboxedCommands, false);
 assert.ok(settings.sandbox.filesystem.denyRead.includes(process.env.CLAUDE_CONFIG_DIR));
 assert.equal(settings.permissions.blockFileToolReadsOutsideWorkingDirectories, true);
-const mode = ["unsafe", "read-leak", "complete", "error", "bad-login"].find(name => fs.existsSync(name + ".txt"));
+const mode = ["unsafe", "read-leak", "complete", "error", "bad-login", "user-mcp"].find(name => fs.existsSync(name + ".txt"));
 if (mode === "bad-login") {
   say({ type: "system", subtype: "api_retry", error_status: 401, error: "authentication_failed" });
   say({ type: "result", subtype: "success", is_error: true, result: "Invalid API key" });
@@ -353,7 +353,14 @@ if (mode === "bad-login") {
   const server = JSON.parse(args[args.indexOf("--mcp-config") + 1]).mcpServers.demo;
   assert.equal(server.command, "env");
   assert.equal(server.args[0], "-i");
-  assert.ok(server.args.includes("mcp-proxy") && server.args.at(-1) === "server.js");
+  assert.ok(server.args.includes("mcp-proxy"));
+  if (mode === "user-mcp") {
+    // Start the server the way Claude does, with only the command and arguments from the MCP config.
+    const call = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "status" } }) + "\\n";
+    const child = spawnSync(server.command, server.args, { input: call, encoding: "utf8" });
+    assert.equal(child.status, 0, child.stderr);
+    assert.match(child.stdout, /"id":1/);
+  } else assert.equal(server.args.at(-1), "server.js");
   assert.ok(!fs.existsSync(".journeysfirst/probe.cjs"));
   const cmd = spawnSync(process.execPath, [".journeysfirst/codex-capture.mjs", "capture", "command.txt", "--",
     process.execPath, "-e", "console.log('Sharing is on')"], { encoding: "utf8" });
@@ -378,10 +385,14 @@ function claudeFixture(mode, { flags = [], token = FAKE_SUBSCRIPTION_TOKEN } = {
   writeFileSync(join(project, ".env.local"), "Private product login");
   writeFileSync(join(project, ".claude", "settings.local.json"), "{}");
   if (mode) writeFileSync(join(project, mode + ".txt"), "");
-  writeFileSync(join(root, "mcp.json"), JSON.stringify({ demo: ["node", "server.js"] }));
+  // A server installed in a user folder on PATH, like uvx in ~/.local/bin.
+  const userBin = join(root, "user-bin");
+  mkdirSync(userBin);
+  writeFileSync(join(userBin, "user-mcp-server"), "#!/usr/bin/env node\nprocess.stdin.once('data', () => { console.log(JSON.stringify({ jsonrpc: '2.0', id: 1, result: {} })); process.exit(0); });\n", { mode: 0o700 });
+  writeFileSync(join(root, "mcp.json"), JSON.stringify({ demo: mode === "user-mcp" ? ["user-mcp-server"] : ["node", "server.js"] }));
   const args = [cli, "run", "share-by-link.journey.yaml", "--agent", "claude", "--project", project, "--mcp", "mcp.json",
     "--allow-domains", "registry.npmjs.org", "--timeout", "5", ...flags, "--"];
-  const env = { ...process.env, PATH: bin + ":" + process.env.PATH, CLAUDE_CODE_OAUTH_TOKEN: token, ANTHROPIC_API_KEY: FAKE_API_KEY };
+  const env = { ...process.env, PATH: [bin, process.env.PATH, userBin].join(":"), CLAUDE_CODE_OAUTH_TOKEN: token, ANTHROPIC_API_KEY: FAKE_API_KEY };
   const result = spawnSync(process.execPath, args, { cwd: root, env, encoding: "utf8", timeout: 10000 });
   const runs = join(root, "journey-runs", "share-by-link");
   if (!existsSync(runs)) return { result };
@@ -416,6 +427,12 @@ test("Claude never gets the journey when its sandbox probe can read the login fo
     assert.equal(run.steps[0].status, "not_run");
     assert.equal(run.steps[1].verdict, "not_checked");
   }
+});
+
+test("an MCP server installed in a user PATH folder starts under the proxy's clean environment", () => {
+  const { result, run } = claudeFixture("user-mcp");
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(run.result, "passed");
 });
 
 test("a rejected subscription token stops the Claude launcher before the journey", () => {

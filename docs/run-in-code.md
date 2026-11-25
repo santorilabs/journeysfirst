@@ -68,7 +68,7 @@ The project is copied the same way as for Codex, and `.claude` is left out. Clau
 
 Before the journey, the launcher runs a short setup check with Claude. It asks Claude to run a probe command and to read a file in the login folder. It stops unless Claude Code itself reports that the probe ran in the sandbox, found no login, and could not read your home directory, and that the read was refused. This check uses a little of your subscription.
 
-`--mcp` takes the same file as for Codex. Each server runs through the MCP proxy with only `PATH` and `HOME` set. MCP servers run outside Claude's command sandbox, so list only servers you trust. `--timeout`, the saved partial results, `handoff.txt` and the rule that a run cannot pass after an unclean exit work as for Codex. `--container` is for Codex only.
+`--mcp` takes the same file as for Codex. Each server runs through the MCP proxy with only `PATH` and `HOME` set. A bare command, such as `uvx`, is looked up on your `PATH` first. MCP servers run outside Claude's command sandbox, so list only servers you trust. `--timeout`, the saved partial results, `handoff.txt` and the rule that a run cannot pass after an unclean exit work as for Codex. `--container` is for Codex only.
 
 ### Record a terminal command or MCP exchange
 

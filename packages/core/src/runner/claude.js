@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { accessSync, constants, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative } from "node:path";
 import { RunRecorder } from "./recorder.js";
@@ -153,10 +153,29 @@ function loadServers(file, state, home) {
       throw new Error("Each MCP server needs a plain name and an array of command words.");
     }
     // env -i starts the server with only PATH and HOME, so nothing from Claude's environment reaches the product.
+    // That PATH is short, so a bare command is found on the caller's PATH first.
+    const [command, ...rest] = argv;
     servers[name] = { command: "env", args: ["-i", `PATH=${dirname(process.execPath)}:/usr/local/bin:/usr/bin:/bin`, `HOME=${home}`,
-      process.execPath, join(state, "codex-capture.mjs"), "mcp-proxy", name + ".txt", "--", ...argv] };
+      process.execPath, join(state, "codex-capture.mjs"), "mcp-proxy", name + ".txt", "--", onPath(command), ...rest] };
   }
   return servers;
+}
+
+/**
+ * The full path of a bare command on the caller's PATH. A command with a slash is kept as given.
+ * @param {string} command
+ */
+function onPath(command) {
+  if (command.includes("/")) return command;
+  for (const dir of (process.env.PATH ?? "").split(":")) {
+    if (!isAbsolute(dir)) continue;
+    const path = join(dir, command);
+    try {
+      accessSync(path, constants.X_OK);
+      if (statSync(path).isFile()) return path;
+    } catch {}
+  }
+  throw new Error(`Could not find the MCP server command "${command}" on PATH. Give its full path in the --mcp file.`);
 }
 
 /**
