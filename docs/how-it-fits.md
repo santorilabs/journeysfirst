@@ -57,7 +57,7 @@ A file may always import a file in its own folder. Past that, it may import only
 | `src/review` | `src/format`, `src/shared` |
 | `src/publish` | `src/format`, `src/review`, `src/shared` |
 | `src` | `src/format`, `src/shared` |
-| `bin` | `src`, `src/format`, `src/publish`, `src/review`, `src/shared` |
+| `bin` | `src`, `src/format`, `src/publish`, `src/review`, `src/shared`, `src/runner` |
 
 Any folder may also import Node built-ins. The only packages the source may import are `yaml` and `@playwright/test`. `npm run check:names` checks that.
 
@@ -89,6 +89,8 @@ What it does: records each line of a journey as it is done, then writes the run 
 Files, in `src/runner/`:
 
 - `recorder.js`: `RunRecorder`. Any script or agent can use it, with or without Playwright.
+- `capture.js`: selected terminal output and MCP request and response summaries. The wrapper passes the child's stdio through without changing it.
+- `recording.js`: attaches a capture and resolves check evidence from its saved lines, for one seat at a time.
 - `playwright.js`: `test.journey` and the `journey` fixture (`page`, `step`, `check`, `value`). It uses `RunRecorder`.
 - `captions.js`: the caption bar each user's video shows for the line in progress, and screenshots taken without it. Only `playwright.js` uses it.
 - `measure.js`: what the runner reads from a user's screen after each line, for a review: the values in use, each control's box, and each click with the ms until the page first changed. It also holds the slow replay (`JOURNEYS_DELAY_MS`). Only `playwright.js` uses it.
@@ -142,7 +144,7 @@ Files, in `src/shared/`. None of them imports another source file.
 
 ### The rest
 
-- `bin/journeysfirst.js`: the CLI (`validate`, `validate-run`, `merge-check`, `measured`, `add-findings`, `add-review`, `review`, `report`, `summary`, `publish`, `dev-server`, `doctor`, `init`, `upgrade`, `--version`). It does not import the runner. Playwright runs the runner.
+- `bin/journeysfirst.js`: the CLI (`validate`, `validate-run`, `merge-check`, `measured`, `add-findings`, `add-review`, `review`, `capture`, `mcp-proxy`, `report`, `summary`, `publish`, `dev-server`, `doctor`, `init`, `upgrade`, `--version`). It uses the runner for terminal and MCP capture. Playwright uses the runner for browser journeys.
 - `prepack` copies `skills/`, `spec/` and `docs/` from the repo root into this package, and `postpack` removes the copies. An install then has them at `node_modules/journeysfirst/spec` and `node_modules/journeysfirst/docs`.
 - `src/doctor.js`: `doctor`. Checks Node, Playwright, Chromium, the Playwright config, whether `baseURL` answers, and each journey file. The CLI is the only caller.
 - `src/setup.js`: `init` and `upgrade`. They copy the skills into `.agents/skills` and `.claude/skills` (or the folder `--skills` names), add `playwright.config.js` when there is none, ignore `journey-runs/`, write a Journeys section in `AGENTS.md`, and add the upgrade workflow, `.github/workflows/journeysfirst-upgrade.yml`. With no app to start, `init` also adds an example page, journey and script that pass. It imports Node built-ins and `src/shared/target.js`.
@@ -172,7 +174,7 @@ The publishing rules are also in [Run results v1](../spec/run-results-v1.md#publ
 | `journeysfirst` | The two file formats, v1: read and check journeys and runs (`parseJourney`, `validateJourney`, `journeyPlan`, `checkRun`, `validateRun`, `settle`, `runDigest`) |
 | `journeysfirst/playwright` | `test.journey` and `expect` |
 | `journeysfirst/reporter` | The Playwright reporter that writes run folders |
-| `journeysfirst/recorder` | `RunRecorder`, to write a run without Playwright |
+| `journeysfirst/recorder` | `RunRecorder` and `recording(run, by)`, to write a run without Playwright |
 | `journeysfirst/publish` | `publishRun`, the publish client |
 | The CLI | `npx journeysfirst` and its commands |
 
