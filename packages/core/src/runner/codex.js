@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { accessSync, closeSync, constants, copyFileSync, cpSync, fstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { accessSync, closeSync, constants, copyFileSync, cpSync, fstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -24,6 +24,8 @@ export async function runCodex({ journey, caseId, project, mcp, container, allow
     throw new Error("The Codex launcher only plays the 'you' seat. Use the recorder directly for journeys with more than one user.");
   }
   const key = process.env.OPENAI_API_KEY;
+  const loginFile = codexLoginFile();
+  if (!key && !loginFile) throw new Error("No Codex login found. Run `codex login`.");
   if (key) run.value("OPENAI_API_KEY", key, { secret: true });
   const base = realpathSync(mkdtempSync(join(tmpdir(), "journeysfirst-codex-")));
   const work = join(base, "work"), home = join(base, "home"), auth = join(base, "codex");
@@ -37,7 +39,7 @@ export async function runCodex({ journey, caseId, project, mcp, container, allow
       const source = realpathSync(project);
       const inside = relative(source, base);
       if (!inside || (!inside.startsWith("..") && !isAbsolute(inside))) throw new Error("Choose a project that does not contain the scratch directory.");
-      cpSync(source, work, { recursive: true, filter: (path) => !OMIT.has(basename(path)) && !basename(path).startsWith(".env.") });
+      cpSync(source, work, { recursive: true, filter: (path) => path !== loginFile && !OMIT.has(basename(path)) && !basename(path).startsWith(".env.") });
     } else mkdirSync(work);
     mkdirSync(home);
     mkdirSync(auth);
@@ -47,7 +49,7 @@ export async function runCodex({ journey, caseId, project, mcp, container, allow
     }
     writeFileSync(join(state, "package.json"), '{"type":"module"}\n');
     const hostHome = !container && !allowHostRead ? realpathSync(homedir()) : undefined;
-    const permissions = profile({ work, home, auth, container, hostHome });
+    const permissions = profile({ work, home, auth, container, hostHome, loginFile });
     const sandbox = ["sandbox", "-P", PROFILE, ...permissions];
     const probe = join(auth, "auth.json");
     writeFileSync(probe, "Synthetic probe. No login is in this file.\n");
@@ -65,9 +67,21 @@ export async function runCodex({ journey, caseId, project, mcp, container, allow
         throw new Error("Codex could not prove that its sandbox blocks your home directory. Use a container or explicitly pass --allow-host-read.");
       }
     }
+    if (loginFile && !container) {
+      const original = await launcher([...sandbox, "--", "node", "-e", probeCode(), work, loginFile, String(process.pid)], "", 15000);
+      if (original.code !== 0 || original.stdout.trim() !== PROBE) {
+        throw new Error("Codex could not prove that its sandbox blocks the existing login file. Use a compatible container.");
+      }
+    }
     if (key) {
       const login = await launcher(["login", "--with-api-key"], key + "\n", 15000);
       if (login.code !== 0) throw new Error("Codex could not sign in with OPENAI_API_KEY. Check that the provider key is valid.");
+    } else if (loginFile) {
+      try {
+        writeFileSync(probe, readFileSync(loginFile), { mode: 0o600, flag: "wx" });
+      } catch {
+        throw new Error("Could not reuse the Codex login. Run `codex login`.");
+      }
     }
     const servers = mcp ? loadServers(mcp, sandbox, state, work) : { args: [], names: [] };
     const prompt = agentPrompt(run);
@@ -149,8 +163,8 @@ function launcherFor({ base, work, home, auth, container }) {
   };
 }
 
-/** @param {{work: string, home: string, auth: string, container?: string, hostHome?: string}} path */
-function profile({ work, home, auth, container, hostHome }) {
+/** @param {{work: string, home: string, auth: string, container?: string, hostHome?: string, loginFile?: string}} path */
+function profile({ work, home, auth, container, hostHome, loginFile }) {
   /** @type {Record<string, string>} */
   const paths = { [hostHome ? ":minimal" : ":root"]: "read", "/proc": "deny", [work]: "write", [home]: "write", [auth]: "deny" };
   if (hostHome) {
@@ -163,10 +177,25 @@ function profile({ work, home, auth, container, hostHome }) {
       paths[join(homedir(), name)] = "deny";
     }
   }
+  if (loginFile && !container &&
+      !Object.entries(paths).some(([path, mode]) => mode === "deny" && loginFile.startsWith(path + "/"))) {
+    paths[loginFile] = "deny";
+  }
   const fs = Object.entries(paths).map(([name, mode]) => `${JSON.stringify(name)}=${JSON.stringify(mode)}`).join(",");
   return ["-c", `default_permissions="${PROFILE}"`, "-c", `permissions.${PROFILE}.filesystem={${fs}}`,
     "-c", `permissions.${PROFILE}.network.enabled=true`, "-c", 'shell_environment_policy.inherit="none"',
     "-c", `shell_environment_policy.set={HOME=${JSON.stringify(home)},PATH=${JSON.stringify(container ? "/usr/local/bin:/usr/bin:/bin" : dirname(process.execPath) + ":/usr/local/bin:/usr/bin:/bin")}}`];
+}
+
+function codexLoginFile() {
+  try {
+    const file = realpathSync(join(process.env.CODEX_HOME || join(homedir(), ".codex"), "auth.json"));
+    const entry = statSync(file);
+    if (entry.isFile() && entry.size > 0) {
+      accessSync(file, constants.R_OK);
+      return file;
+    }
+  } catch {}
 }
 
 function codexDirectory() {
