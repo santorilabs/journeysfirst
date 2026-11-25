@@ -4,6 +4,7 @@ import { request } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { chromium } from "@playwright/test";
 import { fromLegacy, listRuns, serveReview } from "../src/review/review.js";
 import { parseJourney } from "../src/format/format.js";
 import { RunRecorder } from "../src/runner/recorder.js";
@@ -19,7 +20,12 @@ function runsFolder() {
   const dir = mkdtempSync(join(tmpdir(), "jf-review-"));
   recordAllPassed(recorder({ outputDir: dir })).finish();
   const failing = recordAllPassed(recorder({ outputDir: dir, id: "2026-11-08-1802-7d2e" }));
-  failing.check("viewer-blocked", { by: "viewer", verdict: "failed", proof: "Opened the link again.", evidence: [VIEWER_SAW], reason: "The link still works after sharing was turned off." });
+  const reason = "The link still works after sharing was turned off.";
+  const proof = "Opened the link again.";
+  failing.check("viewer-blocked", { by: "viewer", verdict: "failed", proof, evidence: [
+    VIEWER_SAW,
+    { source: "log", login: "viewer", query: "Open the closed link", expected: "Link closed", got: { status: 200, message: reason, action: proof } },
+  ], reason });
   failing.attach({ name: "viewer.webm", body: "video", kind: "video", starts_at: 1, tags: { user: "viewer" } });
   failing.playedBy("viewer", "Claude Code 2.4.1, opus");
   failing.attach({ name: "trace.zip", body: "zip", kind: "trace" });
@@ -123,10 +129,22 @@ test("a run page shows each step, who did it, proof, cause and where it is in th
     assert.match(index, /Not fully checked|Passed/);
     const page = await (await fetch(`${base}/runs/share-by-link/2026-11-08-1802-7d2e`)).text();
     assert.match(page, /The viewer can no longer see &quot;Q3 plan&quot;/);
-    assert.match(page, /product: The link still works after sharing was turned off\./);
+    assert.match(page, /<p class="error">The link still works after sharing was turned off\.<\/p>/);
+    assert.match(page, /Cause: product/);
+    const withoutRaw = page.replace(/<pre>[\s\S]*?<\/pre>/g, "");
+    assert.equal((withoutRaw.match(/The link still works after sharing was turned off\./g) ?? []).length, 1);
+    assert.equal((withoutRaw.match(/Opened the link again\./g) ?? []).length, 1);
+    assert.doesNotMatch(index, /The link still works after sharing was turned off/);
+    assert.match(page, /2 of 3 checks passed, 1 failed\./);
+    assert.match(page, /<dt>Expected<\/dt><dd>Link closed<\/dd><dt>Got<\/dt><dd><dl><dt>status<\/dt><dd>200<\/dd>/);
+    assert.match(page, /<details><summary>Raw JSON<\/summary><pre>/);
+    assert.match(page, /<span class="line-kind">Action · You<\/span>/);
+    assert.match(page, /<span class="step-status good">Done<\/span>/);
+    assert.match(page, /<span class="step-status bad">Failed<\/span>/);
+    assert.doesNotMatch(page, /No screenshot\.|class="badge"|from you&#39;s login/);
     assert.match(page, /class="line" data-step="7" data-user="viewer" data-at="[\d.]+" aria-current="step"/, "the failing check is in the viewer's video, and the page opens on it");
-    assert.match(page, /<section class="run-player" aria-label="The run" data-open="7">/);
-    assert.match(page, /viewer: not captured, played by Claude Code 2\.4\.1, opus/, "who played a user shows next to it");
+    assert.match(page, /<section class="run-player" aria-label="The run" data-open="7" id="steps">/);
+    assert.match(page, /<details class="run-details"><summary>Run details<\/summary>[\s\S]*<dt>Role: viewer<\/dt><dd>Played by Claude Code 2\.4\.1, opus<\/dd>/, "who played a role is in the folded run details");
     assert.match(page, /<h1>Share by link<\/h1>/, "with no journey file to read the promise from, the heading is the title");
     assert.match(page, /src="\/files\/share-by-link\/2026-11-08-1802-7d2e\/step-1.png"/);
     const video = await fetch(`${base}/files/share-by-link/2026-11-08-1802-7d2e/viewer.webm`, { headers: { range: "bytes=1-2" } });
@@ -134,6 +152,52 @@ test("a run page shows each step, who did it, proof, cause and where it is in th
     assert.equal(await video.text(), "id");
     assert.match(page, /<a href="\/files\/share-by-link\/2026-11-08-1802-7d2e\/trace.zip" download>trace.zip<\/a><pre>npx playwright show-trace \S+share-by-link\/2026-11-08-1802-7d2e\/trace.zip<\/pre>/, "the trace is listed with the command that opens it");
     assert.equal((await fetch(`${base}/files/share-by-link/2026-11-08-1802-7d2e/trace.zip`)).headers.get("content-type"), "application/zip");
+  } finally {
+    server.close();
+  }
+});
+
+test("the index and run page count blocked checks separately from unverified checks", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "jf-review-"));
+  const run = recordAllPassed(recorder({ outputDir: dir, id: "2026-11-08-1900-blocked0" }));
+  run.blocked("viewer-blocked", { by: "viewer", cause: "environment", reason: "The second account was not available." });
+  run.check("link-on", { by: "you", verdict: "not_checked" });
+  run.finish();
+  const server = await listening({ dir });
+  try {
+    const base = `http://127.0.0.1:${server.address().port}`;
+    const index = await (await fetch(base)).text();
+    const page = await (await fetch(`${base}/runs/share-by-link/2026-11-08-1900-blocked0`)).text();
+    for (const html of [index, page]) assert.match(html, /1 of 3 checks passed, 1 blocked, 1 not verified\./);
+    assert.match(page, /The second account was not available\./);
+  } finally {
+    server.close();
+  }
+});
+
+test("nested evidence remains readable on a narrow screen", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "jf-review-"));
+  const run = recorder({ outputDir: dir, id: "2026-11-08-1900-narrow00" });
+  const call = "GET /albums/shared/photos/search";
+  const field = 'assets.items[0].metadata.originalFileName = "sample.jpg"';
+  run.check("viewer-blocked", { by: "viewer", verdict: "failed", proof: "Read the response fields.", reason: "The response contained a hidden field.", evidence: [
+    { source: "api", login: "viewer", url: "/albums/shared/photos/search", got: { hidden_details_found: 1, found: [{ call, field }] } },
+  ] });
+  run.finish();
+  const server = await listening({ dir });
+  try {
+    const browser = await chromium.launch();
+    try {
+      const page = await browser.newPage({ viewport: { width: 375, height: 812 } });
+      await page.goto(`http://127.0.0.1:${server.address().port}/runs/share-by-link/2026-11-08-1900-narrow00`);
+      for (const value of [call, field]) {
+        const box = await page.getByText(value, { exact: true }).boundingBox();
+        assert.ok(box && box.width > 180 && box.height < 80, `the value has room to wrap normally: ${value}`);
+      }
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
+    } finally {
+      await browser.close();
+    }
   } finally {
     server.close();
   }
@@ -186,7 +250,7 @@ steps:
   }
 });
 
-test("a run page says whether the run was reviewed, and shows each finding under its pass with its step, evidence and any call on it", async () => {
+test("a run page leads with each finding and keeps its criterion, step, evidence and any call on it", async () => {
   const dir = mkdtempSync(join(tmpdir(), "jf-review-"));
   /** A passing run with these findings, or none. */
   const write = (id, found, reviews) => {
@@ -201,13 +265,14 @@ test("a run page says whether the run was reviewed, and shows each finding under
   try {
     const base = `http://127.0.0.1:${server.address().port}`;
     const page = async (id) => (await fetch(`${base}/runs/share-by-link/${id}`)).text();
-    assert.match(await page("not-reviewed"), /<p class="how">Review<\/p><p>Not reviewed\.<\/p>/);
-    assert.match(await page("nothing-found"), /<p class="how">Review<\/p><p>Reviewed\. Nothing found\.<\/p>/);
+    assert.match(await page("not-reviewed"), /<h2>Findings<\/h2><p>Not reviewed\.<\/p>/);
+    assert.match(await page("nothing-found"), /<h2>Findings<\/h2><p>Reviewed\. Nothing found\.<\/p>/);
 
     const found = await page("with-findings");
-    assert.match(found, /<span class="verdict passed">Passed<\/span> .*<span class="how found">2 findings, 1 question<\/span>/, "the result is the same, with the count beside it");
-    assert.deepEqual([...found.matchAll(/<h2 class="pass">([^<]+)<\/h2>/g)].map((m) => m[1]), ["Intuitive", "Right foundation", "Questions"]);
-    assert.match(found, /<p class="says">Nothing on the screen changes after &quot;Copy link&quot;\.<\/p>\s*<p class="how"><a href="\?step=1">step 1<\/a> · intuitive-feedback<\/p>/);
+    assert.match(found, /<span class="verdict passed">Passed<\/span> <span class="summary">3 of 3 checks passed\.<\/span>/);
+    assert.deepEqual([...found.matchAll(/<summary>Review criterion<\/summary><p>([^:]+):/g)].map((m) => m[1]), ["Intuitive", "Right foundation", "Questions"]);
+    assert.match(found, /<p class="says">Nothing on the screen changes after &quot;Copy link&quot;\.<\/p>\s*<p class="how"><a href="\?step=1#steps">Step 1<\/a><\/p>/);
+    assert.match(found, /<details><summary>Review criterion<\/summary><p>Intuitive: intuitive-feedback<\/p>/);
     assert.match(found, /<p>Is a 4 px corner right for this button\?<\/p>/);
     assert.match(found, /<p class="call"><b>ana@example\.test<\/b>: Keep it\./);
     assert.match(found, /the dialog is the same before and after the click/, "the evidence is there");
@@ -248,7 +313,7 @@ test("a run page opens when reviews holds a null, and a criterion named like a b
     const response = await fetch(`http://127.0.0.1:${server.address().port}/runs/share-by-link/odd`);
     assert.equal(response.status, 200);
     const page = await response.text();
-    assert.deepEqual([...page.matchAll(/<h2 class="pass">([^<]+)<\/h2>/g)].map((m) => m[1]), ["Other"]);
+    assert.match(page, /<summary>Review criterion<\/summary><p>Other: toString<\/p>/);
     assert.doesNotMatch(page, /native code/);
     assert.match(page, /<li><b>odd-1<\/b>: Seen\./);
   } finally {
