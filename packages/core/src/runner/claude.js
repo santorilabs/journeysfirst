@@ -9,6 +9,8 @@ const TOKEN = "CLAUDE_CODE_OAUTH_TOKEN";
 const PROBE = "journeysfirst: workspace readable, provider login hidden";
 const PROBE_COMMAND = "node .journeysfirst/probe.cjs";
 const TOOLS = ["Bash", "Read", "Edit", "Write", "Glob", "Grep"];
+// The PATH an MCP server gets. Bare server commands fall back to it, so the lookup and the server cannot disagree.
+const SERVER_PATH = [dirname(process.execPath), "/usr/local/bin", "/usr/bin", "/bin"];
 
 /**
  * Launch Claude Code with a fresh project, a clean home and a subscription login that its commands cannot read.
@@ -155,19 +157,20 @@ function loadServers(file, state, home) {
     // env -i starts the server with only PATH and HOME, so nothing from Claude's environment reaches the product.
     // That PATH is short, so a bare command is found on the caller's PATH first.
     const [command, ...rest] = argv;
-    servers[name] = { command: "env", args: ["-i", `PATH=${dirname(process.execPath)}:/usr/local/bin:/usr/bin:/bin`, `HOME=${home}`,
+    servers[name] = { command: "env", args: ["-i", `PATH=${SERVER_PATH.join(":")}`, `HOME=${home}`,
       process.execPath, join(state, "codex-capture.mjs"), "mcp-proxy", name + ".txt", "--", onPath(command), ...rest] };
   }
   return servers;
 }
 
 /**
- * The full path of a bare command on the caller's PATH. A command with a slash is kept as given.
+ * The full path of a bare command on the caller's PATH, or else on the PATH the server gets.
+ * A command with a slash is kept as given.
  * @param {string} command
  */
 function onPath(command) {
   if (command.includes("/")) return command;
-  for (const dir of (process.env.PATH ?? "").split(":")) {
+  for (const dir of [...(process.env.PATH ?? "").split(":"), ...SERVER_PATH]) {
     if (!isAbsolute(dir)) continue;
     const path = join(dir, command);
     try {
