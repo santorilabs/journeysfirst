@@ -15,7 +15,7 @@ const OMIT = new Set([".git", ".codex", ".env", ".npmrc", ".netrc", "node_module
 
 /**
  * Launch Codex with a fresh project and a separately protected provider login.
- * @param {{journey: string, caseId?: string, project?: string, mcp?: string, container?: string, allowHostRead?: boolean, timeoutMs?: number, agentArgs: string[]}} options
+ * @param {{journey: string, caseId?: string, project?: string, mcp?: Record<string, string[]>, container?: string, allowHostRead?: boolean, timeoutMs?: number, agentArgs: string[]}} options
  */
 export async function runCodex({ journey, caseId, project, mcp, container, allowHostRead = false, timeoutMs = 180000, agentArgs }) {
   const selected = pickArgs(agentArgs);
@@ -32,14 +32,20 @@ export async function runCodex({ journey, caseId, project, mcp, container, allow
   const state = join(work, ".journeysfirst");
   const captures = join(state, "captures");
   const authFile = join(auth, "auth.json");
+  const runtime = container ? undefined : codexExecutable();
+  const node = container ? "node" : realpathSync(process.execPath);
   const interrupt = new AbortController();
-  const onInterrupt = () => interrupt.abort();
+  /** @type {number | undefined} */
+  let signalExit;
+  const onInt = () => { signalExit ??= 130; interrupt.abort(); };
+  const onTerm = () => { signalExit ??= 143; interrupt.abort(); };
   const launcher = launcherFor({ base, work, home, auth, container, signal: interrupt.signal });
   let problem;
   let probeDir;
   /** @type {Buffer | undefined} */
   let reusedLogin;
-  process.on("SIGINT", onInterrupt);
+  process.on("SIGINT", onInt);
+  process.on("SIGTERM", onTerm);
   try {
     if (project) {
       const source = realpathSync(project);
@@ -60,25 +66,25 @@ export async function runCodex({ journey, caseId, project, mcp, container, allow
     }
     writeFileSync(join(state, "package.json"), '{"type":"module"}\n');
     const hostHome = !container && !allowHostRead ? realpathSync(homedir()) : undefined;
-    const permissions = profile({ work, home, auth, container, hostHome, loginFile });
+    const permissions = sandboxArgs({ work, home, auth, container, hostHome, loginFile, runtime, node });
     const sandbox = ["sandbox", "-P", PROFILE, ...permissions];
     writeFileSync(authFile, "Synthetic probe. No login is in this file.\n");
-    const checked = await launcher([...sandbox, "--", "node", "-e", probeCode(), work, authFile, String(process.pid)], "", 15000);
+    const checked = await launcher([...sandbox, "--", node, "-e", probeCode(), work, authFile, String(process.pid)], "", 15000);
     rmSync(authFile, { force: true });
     if (checked.code !== 0 || checked.stdout.trim() !== PROBE) {
-      throw new Error("Codex could not prove that its sandbox blocks the provider login. Use a compatible container or install Codex and Node outside your home directory.");
+      throw new Error("Codex failed the scratch login probe: the sandbox must start Node, read the scratch project and deny the provider login. Check your Node and Codex installs, or use a compatible container.");
     }
     if (hostHome) {
       probeDir = mkdtempSync(join(hostHome, ".journeysfirst-probe-"));
       const canary = join(probeDir, "host.txt");
       writeFileSync(canary, "Synthetic host home probe.\n");
-      const homeCheck = await launcher([...sandbox, "--", "node", "-e", probeCode(), work, canary, String(process.pid)], "", 15000);
+      const homeCheck = await launcher([...sandbox, "--", node, "-e", probeCode(), work, canary, String(process.pid)], "", 15000);
       if (homeCheck.code !== 0 || homeCheck.stdout.trim() !== PROBE) {
         throw new Error("Codex could not prove that its sandbox blocks your home directory. Use a container or explicitly pass --allow-host-read.");
       }
     }
     if (loginFile && !container) {
-      const original = await launcher([...sandbox, "--", "node", "-e", probeCode(), work, loginFile, String(process.pid)], "", 15000);
+      const original = await launcher([...sandbox, "--", node, "-e", probeCode(), work, loginFile, String(process.pid)], "", 15000);
       if (original.code !== 0 || original.stdout.trim() !== PROBE) {
         throw new Error("Codex could not prove that its sandbox blocks the existing login file. Use a compatible container.");
       }
@@ -94,7 +100,7 @@ export async function runCodex({ journey, caseId, project, mcp, container, allow
         throw new Error("Could not reuse the Codex login. Run `codex login`.");
       }
     }
-    const servers = mcp ? loadServers(mcp, sandbox, state, work) : { args: [], names: [] };
+    const servers = mcpConfig(mcp ?? {}, sandbox, state, work, runtime ?? "codex", node);
     const prompt = agentPrompt(run);
     const result = await launcher(["-a", "never", ...permissions, ...servers.args, "exec", "--json", "--ephemeral",
       "--skip-git-repo-check", ...selected, "-"], prompt, timeoutMs);
@@ -116,24 +122,33 @@ export async function runCodex({ journey, caseId, project, mcp, container, allow
   } catch (error) {
     problem = run.redact(error instanceof Error ? error.message : "Codex could not complete the journey.");
   } finally {
-    if (interrupt.signal.aborted) problem = "Codex was interrupted.";
+    if (signalExit) problem = `Codex was interrupted (${signalExit === 130 ? "SIGINT" : "SIGTERM"}).`;
     try {
       if (loginFile && reusedLogin) saveRefreshedLogin(loginFile, authFile, reusedLogin);
     } catch {
       problem = [problem, "Could not save the refreshed Codex login. Run `codex login`."].filter(Boolean).join(" ");
     } finally {
-      process.removeListener("SIGINT", onInterrupt);
+      process.removeListener("SIGINT", onInt);
+      process.removeListener("SIGTERM", onTerm);
       if (probeDir) rmSync(probeDir, { recursive: true, force: true });
       rmSync(base, { recursive: true, force: true });
     }
   }
-  const { run: outcome, files } = run.result(problem ? { summary: problem } : undefined);
-  if (problem && outcome.result === "passed") {
-    throw new Error(`${problem} No run was saved because a passing run needs a clean exit.`);
-  }
+  const { run: outcome, files } = run.result(problem ? { attempt: { status: "aborted", reason: problem } } : undefined);
   const saved = writeRunFolder(run.outputDir, outcome, files, run.journey);
-  return { ...saved, problem };
+  return { ...saved, problem, exitCode: signalExit ?? (problem ? 1 : 0) };
 }
+
+export const codex = {
+  name: "codex",
+  setup: "Install the Codex CLI and run `codex login`.",
+  /** @param {string} [container] */
+  detect: (container) => Boolean(container || codexExecutable()),
+  authProbe: () => Boolean(process.env.OPENAI_API_KEY || codexLoginFile()),
+  sandboxArgs,
+  mcpConfig,
+  start: runCodex,
+};
 
 /** @param {string[]} args */
 function pickArgs(args) {
@@ -182,16 +197,15 @@ function launcherFor({ base, work, home, auth, container, signal }) {
   };
 }
 
-/** @param {{work: string, home: string, auth: string, container?: string, hostHome?: string, loginFile?: string}} path */
-function profile({ work, home, auth, container, hostHome, loginFile }) {
+/** @param {{work: string, home: string, auth: string, container?: string, hostHome?: string, loginFile?: string, runtime?: string, node: string}} path */
+function sandboxArgs({ work, home, auth, container, hostHome, loginFile, runtime, node }) {
   /** @type {Record<string, string>} */
   const paths = { [hostHome ? ":minimal" : ":root"]: "read", "/proc": "deny", [work]: "write", [home]: "write", [auth]: "deny" };
   if (hostHome) {
-    for (const dir of [dirname(process.execPath), codexDirectory()]) {
-      if (dir && relative(hostHome, dir).startsWith(".." + "/")) paths[dir] = "read";
-    }
+    const runtimes = [node, ...(runtime ? codexRuntimePaths(runtime) : [])];
+    for (const path of runtimes) paths[path] = "read";
     for (const resolver of resolverFiles([hostHome, auth, "/proc"])) paths[resolver] ??= "read";
-    paths[hostHome] = "deny";
+    if (!runtimes.some((path) => path.startsWith(hostHome + "/"))) paths[hostHome] = "deny";
   } else if (!container) {
     for (const name of [".aws", ".codex", ".config", ".docker", ".gitconfig", ".kube", ".netrc", ".npmrc", ".ssh"]) {
       paths[join(homedir(), name)] = "deny";
@@ -204,7 +218,7 @@ function profile({ work, home, auth, container, hostHome, loginFile }) {
   const fs = Object.entries(paths).map(([name, mode]) => `${JSON.stringify(name)}=${JSON.stringify(mode)}`).join(",");
   return ["-c", `default_permissions="${PROFILE}"`, "-c", `permissions.${PROFILE}.filesystem={${fs}}`,
     "-c", `permissions.${PROFILE}.network.enabled=true`, "-c", 'shell_environment_policy.inherit="none"',
-    "-c", `shell_environment_policy.set={HOME=${JSON.stringify(home)},PATH=${JSON.stringify(container ? "/usr/local/bin:/usr/bin:/bin" : dirname(process.execPath) + ":/usr/local/bin:/usr/bin:/bin")}}`];
+    "-c", `shell_environment_policy.set={HOME=${JSON.stringify(home)},PATH=${JSON.stringify(container ? "/usr/local/bin:/usr/bin:/bin" : dirname(node) + ":/usr/local/bin:/usr/bin:/bin")}}`];
 }
 
 /** @param {string[]} denied */
@@ -285,15 +299,29 @@ function saveRefreshedLogin(original, scratch, before) {
     rmSync(staged, { recursive: true, force: true });
   }
 }
-function codexDirectory() {
+function codexExecutable() {
   for (const path of (process.env.PATH ?? "").split(":")) {
     if (!isAbsolute(path)) continue;
     try {
       const executable = realpathSync(join(path, "codex"));
       accessSync(executable, constants.X_OK);
-      return dirname(executable);
+      if (statSync(executable).isFile()) return executable;
     } catch {}
   }
+}
+
+/** @param {string} executable */
+function codexRuntimePaths(executable) {
+  const pkg = dirname(dirname(executable));
+  if (basename(pkg) !== "codex" || basename(dirname(pkg)) !== "@openai") return [executable];
+  const platform = process.platform === "win32" ? "win32" : process.platform;
+  const native = join(dirname(pkg), `codex-${platform}-${process.arch}`);
+  return existsDirectory(native) ? [pkg, native] : [pkg];
+}
+
+/** @param {string} path */
+function existsDirectory(path) {
+  try { return lstatSync(path).isDirectory(); } catch { return false; }
 }
 
 function probeCode() {
@@ -307,17 +335,12 @@ function probeCode() {
     console.log(${JSON.stringify(PROBE)});`;
 }
 
-/** @param {string} file @param {string[]} sandbox @param {string} state @param {string} work */
-function loadServers(file, sandbox, state, work) {
-  const config = JSON.parse(readFileSync(file, "utf8"));
-  if (!config || Object.getPrototypeOf(config) !== Object.prototype) throw new Error("Give --mcp a JSON object of server names and command arrays.");
+/** @param {Record<string,string[]>} config @param {string[]} sandbox @param {string} state @param {string} work @param {string} runtime @param {string} node */
+function mcpConfig(config, sandbox, state, work, runtime, node) {
   const args = Object.entries(config).flatMap(([name, argv]) => {
-    if (!/^[\w-]+$/.test(name) || !Array.isArray(argv) || !argv.length || !argv.every((item) => typeof item === "string")) {
-      throw new Error("Each MCP server needs a plain name and an array of command words.");
-    }
-    const args = [...sandbox, "--", "node", join(state, "codex-capture.mjs"), "mcp-proxy", name + ".txt", "--", ...argv];
+    const args = [...sandbox, "--", node, join(state, "codex-capture.mjs"), "mcp-proxy", name + ".txt", "--", ...argv];
     const prefix = `mcp_servers.${name}`;
-    return ["-c", `${prefix}.command="codex"`, "-c", `${prefix}.args=${JSON.stringify(args)}`,
+    return ["-c", `${prefix}.command=${JSON.stringify(runtime)}`, "-c", `${prefix}.args=${JSON.stringify(args)}`,
       "-c", `${prefix}.cwd=${JSON.stringify(work)}`, "-c", `${prefix}.default_tools_approval_mode="approve"`];
   });
   return { args, names: Object.keys(config) };

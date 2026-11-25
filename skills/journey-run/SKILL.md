@@ -36,6 +36,8 @@ No safe environment, no test sign-in, or no sink for a send: the affected checks
 
 ## 4. Do each line
 
+For a terminal or MCP journey, run `npx journeysfirst run journeys/<name>.journey.yaml` from the trusted test project. This picks a signed-in agent CLI and records the stdio MCP servers in the project's `.mcp.json`. Read the saved run to see what passed. Use `capture` or `mcp-proxy` by hand only when you drive the run yourself.
+
 - Each line is done by the user it starts with, in their own login and their own browser context, the way they would do it.
 - Do exactly what the sentence says. Type quoted input word for word.
 - Take a screenshot after each line, from that user's page. Record a video per user. Both are published with the run, so nothing secret may be on screen at any point: no real passwords, keys, tokens or real people's data.

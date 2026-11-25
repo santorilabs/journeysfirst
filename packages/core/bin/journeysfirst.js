@@ -31,7 +31,7 @@ import { init, nextSteps, upgrade } from "../src/setup.js";
 import { reviewLine } from "../src/shared/display.js";
 import { VERSION } from "../src/shared/version.js";
 import { captureCommand } from "../src/runner/capture.js";
-import { runCodex } from "../src/runner/codex.js";
+import { readMcpServers, selectAdapter } from "../src/runner/agent.js";
 
 const USAGE = `Usage:
   journeysfirst --version
@@ -55,8 +55,8 @@ const USAGE = `Usage:
       Run a terminal command and save bounded, redacted output.
   journeysfirst mcp-proxy --out <new file> [--secret-env <NAME,NAME>] -- <server command> [args...]
       Relay an MCP server's stdio and save request labels and response summaries.
-  journeysfirst run <journey.yaml> --agent codex [--project <folder>] [--case <id>] [--mcp <json>] [--container <image> | --allow-host-read] [--timeout <seconds>] -- [--model <name>]
-      Give Codex a signed-out scratch project and save a run. Requires Codex with a working permission sandbox.
+  journeysfirst run <journey.yaml> [--agent <name>] [--project <folder>] [--case <id>] [--mcp <json>] [--container <image> | --allow-host-read] [--timeout <seconds>] -- [--model <name>]
+      Use a signed-in agent CLI to run in a scratch copy of the project. Records stdio servers from .mcp.json by default.
   journeysfirst publish <run folder> [--to <url>] [--journey <file>]   (default JOURNEYSFIRST_URL; token from JOURNEYSFIRST_TOKEN)
   journeysfirst dev-server [--port <n>] [--host <address>]   (default port 4500; host 127.0.0.1)
   journeysfirst affected <path...>
@@ -88,22 +88,26 @@ if (command === "run") {
   try {
     const end = rest.indexOf("--");
     const { positional, flags } = parseArgs(end === -1 ? rest : rest.slice(0, end));
-    if (positional.length !== 1 || flags.agent !== "codex" ||
+    if (positional.length !== 1 ||
         Object.entries(flags).some(([name, value]) => name === "allow-host-read" ? value !== true
           : !["agent", "project", "case", "mcp", "container", "timeout"].includes(name) || typeof value !== "string") ||
         (flags.container && flags["allow-host-read"])) {
-      throw new Error("Use journeysfirst run <journey.yaml> --agent codex. See --help for options.");
+      throw new Error("Use journeysfirst run <journey.yaml>. See --help for options.");
     }
     const timeoutMs = flags.timeout === undefined ? undefined : Number(flags.timeout) * 1000;
     if (timeoutMs !== undefined && (!Number.isFinite(timeoutMs) || timeoutMs < 1000 || timeoutMs > 3600000)) {
       throw new Error("Give --timeout a number of seconds between 1 and 3600.");
     }
-    if (!flags.container) console.error("Running without a container. Codex commands use its permission sandbox; the agent process runs on this machine.");
+    const adapter = selectAdapter(flags.agent, flags.container);
+    if (!flags.agent) console.error(`Using ${adapter.name}. Pass --agent <name> to override.`);
+    if (!flags.container) console.error("Running without a container. Agent commands use its permission sandbox; the agent process runs on this machine.");
     if (flags["allow-host-read"]) console.error("Host files, including files in your home directory, can be read by agent commands.");
-    const saved = await runCodex({ journey: positional[0], caseId: flags.case, project: flags.project,
-      mcp: flags.mcp, container: flags.container, allowHostRead: flags["allow-host-read"], timeoutMs, agentArgs: end === -1 ? [] : rest.slice(end + 1) });
+    const project = flags.project ?? process.cwd();
+    const saved = await adapter.start({ journey: positional[0], caseId: flags.case, project,
+      mcp: readMcpServers(flags.mcp, project), container: flags.container, allowHostRead: flags["allow-host-read"],
+      timeoutMs, agentArgs: end === -1 ? [] : rest.slice(end + 1) });
     console.log(`Saved ${saved.run.result} run to ${saved.folder}.`);
-    if (saved.problem) { console.error(saved.problem); process.exitCode = 1; }
+    if (saved.problem) { console.error(saved.problem); process.exitCode = saved.exitCode; }
     else if (saved.run.result !== "passed") console.log("Exit 0 means the agent finished and a run was saved. The journey did not pass.");
   } catch (error) {
     console.error(error.message);

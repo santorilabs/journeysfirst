@@ -108,4 +108,4 @@ Agree with the person on which journeys to draft first. Then update the file.
 
 ## 8. Stop and ask
 
-Tell the person, short: the journeys you drafted, where to open them, what you would set up first so they can run, and one question: go ahead? Do not run anything until they say so. Then follow `journey-run`.
+Tell the person, short: the journeys you drafted, where to open them, what you would set up first so they can run, and one question: go ahead? Do not run anything until they say so. Then follow `journey-run`. For terminal or MCP journeys, the run command is `npx journeysfirst run journeys/<name>.journey.yaml` in the test project.
