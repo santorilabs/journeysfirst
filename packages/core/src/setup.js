@@ -367,7 +367,7 @@ export function nextSteps(command, { root = process.cwd(), skillsDir } = {}) {
   const firstInstall = !hasOwnWork(root);
   const browser = !existsSync(join(root, TERMINAL_MODE));
   if (browser && command === "upgrade" && !firstInstall) {
-    steps.push(`Check each saved script in e2e/ against the evidence rules in ${skill("journey-run")}. A read made with a service or admin key must say key, with the env var name the product's own code reads for that key (like SUPABASE_SERVICE_ROLE_KEY), not login.`);
+    steps.push(`Check each saved script in e2e/ against the evidence rules in ${skill("journey-run")}. A read made with a service or admin key must say key, with the env var name the product's own code reads for that key, not login.`);
     if (existsSync(readme) && !/^## Foundation\b/m.test(readFileSync(readme, "utf8"))) {
       steps.push(`journeys/README.md has no Foundation section. Add it before you run the journeys: follow "Find the foundation" in ${skill("journey-onboard")}.`);
     }

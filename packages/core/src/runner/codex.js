@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
-import { accessSync, closeSync, constants, copyFileSync, cpSync, fstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { accessSync, closeSync, constants, copyFileSync, cpSync, fstatSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, readlinkSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { basename, dirname, isAbsolute, join, relative } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { writeRunFolder } from "../format/run-folder.js";
 import { CAUSES } from "../format/runfile.js";
@@ -11,7 +11,7 @@ import { maskText } from "./mask.js";
 
 const PROFILE = "journeysfirst";
 const PROBE = "journeysfirst: workspace readable, auth directory denied";
-const OMIT = new Set([".git", ".codex", ".convex", ".env", ".env.local", ".npmrc", ".netrc", "node_modules", "journey-runs", ".journeysfirst"]);
+const OMIT = new Set([".git", ".codex", ".env", ".npmrc", ".netrc", "node_modules", "journey-runs", ".journeysfirst"]);
 
 /**
  * Launch Codex with a fresh project and a separately protected provider login.
@@ -37,7 +37,11 @@ export async function runCodex({ journey, caseId, project, mcp, container, allow
       const source = realpathSync(project);
       const inside = relative(source, base);
       if (!inside || (!inside.startsWith("..") && !isAbsolute(inside))) throw new Error("Choose a project that does not contain the scratch directory.");
-      cpSync(source, work, { recursive: true, filter: (path) => !OMIT.has(basename(path)) && !basename(path).startsWith(".env.") });
+      cpSync(source, work, { recursive: true, filter: (path) => {
+        if (path === source) return true;
+        const name = basename(path);
+        return !OMIT.has(name) && !name.startsWith(".env.") && (!name.startsWith(".") || lstatSync(path).isFile());
+      } });
     } else mkdirSync(work);
     mkdirSync(home);
     mkdirSync(auth);
@@ -157,15 +161,10 @@ function profile({ work, home, auth, container, hostHome }) {
     for (const dir of [dirname(process.execPath), codexDirectory()]) {
       if (dir && relative(hostHome, dir).startsWith(".." + "/")) paths[dir] = "read";
     }
-    try {
-      const resolver = realpathSync("/etc/resolv.conf");
-      if (resolver.startsWith("/run/") && relative(hostHome, resolver).startsWith("../") && statSync(resolver).isFile()) {
-        paths[resolver] = "read";
-      }
-    } catch {}
+    for (const resolver of resolverFiles(hostHome)) paths[resolver] = "read";
     paths[hostHome] = "deny";
   } else if (!container) {
-    for (const name of [".aws", ".codex", ".config", ".convex", ".docker", ".gitconfig", ".kube", ".netrc", ".npmrc", ".ssh"]) {
+    for (const name of [".aws", ".codex", ".config", ".docker", ".gitconfig", ".kube", ".netrc", ".npmrc", ".ssh"]) {
       paths[join(homedir(), name)] = "deny";
     }
   }
@@ -173,6 +172,24 @@ function profile({ work, home, auth, container, hostHome }) {
   return ["-c", `default_permissions="${PROFILE}"`, "-c", `permissions.${PROFILE}.filesystem={${fs}}`,
     "-c", `permissions.${PROFILE}.network.enabled=true`, "-c", 'shell_environment_policy.inherit="none"',
     "-c", `shell_environment_policy.set={HOME=${JSON.stringify(home)},PATH=${JSON.stringify(container ? "/usr/local/bin:/usr/bin:/bin" : dirname(process.execPath) + ":/usr/local/bin:/usr/bin:/bin")}}`];
+}
+
+/** @param {string} hostHome */
+function resolverFiles(hostHome) {
+  const files = new Set();
+  try {
+    let path = "/etc/resolv.conf";
+    for (;;) {
+      const file = lstatSync(path);
+      if (file.isFile()) return [...files];
+      if (!file.isSymbolicLink()) break;
+      path = resolve(dirname(path), readlinkSync(path));
+      if (!path.startsWith("/run/") || !relative(hostHome, path).startsWith("../") || files.has(path)
+          || realpathSync(dirname(path)) !== dirname(path)) break;
+      files.add(path);
+    }
+  } catch {}
+  return [];
 }
 
 function codexDirectory() {

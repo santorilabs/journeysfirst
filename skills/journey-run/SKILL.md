@@ -58,7 +58,7 @@ A pass needs evidence from the login of the user in `by`. Without it, code turns
 
 **Filter every read** by the run's start time and the run's own accounts. Shared databases hold other runs' rows.
 
-**Admin or service key reads.** Name the key in `key` instead of `login`: the env var name the product's own code reads, like `SUPABASE_SERVICE_ROLE_KEY`, never its value. It adds to a check and never replaces the user's own evidence.
+**Admin or service key reads.** Name the key in `key` instead of `login`: the env var name the product's own code reads, never its value. It adds to a check and never replaces the user's own evidence.
 
 ### Weak and strong proof
 

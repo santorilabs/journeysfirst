@@ -41,7 +41,7 @@ test("MCP proxy preserves bytes and pairs out-of-order responses without saving 
   const input = '{ "jsonrpc": "2.0", "id": 1, "method":"tools/call","params":{"name":"status","arguments":{"data":"private argument"}} }\r\n'
     + '{"jsonrpc":"2.0","id":"1","method":"tools/list"}\n';
   const replies = '{"jsonrpc":"2.0","id":"1","result":{"data":"private result"}}\n'
-    + '{"jsonrpc":"2.0","id":1,"result":{"isError":true,"content":[{"type":"text","text":"Not Authorized; CONVEX_ADMIN_KEY=local|sample-admin-key"}]}}\r\n';
+    + '{"jsonrpc":"2.0","id":1,"result":{"isError":true,"content":[{"type":"text","text":"Not Authorized; MCP_ADMIN_KEY=local|sample-admin-key"}]}}\r\n';
   const server = `const blocks=[];
     process.stdin.on('data', (chunk) => blocks.push(chunk));
     process.stdin.on('end', () => {
@@ -126,7 +126,8 @@ const input = fs.readFileSync(0, "utf8");
 const auth = path.join(process.env.CODEX_HOME, "auth.json");
 assert.equal(process.env.OPENAI_API_KEY, undefined);
 assert.ok(!fs.existsSync(".env.local"));
-assert.ok(!fs.existsSync(path.join(process.env.HOME, ".convex")));
+assert.ok(!fs.existsSync(path.join(process.env.HOME, ".product-state")));
+assert.ok(!fs.existsSync(".product-state"));
 if (args[0] === "sandbox") {
   assert.match(args.join(" "), /default_permissions="journeysfirst"/);
   assert.ok(args.join(" ").includes(JSON.stringify(process.env.CODEX_HOME) + '="deny"'));
@@ -138,7 +139,10 @@ if (args[0] === "sandbox") {
     assert.match(fs.readFileSync(probe, "utf8"), /Synthetic host home probe/);
     assert.ok(args.join(" ").includes(JSON.stringify(path.dirname(path.dirname(probe))) + '="deny"'));
     assert.match(args.join(" "), /":minimal"="read"/);
-    if (fs.existsSync("/etc/resolv.conf")) {
+    if (fs.existsSync("resolver-chain.txt")) {
+      const profile = args.find(arg => arg.startsWith("permissions.journeysfirst.filesystem="));
+      assert.deepEqual(profile.slice(profile.indexOf("{") + 1, -1).split(",").filter(entry => entry.startsWith('"/run/')), ['"/run/jf-resolver-link"="read"', '"/run/jf-resolver.conf"="read"']);
+    } else if (fs.existsSync("/etc/resolv.conf")) {
       const resolver = fs.realpathSync("/etc/resolv.conf");
       if (resolver.startsWith("/run/") && fs.statSync(resolver).isFile()) {
         assert.ok(args.join(" ").includes(JSON.stringify(resolver) + '="read"'));
@@ -210,6 +214,7 @@ function codexFixture(mode, flags = []) {
   const project = join(root, "project");
   mkdirSync(bin);
   mkdirSync(project);
+  mkdirSync(join(project, ".product-state"));
   writeFileSync(join(bin, "codex"), fakeCodex, { mode: 0o700 });
   const journey = mode === "multi-seat" ? JOURNEY : JOURNEY.replace("users: [viewer]\n", "");
   writeFileSync(join(root, "share-by-link.journey.yaml"), journey + "\nnotes: private setup hint\n");
@@ -219,7 +224,18 @@ function codexFixture(mode, flags = []) {
   writeFileSync(join(root, "mcp.json"), JSON.stringify({ demo: server }));
   const args = [cli, "run", "share-by-link.journey.yaml", "--agent", "codex", "--project", project, "--mcp", "mcp.json", "--timeout", mode === "timeout" ? "1" : "5", ...flags, "--"];
   const env = { ...process.env, PATH: bin + ":" + process.env.PATH, OPENAI_API_KEY: "synthetic-fixture-key" };
-  const result = spawnSync(process.execPath, args, { cwd: root, env, encoding: "utf8", timeout: 10000 });
+  const preload = mode === "resolver-chain" ? ["--import", `data:text/javascript,${encodeURIComponent(`
+    import fs from "node:fs";
+    import { syncBuiltinESMExports } from "node:module";
+    const links = new Map([["/etc/resolv.conf", "/run/jf-resolver-link"], ["/run/jf-resolver-link", "jf-resolver.conf"]]);
+    const { lstatSync, readlinkSync } = fs;
+    fs.lstatSync = (path, ...args) => links.has(path) || path === "/run/jf-resolver.conf"
+      ? { isSymbolicLink: () => links.has(path), isFile: () => !links.has(path) }
+      : lstatSync(path, ...args);
+    fs.readlinkSync = (path, ...args) => links.get(path) ?? readlinkSync(path, ...args);
+    syncBuiltinESMExports();
+  `)}`] : [];
+  const result = spawnSync(process.execPath, [...preload, ...args], { cwd: root, env, encoding: "utf8", timeout: 10000 });
   const runs = join(root, "journey-runs", "share-by-link");
   if (!existsSync(runs)) return { result };
   const folder = join(runs, readdirSync(runs)[0]);
@@ -284,7 +300,14 @@ test("a nonzero agent exit cannot seal a passed run even with every line submitt
   const clean = codexFixture("complete-clean");
   assert.equal(clean.result.status, 0, clean.result.stderr);
   assert.equal(clean.run.result, "passed");
+  assert.doesNotMatch(clean.result.stdout, /The journey did not pass/);
   assert.equal(clean.run.steps.at(-1).verdict, "passed");
+});
+
+test("Codex can read exactly the resolver links and file under /run", () => {
+  const { result, run } = codexFixture("resolver-chain");
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(run.steps[1].verdict, "passed");
 });
 
 test("the single-seat Codex launcher refuses a journey that names another seat", () => {

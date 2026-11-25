@@ -103,12 +103,12 @@ test("evidence says its source, its login and how to look it up again", () => {
 
 test("a read with an admin or service key names the key instead of a login, and never stands in for a user", () => {
   const evidence = (item) => after((r) => (r.steps[1].evidence = [item, ...r.steps[1].evidence]));
-  assert.deepEqual(evidence({ source: "database", key: "SUPABASE_SERVICE_ROLE_KEY", query: "select 1" }), []);
-  assert.deepEqual(evidence({ source: "database", login: "you", key: "SUPABASE_SERVICE_ROLE_KEY", query: "select 1" }), ['step 2 (check "link-on"): evidence has both login and key. Use login for a user\'s own session, key for an admin or service key.']);
-  const alone = settleCheck({ check: "x", id: "x", by: "you", verdict: "passed", evidence: [{ source: "database", key: "SUPABASE_SERVICE_ROLE_KEY", query: "select 1" }] });
+  assert.deepEqual(evidence({ source: "database", key: "DB_SERVICE_KEY", query: "select 1" }), []);
+  assert.deepEqual(evidence({ source: "database", login: "you", key: "DB_SERVICE_KEY", query: "select 1" }), ['step 2 (check "link-on"): evidence has both login and key. Use login for a user\'s own session, key for an admin or service key.']);
+  const alone = settleCheck({ check: "x", id: "x", by: "you", verdict: "passed", evidence: [{ source: "database", key: "DB_SERVICE_KEY", query: "select 1" }] });
   assert.equal(alone.verdict, "not_checked");
   assert.equal(alone.reason, "No evidence came from your own login.");
-  const both = settleCheck({ check: "x", id: "x", by: "you", verdict: "passed", evidence: [{ source: "database", key: "SUPABASE_SERVICE_ROLE_KEY", query: "select 1" }, { source: "page", login: "you", url: "/" }] });
+  const both = settleCheck({ check: "x", id: "x", by: "you", verdict: "passed", evidence: [{ source: "database", key: "DB_SERVICE_KEY", query: "select 1" }, { source: "page", login: "you", url: "/" }] });
   assert.equal(both.verdict, "passed");
 });
 
