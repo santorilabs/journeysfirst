@@ -61,6 +61,9 @@ test("review --out works from a nested folder without a server and leaves out pr
   const id = "2026-11-08-1802-7d2e";
   const source = join(dir, "share-by-link", id);
   writeFileSync(join(source, "private.txt"), "private data");
+  const raw = JSON.parse(readFileSync(join(source, "run.json"), "utf8"));
+  raw.steps[2].says += " \ud800";
+  writeFileSync(join(source, "run.json"), JSON.stringify(raw));
   const old = join(dir, "share-by-link", "05333fcf-bbc6-467b-b741-b927c8264fdf");
   symlinkSync(join(source, "step-1.png"), join(old, "step-open.png"));
   const parent = mkdtempSync(join(tmpdir(), "jf-static-"));
@@ -84,6 +87,7 @@ test("review --out works from a nested folder without a server and leaves out pr
     await page.locator("track").evaluate((track) => { track.track.mode = "hidden"; });
     await page.waitForFunction(() => document.querySelector("track")?.readyState === 2);
     assert.ok(await page.locator("track").evaluate((track) => track.track.cues.length > 0));
+    assert.ok(await page.locator("track").evaluate((track) => Array.from(track.track.cues).some((cue) => cue.text.includes("�"))));
     await page.locator('.line[data-step="2"]').click();
     assert.equal(new URL(page.url()).searchParams.get("step"), "2");
     await page.getByRole("link", { name: "All runs" }).click();

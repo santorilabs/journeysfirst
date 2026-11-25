@@ -35,7 +35,8 @@ export function exportReview(dir, out) {
     }
     for (const video of run.media ?? []) {
       if (video.kind !== "video" || typeof video.tags?.user !== "string" || !copy(video.file, /\.(webm|mp4|ogg|ogv)$/i)) continue;
-      tracks.set(video.file, "data:text/vtt;charset=utf-8," + encodeURIComponent(captionTrack(run.steps, video)));
+      const vtt = Buffer.from(captionTrack(run.steps, video)).toString("utf8");
+      tracks.set(video.file, "data:text/vtt;charset=utf-8," + encodeURIComponent(vtt));
     }
     writeFileSync(join(dest, "index.html"), runPage(run, journey, id, source, {
       file: (name) => name && files.has(name) ? "assets/" + name : undefined,
