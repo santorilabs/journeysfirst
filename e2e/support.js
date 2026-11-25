@@ -25,23 +25,22 @@ export async function show(page, heading, body) {
 <h1>${escape(heading)}</h1><pre>${escape(body)}</pre>`);
 }
 
+// Release 0.0.6. Its first run does not pass. origin/main now includes that fix, so packing main would not fail.
+const BROKEN_MAIN = "0d564c6352762df628e70a4488f5a28e61e269a3";
+
 /**
- * main, as a ref this checkout can archive. A full clone already has origin/main.
+ * The broken build, as a ref this checkout can archive.
  * CI checks out only this branch, so fetch that one commit when it is missing.
  * @returns {string}
  */
 function mainRef() {
-  const present = spawnSync("git", ["rev-parse", "--verify", "--quiet", "origin/main"], { cwd: REPO });
-  if (present.status === 0) return "origin/main";
-  const fetched = spawnSync(
-    "git",
-    ["fetch", "--depth", "1", "origin", "refs/heads/main:refs/remotes/origin/main"],
-    { cwd: REPO, encoding: "utf8" },
-  );
+  const present = spawnSync("git", ["rev-parse", "--verify", "--quiet", `${BROKEN_MAIN}^{commit}`], { cwd: REPO });
+  if (present.status === 0) return BROKEN_MAIN;
+  const fetched = spawnSync("git", ["fetch", "--depth", "1", "origin", BROKEN_MAIN], { cwd: REPO, encoding: "utf8" });
   if (fetched.status !== 0) {
-    throw new Error(fetched.stderr || "Could not fetch main. The broken-build journeys compare against that commit.");
+    throw new Error(fetched.stderr || "Could not fetch the broken build. The broken-build journeys compare against that commit.");
   }
-  return "origin/main";
+  return BROKEN_MAIN;
 }
 
 /**
