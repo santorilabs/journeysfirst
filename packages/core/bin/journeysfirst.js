@@ -4,7 +4,7 @@
 // journeysfirst measured <run folder>                             what the run's measure files say, for a review
 // journeysfirst add-findings <run folder> <findings file>        write a review's findings into a run
 // journeysfirst add-review <run folder> --on <id> --by <who> --says <words>   record a person's call on a check or a finding
-// journeysfirst review [dir] [--port n] [--host h]               browse run folders in a local review UI
+// journeysfirst review [dir] [--port n] [--host h] [--out dir]   browse or export the review UI
 // journeysfirst publish <run folder> [--to url] [--journey file]   publish a run (token from JOURNEYSFIRST_TOKEN)
 // journeysfirst dev-server [--port n] [--host h]                 a local in-memory service to publish to
 // journeysfirst affected <path...>                               which journeys cover these changed paths
@@ -23,6 +23,7 @@ import { addFindings, addReview, findJourney, newestRunFolder, readRunFolder, re
 import { measuredReport } from "../src/review/measured.js";
 import { summaryMarkdown, writeReport } from "../src/review/report.js";
 import { serveReview } from "../src/review/review.js";
+import { exportReview } from "../src/review/export.js";
 import { affectedLines } from "../src/format/affected.js";
 import { mergeCheck } from "../src/format/merge-check.js";
 import { doctor } from "../src/doctor.js";
@@ -45,6 +46,8 @@ const USAGE = `Usage:
   journeysfirst add-review <run folder> --on <check or finding id> --by <person> --says "<their words>"
       Records a person's call in the run's reviews. It never changes a verdict or the result. Do it before publish.
   journeysfirst review [runs folder] [--port <n>] [--host <address>]   (default port 4400, or PORT; host 127.0.0.1)
+  journeysfirst review [runs folder] --out <new folder>
+      Export a static review. Check the pages and recordings for private data before hosting the folder.
   journeysfirst publish <run folder> [--to <url>] [--journey <file>]   (default JOURNEYSFIRST_URL; token from JOURNEYSFIRST_TOKEN)
   journeysfirst dev-server [--port <n>] [--host <address>]   (default port 4500; host 127.0.0.1)
   journeysfirst affected <path...>
@@ -152,7 +155,18 @@ if (command === "--version" || command === "version") {
     process.exit(1);
   }
 } else if (command === "review") {
-  serveReview({ dir: positional[0] ?? "journey-runs", port: Number(flags.port ?? process.env.PORT ?? 4400), host: flags.host });
+  const dir = positional[0] ?? "journey-runs";
+  if (flags.out !== undefined) {
+    try {
+      if (typeof flags.out !== "string" || !flags.out) throw new Error("Give --out the name of a new folder.");
+      console.log(`Exported review to ${exportReview(dir, flags.out)}. Check the pages and recordings for private data before sharing.`);
+    } catch (error) {
+      console.error(error.message);
+      process.exitCode = 1;
+    }
+  } else {
+    serveReview({ dir, port: Number(flags.port ?? process.env.PORT ?? 4400), host: flags.host });
+  }
 } else if (command === "publish" && positional.length === 1) {
   try {
     const { journey, compared } = openRun(positional[0]);

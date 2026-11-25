@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { request } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+import { execFileSync } from "node:child_process";
 import { test } from "node:test";
 import { chromium } from "@playwright/test";
 import { fromLegacy, listRuns, serveReview } from "../src/review/review.js";
@@ -52,6 +54,41 @@ test("the review UI lists v1 runs and older draft 0 runs", () => {
   const runs = listRuns(runsFolder());
   assert.equal(runs.length, 3);
   assert.deepEqual(runs.map((r) => r.run.result).sort(), ["failed", "passed", "passed"]);
+});
+
+test("review --out works from a nested folder without a server and leaves out private files", async () => {
+  const dir = runsFolder();
+  const id = "2026-11-08-1802-7d2e";
+  const source = join(dir, "share-by-link", id);
+  writeFileSync(join(source, "private.txt"), "private data");
+  const old = join(dir, "share-by-link", "05333fcf-bbc6-467b-b741-b927c8264fdf");
+  symlinkSync(join(source, "step-1.png"), join(old, "step-open.png"));
+  const parent = mkdtempSync(join(tmpdir(), "jf-static-"));
+  const out = join(parent, "project");
+  const cli = new URL("../bin/journeysfirst.js", import.meta.url);
+  assert.match(execFileSync(process.execPath, [cli.pathname, "review", dir, "--out", out], { encoding: "utf8" }), /Exported review to/);
+  const run = join(out, "runs", "share-by-link", id);
+  const pageHtml = readFileSync(join(run, "index.html"), "utf8");
+  assert.match(pageHtml, /src="assets\/step-1.png"/);
+  assert.match(pageHtml, /src="assets\/viewer.webm.vtt"/);
+  assert.doesNotMatch(pageHtml, /trace.zip|private data|(?:href|src)="\//);
+  assert.deepEqual(readdirSync(join(run, "assets")).sort(), ["step-1.png", "step-3.png", "viewer.webm", "viewer.webm.vtt"]);
+  assert.match(readFileSync(join(run, "assets", "viewer.webm.vtt"), "utf8"), /^WEBVTT/);
+  const oldPage = readFileSync(join(out, "runs", "share-by-link", "05333fcf-bbc6-467b-b741-b927c8264fdf", "index.html"), "utf8");
+  assert.doesNotMatch(oldPage, /step-open.png/);
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    const index = pathToFileURL(join(out, "index.html")).href;
+    await page.goto(index);
+    await page.locator(`a[href="runs/share-by-link/${id}/index.html"]`).click();
+    await page.locator('.line[data-step="2"]').click();
+    assert.equal(new URL(page.url()).searchParams.get("step"), "2");
+    await page.getByRole("link", { name: "All runs" }).click();
+    assert.equal(page.url(), index);
+  } finally {
+    await browser.close();
+  }
 });
 
 test("the run list and run page show the journey's title when the journey file is there, not its file name", async () => {

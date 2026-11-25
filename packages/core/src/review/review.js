@@ -4,7 +4,7 @@
 //   /captions/<journey>/<run>/<video>.vtt  each line of a video as a captions track
 // Reads run results v1. Older run files (draft 0) are shown in v1 terms.
 import { createServer } from "node:http";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { extname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
 import { hostAllowed, wrongHostMessage } from "../shared/local-host.js";
 import { checkRun } from "../format/run-check.js";
@@ -68,18 +68,23 @@ export function serveReview({ dir = "journey-runs", port = 4400, host = "127.0.0
 /**
  * Every run folder under root, newest first, in v1 terms.
  * @param {string} root
+ * @param {{followSymlinks?: boolean}} [options]
  * @returns {RunEntry[]}
  */
-export function listRuns(root) {
+export function listRuns(root, { followSymlinks = true } = {}) {
   if (!existsSync(root)) return [];
   /** @type {RunEntry[]} */
   const runs = [];
   for (const journey of readdirSync(root)) {
     const journeyDir = join(root, journey);
-    if (!statSync(journeyDir).isDirectory()) continue;
+    if (!(followSymlinks ? statSync(journeyDir) : lstatSync(journeyDir)).isDirectory()) continue;
     for (const id of readdirSync(journeyDir)) {
-      const path = join(journeyDir, id, "run.json");
-      if (existsSync(path)) runs.push({ journey, id, run: forDisplay(JSON.parse(readFileSync(path, "utf8"))) });
+      const folder = join(journeyDir, id);
+      if (!followSymlinks && !lstatSync(folder).isDirectory()) continue;
+      const path = join(folder, "run.json");
+      if (followSymlinks ? existsSync(path) : lstatSync(path, { throwIfNoEntry: false })?.isFile()) {
+        runs.push({ journey, id, run: forDisplay(JSON.parse(readFileSync(path, "utf8"))) });
+      }
     }
   }
   return runs.sort((a, b) => (b.run.started_at ?? "").localeCompare(a.run.started_at ?? ""));
@@ -155,8 +160,8 @@ function safeJoin(root, ...parts) {
   return path;
 }
 
-/** @param {RunEntry[]} runs */
-function indexPage(runs) {
+/** @param {RunEntry[]} runs @param {(journey: string, id: string) => string} runUrl */
+export function indexPage(runs, runUrl = (journey, id) => `/runs/${encodeURIComponent(journey)}/${encodeURIComponent(id)}`) {
   /** Repeated runs of one test, kept together under their first run's place. @type {Map<string, RunEntry[]>} */
   const batches = new Map();
   for (const entry of runs) {
@@ -167,22 +172,22 @@ function indexPage(runs) {
   const rows = runs
     .map((entry) => {
       const batch = entry.run.repeat?.batch;
-      if (!batch) return runRow(entry);
+      if (!batch) return runRow(entry, runUrl);
       if (shown.has(batch)) return "";
       shown.add(batch);
-      return batchRow(/** @type {RunEntry[]} */ (batches.get(batch)));
+      return batchRow(/** @type {RunEntry[]} */ (batches.get(batch)), runUrl);
     })
     .join("");
   return layout("Journey runs", `<h1>Journey runs</h1>${rows || '<p class="empty">No runs yet. Run a journey and its run shows up here.</p>'}`);
 }
 
-/** Several runs of one journey: "4 of 5 runs passed", and a link to each run. @param {RunEntry[]} entries */
-function batchRow(entries) {
+/** @param {RunEntry[]} entries @param {(journey: string, id: string) => string} runUrl */
+function batchRow(entries, runUrl) {
   const sorted = [...entries].sort((a, b) => (a.run.repeat?.n ?? 0) - (b.run.repeat?.n ?? 0));
   const first = sorted[0];
   const { result, summary } = batchResult(sorted.map((e) => e.run), first.run.repeat?.of ?? sorted.length);
   const links = sorted
-    .map(({ journey, id, run }) => `<a href="/runs/${esc(journey)}/${esc(id)}">${badge(run.result)} run ${esc(run.repeat?.n)}</a>`)
+    .map(({ journey, id, run }) => `<a href="${esc(runUrl(journey, id))}">${badge(run.result)} run ${esc(run.repeat?.n)}</a>`)
     .join(" ");
   return `<div class="row">
         <span class="title">${badge(result)} ${esc(title(first.run))}${first.run.journey?.case ? ` <span class="how">(${esc(first.run.journey.case)})</span>` : ""}</span>
@@ -192,9 +197,9 @@ function batchRow(entries) {
       </div>`;
 }
 
-/** @param {RunEntry} entry */
-function runRow({ journey, id, run }) {
-  return `<a class="row" href="/runs/${esc(journey)}/${esc(id)}">
+/** @param {RunEntry} entry @param {(journey: string, id: string) => string} runUrl */
+function runRow({ journey, id, run }, runUrl) {
+  return `<a class="row" href="${esc(runUrl(journey, id))}">
         <span class="title">${badge(run.result)} ${esc(title(run))}${run.journey?.case ? ` <span class="how">(${esc(run.journey.case)})</span>` : ""}${found(run)}</span>
         <span class="summary">${checkSummary(run)}</span>
         ${indexMeta(run)}
@@ -245,13 +250,16 @@ function runDetails(run) {
  * @param {string} journey
  * @param {string} id
  * @param {string} folder the run folder on disk, to say where its trace is
+ * @param {{file: (name: string | undefined) => string | undefined, captions: (name: string) => string | undefined}} [assets] approved exported assets
  */
-function runPage(run, journey, id, folder) {
+export function runPage(run, journey, id, folder, assets) {
   /** @param {string | undefined} name */
-  const fileUrl = (name) => `/files/${esc(journey)}/${esc(id)}/${esc(name)}`;
-  const media = (run.media ?? []).filter((m) => m.kind === "video" && typeof m.tags?.user === "string");
-  const videos = media.map((v) => ({ user: String(v.tags?.user), src: fileUrl(v.file), captions: `/captions/${esc(journey)}/${esc(id)}/${esc(v.file)}.vtt` }));
-  const report = appReport(run, folder);
+  const liveFile = (name) => `/files/${esc(journey)}/${esc(id)}/${esc(name)}`;
+  const fileUrl = assets?.file ?? liveFile;
+  const media = (run.media ?? []).filter((m) => m.kind === "video" && typeof m.tags?.user === "string" && fileUrl(m.file));
+  const videos = media.map((v) => ({ user: String(v.tags?.user), src: /** @type {string} */ (fileUrl(v.file)),
+    captions: assets ? assets.captions(v.file) : `/captions/${esc(journey)}/${esc(id)}/${esc(v.file)}.vtt` }));
+  const report = assets ? null : appReport(run, folder);
   const steps = run.steps.map((/** @type {StepFields} */ step, i) => {
     const at = videoAt(step, media);
     const card = stepCard(step, i + 1, fileUrl, Boolean(at)) + (report?.line === i + 1 ? reportedSection(report) : "");
@@ -260,14 +268,14 @@ function runPage(run, journey, id, folder) {
   const openAt = (steps.find((s) => s.state === "failed") ?? steps.find((s) => s.isCheck && s.state !== "passed"))?.n ?? steps.length;
   return layout(
     title(run),
-    `<p><a href="/">All runs</a></p>
+    `<p><a href="${assets ? "../../../index.html" : "/"}">All runs</a></p>
      <h1>${esc(run.promise ?? title(run))}</h1>
      <p class="verdict-row">${badge(run.result)} <span class="summary">${checkSummary(run)}</span></p>
      ${run.problems?.length ? `<section class="problems"><p><b>This run file breaks the rules.</b> What is shown below is what the rules allow, not what the file claims.</p><ul>${run.problems.map((p) => `<li>${esc(p)}</li>`).join("")}</ul></section>` : ""}
      ${findingsSection(run)}
      ${steps.length ? runPlayerHtml({ steps, videos, openAt }) : '<p class="empty">This run has no steps.</p>'}
      ${runDetails(run)}
-     ${traceSection((run.media ?? []).filter((m) => m.kind === "trace"), folder, fileUrl)}
+     ${assets ? "" : traceSection((run.media ?? []).filter((m) => m.kind === "trace"), folder, liveFile)}
      ${reviewsSection(run)}
      <script>${RUN_PLAYER_SCRIPT}</script>`,
   );
@@ -278,12 +286,15 @@ function runPage(run, journey, id, folder) {
  * Its screenshots show when the step is not in a video, else they fold away.
  * @param {StepFields} step
  * @param {number} n
- * @param {(name: string | undefined) => string} fileUrl
+ * @param {(name: string | undefined) => string | undefined} fileUrl
  * @param {boolean} inVideo
  */
 function stepCard(step, n, fileUrl, inVideo) {
   const state = stepState(step);
-  const shots = (step.screenshots ?? []).map((s) => `<img src="${fileUrl(screenshotFile(s))}" alt="What ${esc(step.by || "the user")} saw at step ${n}"${screenshotPage(s) ? ` title="${esc(screenshotPage(s))}"` : ""}>`).join("");
+  const shots = (step.screenshots ?? []).map((s) => {
+    const url = fileUrl(screenshotFile(s));
+    return url ? `<img src="${url}" alt="What ${esc(step.by || "the user")} saw at step ${n}"${screenshotPage(s) ? ` title="${esc(screenshotPage(s))}"` : ""}>` : "";
+  }).join("");
   return `<p>${badge(state)}${step.added ? ' <span class="how">added by the agent</span>' : ""}</p>
     ${step.claimed ? `<p class="how">Claimed ${esc(step.claimed)}, but ${esc(lowerFirst(step.reason ?? "it had no evidence."))}</p>` : ""}
     ${step.reason && !step.claimed ? `<p class="error">${esc(step.reason)}</p>` : ""}
