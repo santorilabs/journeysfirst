@@ -26,7 +26,26 @@ export async function show(page, heading, body) {
 }
 
 /**
- * Pack this branch and origin/main once. Later calls read the cache.
+ * main, as a ref this checkout can archive. A full clone already has origin/main.
+ * CI checks out only this branch, so fetch that one commit when it is missing.
+ * @returns {string}
+ */
+function mainRef() {
+  const present = spawnSync("git", ["rev-parse", "--verify", "--quiet", "origin/main"], { cwd: REPO });
+  if (present.status === 0) return "origin/main";
+  const fetched = spawnSync(
+    "git",
+    ["fetch", "--depth", "1", "origin", "refs/heads/main:refs/remotes/origin/main"],
+    { cwd: REPO, encoding: "utf8" },
+  );
+  if (fetched.status !== 0) {
+    throw new Error(fetched.stderr || "Could not fetch main. The broken-build journeys compare against that commit.");
+  }
+  return "origin/main";
+}
+
+/**
+ * Pack this branch and main once. Later calls read the cache.
  * @returns {{branchTgz: string, mainTgz: string, mainTree: string, repo: string}}
  */
 export function packs() {
@@ -36,8 +55,8 @@ export function packs() {
   const branchTgz = packCore(join(REPO, "packages/core"), join(CACHE, "branch.tgz"));
   const mainTree = join(CACHE, "main");
   mkdirSync(mainTree, { recursive: true });
-  const archived = spawnSync("git", ["archive", "origin/main"], { cwd: REPO, maxBuffer: 64 * 1024 * 1024 });
-  if (archived.status !== 0) throw new Error(archived.stderr?.toString() || "git archive origin/main failed");
+  const archived = spawnSync("git", ["archive", mainRef()], { cwd: REPO, maxBuffer: 64 * 1024 * 1024 });
+  if (archived.status !== 0) throw new Error(archived.stderr?.toString() || "git archive of main failed");
   const extracted = spawnSync("tar", ["-x", "-C", mainTree], { input: archived.stdout });
   if (extracted.status !== 0) throw new Error(extracted.stderr?.toString() || "tar failed");
   const mainTgz = packCore(join(mainTree, "packages/core"), join(CACHE, "main.tgz"));
