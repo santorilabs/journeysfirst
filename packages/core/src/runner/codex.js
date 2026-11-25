@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { closeSync, constants, copyFileSync, cpSync, fstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { accessSync, closeSync, constants, copyFileSync, cpSync, fstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,9 +14,9 @@ const OMIT = new Set([".git", ".codex", ".convex", ".env", ".env.local", ".npmrc
 
 /**
  * Launch Codex with a fresh project and a separately protected provider login.
- * @param {{journey: string, caseId?: string, project?: string, mcp?: string, container?: string, timeoutMs?: number, agentArgs: string[]}} options
+ * @param {{journey: string, caseId?: string, project?: string, mcp?: string, container?: string, allowHostRead?: boolean, timeoutMs?: number, agentArgs: string[]}} options
  */
-export async function runCodex({ journey, caseId, project, mcp, container, timeoutMs = 180000, agentArgs }) {
+export async function runCodex({ journey, caseId, project, mcp, container, allowHostRead = false, timeoutMs = 180000, agentArgs }) {
   const selected = pickArgs(agentArgs);
   const run = RunRecorder.start({ journey, case: caseId, ranBy: { agent: "codex" }, playedBy: { you: "Codex" } });
   if (run.plan.everyone.some((user) => user !== "you")) {
@@ -30,6 +30,7 @@ export async function runCodex({ journey, caseId, project, mcp, container, timeo
   const captures = join(state, "captures");
   const launcher = launcherFor({ base, work, home, auth, container });
   let problem;
+  let probeDir;
   try {
     if (project) {
       const source = realpathSync(project);
@@ -44,14 +45,24 @@ export async function runCodex({ journey, caseId, project, mcp, container, timeo
       copyFileSync(fileURLToPath(new URL(name, import.meta.url)), join(state, name));
     }
     writeFileSync(join(state, "package.json"), '{"type":"module"}\n');
-    const permissions = profile({ work, home, auth, container });
+    const hostHome = !container && !allowHostRead ? realpathSync(homedir()) : undefined;
+    const permissions = profile({ work, home, auth, container, hostHome });
     const sandbox = ["sandbox", "-P", PROFILE, ...permissions];
     const probe = join(auth, "auth.json");
     writeFileSync(probe, "Synthetic probe. No login is in this file.\n");
     const checked = await launcher([...sandbox, "--", "node", "-e", probeCode(), work, probe, String(process.pid)], "", 15000);
     rmSync(probe, { force: true });
     if (checked.code !== 0 || checked.stdout.trim() !== PROBE) {
-      throw new Error("Codex could not prove that its sandbox blocks the provider login. Update Codex or choose a container that supports the sandbox.");
+      throw new Error("Codex could not prove that its sandbox blocks the provider login. Use a compatible container or install Codex and Node outside your home directory.");
+    }
+    if (hostHome) {
+      probeDir = mkdtempSync(join(hostHome, ".journeysfirst-probe-"));
+      const canary = join(probeDir, "host.txt");
+      writeFileSync(canary, "Synthetic host home probe.\n");
+      const homeCheck = await launcher([...sandbox, "--", "node", "-e", probeCode(), work, canary, String(process.pid)], "", 15000);
+      if (homeCheck.code !== 0 || homeCheck.stdout.trim() !== PROBE) {
+        throw new Error("Codex could not prove that its sandbox blocks your home directory. Use a container or explicitly pass --allow-host-read.");
+      }
     }
     if (key) {
       const login = await launcher(["login", "--with-api-key"], key + "\n", 15000);
@@ -72,6 +83,7 @@ export async function runCodex({ journey, caseId, project, mcp, container, timeo
   } catch (error) {
     problem = run.redact(error instanceof Error ? error.message : "Codex could not complete the journey.");
   } finally {
+    if (probeDir) rmSync(probeDir, { recursive: true, force: true });
     rmSync(base, { recursive: true, force: true });
   }
   const saved = run.finish(problem ? { summary: problem } : undefined);
@@ -93,7 +105,8 @@ function leaveIncomplete(run, reason) {
     const entry = run.recorded.get(line.n);
     return line.kind === "check" ? entry?.verdict === "passed" : entry?.status === "done";
   })) return;
-  run.check(last.id, { ...run.recorded.get(last.n), verdict: "not_checked", cause: "environment", reason });
+  const { by, proof, evidence } = run.recorded.get(last.n) ?? {};
+  run.check(last.id, { by, proof, evidence, verdict: "not_checked", cause: "environment", reason });
 }
 
 /** @param {RunRecorder} run */
@@ -135,11 +148,16 @@ function launcherFor({ base, work, home, auth, container }) {
   };
 }
 
-/** @param {{work: string, home: string, auth: string, container?: string}} path */
-function profile({ work, home, auth, container }) {
+/** @param {{work: string, home: string, auth: string, container?: string, hostHome?: string}} path */
+function profile({ work, home, auth, container, hostHome }) {
   /** @type {Record<string, string>} */
-  const paths = { ":root": "read", "/proc": "deny", [work]: "write", [home]: "write", [auth]: "deny" };
-  if (!container) {
+  const paths = { [hostHome ? ":minimal" : ":root"]: "read", "/proc": "deny", [work]: "write", [home]: "write", [auth]: "deny" };
+  if (hostHome) {
+    for (const dir of [dirname(process.execPath), codexDirectory()]) {
+      if (dir && relative(hostHome, dir).startsWith(".." + "/")) paths[dir] = "read";
+    }
+    paths[hostHome] = "deny";
+  } else if (!container) {
     for (const name of [".aws", ".codex", ".config", ".convex", ".docker", ".gitconfig", ".kube", ".netrc", ".npmrc", ".ssh"]) {
       paths[join(homedir(), name)] = "deny";
     }
@@ -148,6 +166,17 @@ function profile({ work, home, auth, container }) {
   return ["-c", `default_permissions="${PROFILE}"`, "-c", `permissions.${PROFILE}.filesystem={${fs}}`,
     "-c", `permissions.${PROFILE}.network.enabled=true`, "-c", 'shell_environment_policy.inherit="none"',
     "-c", `shell_environment_policy.set={HOME=${JSON.stringify(home)},PATH=${JSON.stringify(container ? "/usr/local/bin:/usr/bin:/bin" : dirname(process.execPath) + ":/usr/local/bin:/usr/bin:/bin")}}`];
+}
+
+function codexDirectory() {
+  for (const path of (process.env.PATH ?? "").split(":")) {
+    if (!isAbsolute(path)) continue;
+    try {
+      const executable = realpathSync(join(path, "codex"));
+      accessSync(executable, constants.X_OK);
+      return dirname(executable);
+    } catch {}
+  }
 }
 
 function probeCode() {

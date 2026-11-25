@@ -130,8 +130,17 @@ assert.ok(!fs.existsSync(path.join(process.env.HOME, ".convex")));
 if (args[0] === "sandbox") {
   assert.match(args.join(" "), /default_permissions="journeysfirst"/);
   assert.ok(args.join(" ").includes(JSON.stringify(process.env.CODEX_HOME) + '="deny"'));
-  assert.match(fs.readFileSync(auth, "utf8"), /Synthetic probe/);
-  if (!fs.existsSync("unsafe.txt")) console.log("journeysfirst: workspace readable, auth directory denied");
+  const probe = args.at(-2);
+  if (probe === auth) {
+    assert.match(fs.readFileSync(probe, "utf8"), /Synthetic probe/);
+    if (fs.existsSync("unsafe.txt")) process.exit(1);
+  } else {
+    assert.match(fs.readFileSync(probe, "utf8"), /Synthetic host home probe/);
+    assert.ok(args.join(" ").includes(JSON.stringify(path.dirname(path.dirname(probe))) + '="deny"'));
+    assert.match(args.join(" "), /":minimal"="read"/);
+    if (fs.existsSync("leaky-home.txt")) process.exit(1);
+  }
+  console.log("journeysfirst: workspace readable, auth directory denied");
 } else if (args[0] === "login") {
   assert.equal(input.trim(), "synthetic-fixture-key");
   assert.ok(!fs.existsSync(auth));
@@ -181,7 +190,7 @@ if (args[0] === "sandbox") {
 }
 `;
 
-function codexFixture(mode) {
+function codexFixture(mode, flags = []) {
   const root = dir();
   const bin = join(root, "bin");
   const project = join(root, "project");
@@ -193,7 +202,7 @@ function codexFixture(mode) {
   writeFileSync(join(project, ".env.local"), "Private product login");
   if (mode) writeFileSync(join(project, mode + ".txt"), "");
   writeFileSync(join(root, "mcp.json"), '{"demo":["node","server.js"]}');
-  const args = [cli, "run", "share-by-link.journey.yaml", "--agent", "codex", "--project", project, "--mcp", "mcp.json", "--timeout", mode === "timeout" ? "1" : "5", "--"];
+  const args = [cli, "run", "share-by-link.journey.yaml", "--agent", "codex", "--project", project, "--mcp", "mcp.json", "--timeout", mode === "timeout" ? "1" : "5", ...flags, "--"];
   const env = { ...process.env, PATH: bin + ":" + process.env.PATH, OPENAI_API_KEY: "synthetic-fixture-key" };
   const result = spawnSync(process.execPath, args, { cwd: root, env, encoding: "utf8", timeout: 10000 });
   const runs = join(root, "journey-runs", "share-by-link");
@@ -247,7 +256,7 @@ test("a nonzero agent exit cannot seal a passed run even with every line submitt
   assert.equal(run.steps[1].verdict, "passed");
   assert.equal(run.steps.at(-1).verdict, "not_checked");
   assert.equal(run.steps.at(-1).cause, "environment");
-  assert.equal(run.steps.at(-1).evidence[0].got, "Sharing is on");
+  assert.equal(run.steps.at(-1).evidence[0].got, "Sharing is on\n");
 });
 
 test("the single-seat Codex launcher refuses a journey that names another seat", () => {
@@ -255,4 +264,17 @@ test("the single-seat Codex launcher refuses a journey that names another seat",
   assert.equal(result.status, 1);
   assert.match(result.stderr, /only plays the 'you' seat/);
   assert.equal(run, undefined);
+});
+
+test("host-home denial must pass the probe unless the caller opts into host reads", () => {
+  const denied = codexFixture("leaky-home");
+  assert.equal(denied.result.status, 1);
+  assert.match(denied.result.stderr, /could not prove that its sandbox blocks your home directory/);
+  assert.equal(denied.run.steps[1].verdict, "not_checked");
+
+  const allowed = codexFixture("leaky-home", ["--allow-host-read"]);
+  assert.equal(allowed.result.status, 0, allowed.result.stderr);
+  assert.match(allowed.result.stderr, /Host files.*can be read/);
+  assert.equal(allowed.run.steps[1].verdict, "passed");
+  assert.equal(codexFixture("unsafe", ["--allow-host-read"]).result.status, 1);
 });
