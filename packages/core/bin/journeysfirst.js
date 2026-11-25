@@ -8,6 +8,8 @@
 // journeysfirst publish <run folder> [--to url] [--journey file]   publish a run (token from JOURNEYSFIRST_TOKEN)
 // journeysfirst dev-server [--port n] [--host h]                 a local in-memory service to publish to
 // journeysfirst merge-check [runs folder] [--main <runs folder>]   may this change merge, from the runs of every journey
+// journeysfirst report <run folder>                              write report.html into the run folder
+// journeysfirst summary <run folder>                             print a markdown summary for a pull request
 // journeysfirst doctor                                           check Node, Playwright, the config, baseURL and the journeys
 // journeysfirst init [--skills dir] [--demo]                     set up this repo: skills, Playwright config, .gitignore, and an example that passes when there is no app
 // journeysfirst upgrade [--skills dir]                           refresh the skills after installing a new version
@@ -18,6 +20,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { addFindings, addReview, findJourney, newestRunFolder, readRunFolder, readRunJson } from "../src/format/run-folder.js";
 import { measuredReport } from "../src/review/measured.js";
+import { summaryMarkdown, writeReport } from "../src/review/report.js";
 import { serveReview } from "../src/review/review.js";
 import { mergeCheck } from "../src/format/merge-check.js";
 import { doctor } from "../src/doctor.js";
@@ -45,6 +48,10 @@ const USAGE = `Usage:
   journeysfirst merge-check [runs folder] [--main <runs folder>]   (default journey-runs)
       Ok only when every journey in journeys/ has a valid run in which every check passed.
       A blocked check is ok only if the same check was blocked in main's newest run, in --main.
+  journeysfirst report <run folder>
+      Writes report.html into the run folder. Open it in a browser. Images are the screenshots beside it.
+  journeysfirst summary <run folder>
+      Prints markdown for a pull request: the result, each line, and why. It does not include images or video.
   journeysfirst doctor
       Checks Node, Playwright, Chromium, playwright.config.js, whether baseURL answers, and each journey file.
       A failed check says what to run next. Chromium is installed with: npx playwright install --only-shell chromium
@@ -159,6 +166,20 @@ if (command === "--version" || command === "version") {
     const stopped = lines.filter((line) => !line.ok).length;
     console.log(ok ? `All ${lines.length} journeys may merge.` : `${stopped} of ${lines.length} journeys stop the merge. Fix them, or ask a person.`);
     process.exit(ok ? 0 : 1);
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
+} else if (command === "report" && positional[0]) {
+  try {
+    console.log(writeReport(positional[0]));
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
+} else if (command === "summary" && positional[0]) {
+  try {
+    console.log(summaryMarkdown(readRunFolder(positional[0]).run));
   } catch (error) {
     console.error(error.message);
     process.exit(1);

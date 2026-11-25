@@ -120,6 +120,7 @@ Files, in `src/review/`:
 
 - `run-answer.js`: `runAnswer`, the short answer about one run: the result first, then what failed and what was not checked, then the link. It imports only `src/shared/display.js`.
 - `review.js`: `serveReview`, the local review page for a folder of runs.
+- `report.js`: `writeReport` writes `report.html` into a run folder, and `summaryMarkdown` is the pull request summary. Neither copies a video or a trace.
 - `measured.js`: `measuredReport`, what a run's `measure-<step>.txt` files show against the earlier reviewed run and the measured line in `journeys/README.md`. The `journey-review` skill has the criteria. This file settles only the ones a number can.
 - `run-player.js`: the run player on the review page: one user's video at a time, a switch between users, and each step as a mark on the timeline.
 - `player.js`: the review page's video player. Its controls sit under the video, so they never cover the captions.
