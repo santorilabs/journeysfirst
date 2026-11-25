@@ -157,6 +157,24 @@ test("a run page shows each step, who did it, proof, cause and where it is in th
   }
 });
 
+test("the index and run page count blocked checks separately from unverified checks", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "jf-review-"));
+  const run = recordAllPassed(recorder({ outputDir: dir, id: "2026-11-08-1900-blocked0" }));
+  run.blocked("viewer-blocked", { by: "viewer", cause: "environment", reason: "The second account was not available." });
+  run.check("link-on", { by: "you", verdict: "not_checked" });
+  run.finish();
+  const server = await listening({ dir });
+  try {
+    const base = `http://127.0.0.1:${server.address().port}`;
+    const index = await (await fetch(base)).text();
+    const page = await (await fetch(`${base}/runs/share-by-link/2026-11-08-1900-blocked0`)).text();
+    for (const html of [index, page]) assert.match(html, /1 of 3 checks passed, 1 blocked, 1 not verified\./);
+    assert.match(page, /The second account was not available\./);
+  } finally {
+    server.close();
+  }
+});
+
 test("nested evidence remains readable on a narrow screen", async () => {
   const dir = mkdtempSync(join(tmpdir(), "jf-review-"));
   const run = recorder({ outputDir: dir, id: "2026-11-08-1900-narrow00" });

@@ -214,9 +214,14 @@ function checkSummary(run) {
   if (!checks.length) return "No checks recorded.";
   const passed = checks.filter((step) => step.verdict === "passed").length;
   const failed = checks.filter((step) => step.verdict === "failed").length;
-  const remaining = checks.length - passed - failed;
-  if (checks.length === 1) return `1 check ${passed ? "passed" : failed ? "failed" : "not verified"}.`;
-  return `${passed} of ${checks.length} checks passed${failed ? `, ${failed} failed` : ""}${remaining ? `, ${remaining} not verified` : ""}.`;
+  const blocked = checks.filter((step) => step.verdict === "blocked").length;
+  const unverified = checks.length - passed - failed - blocked;
+  if (checks.length === 1) return `1 check ${passed ? "passed" : failed ? "failed" : blocked ? "blocked" : "not verified"}.`;
+  const counts = [`${passed} of ${checks.length} checks passed`];
+  if (failed) counts.push(`${failed} failed`);
+  if (blocked) counts.push(`${blocked} blocked`);
+  if (unverified) counts.push(`${unverified} not verified`);
+  return counts.join(", ") + ".";
 }
 
 /** @param {ShownRun} run */
