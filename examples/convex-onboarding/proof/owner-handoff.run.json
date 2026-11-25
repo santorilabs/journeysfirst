@@ -11,7 +11,7 @@
   "started_at": "2026-11-25T20:17:46.073Z",
   "finished_at": "2026-11-25T20:18:37.900Z",
   "ran_by": {
-    "agent": "Devin"
+    "agent": "Scripted capture"
   },
   "journeysfirst": "0.0.6",
   "tags": {
@@ -24,8 +24,8 @@
     "agent": null
   },
   "played_by": {
-    "you": "Devin",
-    "agent": "Devin"
+    "you": "Scripted owner seat",
+    "agent": "Scripted agent role"
   },
   "media": [
     {

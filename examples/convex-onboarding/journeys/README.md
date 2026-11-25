@@ -15,10 +15,10 @@
 
 | Run | Agent's seat | Human's seat |
 |---|---|---|
-| Agent onboarding | Local setup passed, discovery failed, and the first MCP query was blocked. | No human exchanged messages. The delegated setup run checks what the human learns. |
+| Agent onboarding (real Codex run) | Anonymous local setup passed. MCP status returned `Not Authorized` without a cloud login, and the first MCP query was blocked. | No human exchanged messages. |
 | Human onboarding | No conversational agent took part. The stdio client listed tools but could not find the deployment. | Local setup and the terminal query passed after two confirmations. The MCP query was blocked. |
 | Dashboard hint | No agent took part. | The hint gave no usable address. This run used the same fresh startup as human onboarding. |
-| Delegated setup | MCP discovery failed. The agent recovered the sample result through the terminal. | The human understood what worked and what was blocked. No setup or sign-in intervention was needed. No working dashboard address was provided. |
+| Delegated setup (scripted role-play) | MCP discovery failed. The script recovered the sample result through the terminal. | The owner role restated what worked and what was blocked. This does not establish what a real owner understood. |
 
 These were local runs, not tests of signed-in or cloud deployments. The dashboard check covered the first-run message only.
 
@@ -26,9 +26,9 @@ These were local runs, not tests of signed-in or cloud deployments. The dashboar
 
 Run in isolated scratch projects with separate fresh home directories, no login or deploy keys, and a read-only sample query. The terminal and stdio client are the only interfaces exercised; no browser or shared deployment is needed.
 
-## Run every journey
+## Replay the scripted journeys
 
-From the example directory, use Linux with Node.js 20+, npm, and util-linux `script` for the interactive terminal. This is the full JourneysFirst install we used, including Chromium and the skills. Playwright 1.65.1 is installed but doesn't drive these runs.
+For the real Codex run, follow the [example instructions](../README.md#reproduce). For these scripted replays, use Linux with Node.js 20+, npm, and util-linux `script` for the interactive terminal. This is the full JourneysFirst install we used, including Chromium and the skills. Playwright 1.65.1 is installed but doesn't drive these runs.
 
 ```sh
 bundle="$PWD"

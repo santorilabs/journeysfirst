@@ -1,0 +1,3 @@
+Anonymous local development passed. Convex started on `127.0.0.1:3210` and reported that the functions were ready with no Convex account. [Startup capture](/tmp/journeysfirst-codex-CoON8J/work/.journeysfirst/captures/local-ready.txt:1)
+
+MCP discovery failed. The `status` tool returned `Not Authorized` and asked me to log in, including when I restarted the MCP server in anonymous mode. It returned no deployment selector, so the first MCP query was blocked and I couldn’t verify `hello from Convex`. I stayed signed out throughout. [MCP response](/tmp/journeysfirst-codex-CoON8J/work/.journeysfirst/captures/anonymous-mcp.txt:4) · [Journey results](/tmp/journeysfirst-codex-CoON8J/work/.journeysfirst/results.jsonl)

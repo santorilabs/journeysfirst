@@ -1,30 +1,32 @@
 # Convex onboarding with JourneysFirst
 
-We ran JourneysFirst on Convex 1.51.0 as a new agent and a new human, without a Convex account.
+We ran JourneysFirst on Convex 1.51.0 in a fresh, signed-out project. The kept agent run used Codex through `journeysfirst run --agent codex`. The other runs are scripted reproductions, not agent sessions.
 
 ## Journeys
 
-- [Agent onboarding](journeys/agent-onboarding.journey.yaml): Local setup passed, MCP discovery failed, and the first MCP query was blocked. [Run](proof/agent-onboarding.run.json)
-- [Human onboarding](journeys/human-onboarding.journey.yaml): The terminal query worked, but the editor's MCP client could not find the deployment. [Run](proof/human-onboarding.run.json)
-- [Dashboard hint](journeys/local-dashboard-message.journey.yaml): First setup did not give the human a usable dashboard address. [Run](proof/local-dashboard-message.run.json)
-- [Owner handoff](journeys/owner-handoff.journey.yaml): The agent got a result in the terminal. The owner understood that MCP was still blocked and no login was needed for the terminal result. No dashboard address was handed over. [Run](proof/owner-handoff.run.json) · [Transcript](proof/owner-handoff.transcript.txt)
+- [Agent onboarding](journeys/agent-onboarding.journey.yaml), **real Codex run**: Anonymous local setup passed, MCP discovery failed, and the first MCP query was blocked. [Run and captured evidence](proof/runs/agent-onboarding/2026-11-25-2317-e0865210/) · [Codex handoff](proof/runs/agent-onboarding/2026-11-25-2317-e0865210/handoff.txt) · [Static review](proof/review/index.html)
+- [Human onboarding](journeys/human-onboarding.journey.yaml), **scripted**: The terminal query worked, but the stdio MCP client could not find the deployment. [Run](proof/human-onboarding.run.json)
+- [Dashboard hint](journeys/local-dashboard-message.journey.yaml), **scripted**: First setup printed no usable dashboard address. [Run](proof/local-dashboard-message.run.json)
+- [Owner handoff](journeys/owner-handoff.journey.yaml), **scripted role-play**: The script recovered the sample result in the terminal. The role-play explained that MCP was blocked and no login was needed for the terminal result. This is not an assessment of a real agent-to-owner handoff. [Run](proof/owner-handoff.run.json) · [Transcript](proof/owner-handoff.transcript.txt)
 
-JourneysFirst kept what worked, what failed, and what could not be tried. Open the review screenshots: [agent setup](proof/screens/agent-seat.png), [failing MCP step](proof/screens/mcp-failure.png), [human terminal run](proof/screens/human-terminal.png), [dashboard hint](proof/screens/dashboard-hint.png), and [owner handoff](proof/screens/human-behind-agent.png).
+These screenshots are from the earlier scripted reproductions, not from Codex: [local setup](proof/screens/agent-seat.png), [failing MCP step](proof/screens/mcp-failure.png), [human terminal run](proof/screens/human-terminal.png), [dashboard hint](proof/screens/dashboard-hint.png), and [owner handoff role-play](proof/screens/human-behind-agent.png).
 
 ## Findings
 
-### MCP cannot find the local deployment that just started
+### Local development works without an account, but MCP requires login
 
-The terminal query worked, but MCP `status` returned an error. From the [human onboarding transcript](proof/human-onboarding.transcript.txt):
+Codex [started the local backend in anonymous mode](proof/runs/agent-onboarding/2026-11-25-2317-e0865210/local-ready.txt). Convex reported “No Convex account” and “Convex functions ready!” The [proxied MCP `status` call](proof/runs/agent-onboarding/2026-11-25-2317-e0865210/convex.txt) then returned:
+
+> Not Authorized: Run `npx convex dev` to login to your Convex project.
+
+The suggested command was already running. Without a cloud login, MCP returned no deployment selector, even when Codex retried in anonymous mode. The first MCP query was blocked and did not run. We did not test whether signing in fixes discovery for that local deployment.
+
+The terminal query did work in the earlier [scripted human reproduction](proof/human-onboarding.transcript.txt):
 
 ```text
 $ npx --no-install convex run hello:first
 "hello from Convex"
 ```
-
-> Not Authorized: Run `npx convex dev` to login to your Convex project.
-
-The [agent run](proof/agent-onboarding.transcript.txt) hit the same error. The command it suggests was already running. Without a deployment selector, neither client could try an MCP query.
 
 **Why:** [MCP checks management authorization before dispatching the tool](https://github.com/convex/convex-js/blob/1228536614f874e0847a0ac33a91c43cf8694a2d/src/cli/mcp.ts#L165-L196). [No management auth header means the check fails](https://github.com/convex/convex-js/blob/1228536614f874e0847a0ac33a91c43cf8694a2d/src/cli/lib/login.ts#L81-L91), so the tool never reaches local deployment discovery.
 
@@ -46,7 +48,21 @@ JourneysFirst 0.0.6 asked us to install Chromium again after it was installed an
 
 ## Reproduce
 
-Run these three commands from this example directory on Linux with Node.js 20 or newer. They use a fresh project and home directory, so an existing login does not affect the result.
+For the real agent path, use a JourneysFirst checkout that includes [the Codex launcher and its DNS fix](https://github.com/santorilabs/journeysfirst/tree/90954da82243ea892bbd08d41db23dfb1ba5d2e4), and follow its [Codex setup instructions](https://github.com/santorilabs/journeysfirst/blob/90954da82243ea892bbd08d41db23dfb1ba5d2e4/docs/run-in-code.md#let-codex-run-a-journey). Save this as `convex-mcp.json` outside the project:
+
+```json
+{"convex":["npx","--yes","convex@1.51.0","mcp","start"]}
+```
+
+From this example directory, set `JF_CHECKOUT` to the absolute path to that checkout and run:
+
+```sh
+node "$JF_CHECKOUT/packages/core/bin/journeysfirst.js" run journeys/agent-onboarding.journey.yaml --agent codex --project . --mcp /path/to/convex-mcp.json
+```
+
+Open `proof/review/index.html` in a browser. To regenerate the export from the checked-in run, run `node "$JF_CHECKOUT/packages/core/bin/journeysfirst.js" review proof/runs --out ./new-review --include-transcripts`.
+
+For the older scripted reproduction, run these three commands on Linux with Node.js 20 or newer. They use a fresh project and home directory, so an existing login does not affect the result.
 
 ```sh
 sandbox="$(mktemp -d)" && mkdir "$sandbox/app" "$sandbox/home" && \

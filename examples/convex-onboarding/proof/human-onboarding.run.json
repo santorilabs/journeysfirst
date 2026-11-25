@@ -11,7 +11,7 @@
   "started_at": "2026-11-25T20:12:16.731Z",
   "finished_at": "2026-11-25T20:13:28.333Z",
   "ran_by": {
-    "agent": "Devin"
+    "agent": "Scripted capture"
   },
   "journeysfirst": "0.0.6",
   "tags": {
@@ -23,7 +23,7 @@
     "you": null
   },
   "played_by": {
-    "you": "Devin"
+    "you": "Scripted human seat"
   },
   "media": [
     {

@@ -1,0 +1,313 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Run a first Convex query as an agent</title>
+<style>
+:root{--ink:#141516;--muted:#6b6d69;--rule:#e6e6e3;--tint:#f3f3f0;--pass:#0c7741;--fail:#a32057;--wait:#6b583c}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,sans-serif;color:var(--ink);background:#fff;line-height:1.45}
+main{max-width:1180px;margin:0 auto;padding:32px 16px 64px}h1{font-size:30px;margin:8px 0 6px}a{color:var(--ink)}
+.meta,.how,.empty{color:var(--muted);font-size:14px}
+.row{display:flex;flex-direction:column;gap:4px;padding:16px 0;border-top:1px solid var(--rule);text-decoration:none}
+.row .title{font-weight:600}
+.row-meta{display:flex;flex-wrap:wrap;gap:4px 16px}a.row:hover .title{text-decoration:underline}
+.runs{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:14px}.runs a{text-decoration:none}
+.verdict{display:inline-block;font-size:12px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;padding:3px 8px;border-radius:999px;white-space:nowrap;color:var(--wait);background:var(--tint)}
+.verdict.passed,.verdict.done{color:var(--pass);background:#e8f6ec}.verdict.failed{color:var(--fail);background:#fdebef}
+img{width:100%;border:1px solid var(--rule);border-radius:12px;display:block;margin-top:8px}
+.player{background:#000;border-radius:12px;overflow:hidden;margin-top:8px}
+.player video{display:block;width:100%;border:0;border-radius:0;margin:0;background:#000;cursor:pointer}
+.player:fullscreen{display:flex;flex-direction:column;justify-content:center;border-radius:0}.player:fullscreen video{flex:1;min-height:0;object-fit:contain}
+.controls{display:flex;align-items:center;gap:8px;padding:8px 10px;background:#141516;color:#fff;font-size:13px}
+.controls button{flex:none;width:32px;height:32px;padding:0;border-radius:6px;background:#2a2b2d;font-size:14px}
+.controls .seek{flex:1;min-width:40px;accent-color:#f5c542}
+.controls .time{flex:none;font-variant-numeric:tabular-nums;white-space:nowrap}
+.controls .cc{font-size:11px;font-weight:700}.controls .cc[aria-pressed="true"]{background:#f5c542;color:#000}
+.controls select{flex:none;font:inherit;background:#2a2b2d;color:#fff;border:0;border-radius:6px;height:32px;padding:0 4px}
+.run-player{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,36%);gap:24px;align-items:start;margin-top:16px}
+.rp-main{min-width:0}
+.users{display:inline-flex;gap:4px;padding:4px;border-radius:999px;background:var(--tint);margin-bottom:8px}
+.users button{background:none;color:var(--ink);padding:6px 12px;min-height:36px}
+.users button[aria-pressed="true"]{background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.15)}
+.track{position:relative;height:36px;margin:8px 14px 0}
+.track::before{content:"";position:absolute;left:-14px;right:-14px;top:50%;height:2px;background:var(--rule)}
+.tick{position:absolute;top:50%;transform:translate(-50%,-50%);width:28px;height:28px;padding:0;border-radius:50%;font-size:12px;font-weight:700;background:#fff;color:var(--ink);border:2px solid var(--rule)}
+.tick.dot{width:12px;height:12px}.tick.good{background:var(--pass);border-color:var(--pass);color:#fff}
+.tick.bad{background:var(--fail);border-color:var(--fail);color:#fff}.tick.wait{background:var(--wait);border-color:var(--wait);color:#fff}
+.tick[aria-current="step"]{outline:2px solid var(--ink);outline-offset:2px}
+.step-card{margin-top:8px;padding:16px;border:1px solid var(--rule);border-radius:12px;overflow-wrap:anywhere}
+.step-card h2{font-size:20px;margin:4px 0 8px}.step-card p{margin:4px 0}
+.steps-panel h2{font-size:17px;margin:0 0 6px}
+.rp-steps{list-style:none;margin:0;padding:4px;border:1px solid var(--rule);border-radius:12px}
+.line{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:8px;align-items:start;width:100%;text-align:left;background:none;color:var(--ink);border-radius:8px;border-left:3px solid transparent;padding:8px;font-size:14px;min-height:44px}
+.line:hover{background:var(--tint)}.line[aria-current="step"]{background:var(--tint);border-left-color:var(--ink)}
+.line[aria-current="step"]:has(.bad){background:#fff1f5;border-left-color:var(--fail)}
+.line .n{color:var(--muted);font-size:13px;padding-top:2px}.line[aria-current="step"] .n{color:var(--ink);font-weight:700}
+.line-kind{display:block;color:var(--muted);font-size:12px;font-weight:600}
+.line .end{display:grid;justify-items:end;gap:2px}
+.step-status{border-radius:4px;padding:2px 6px;font-size:12px;font-weight:600;color:var(--wait);background:var(--tint)}
+.step-status.good{color:var(--pass);background:#e8f6ec}.step-status.bad{color:var(--fail);background:#fdebef}
+@media(max-width:800px){.run-player{grid-template-columns:1fr}}
+button{font:inherit;font-size:13px;padding:2px 10px;border-radius:999px;border:0;background:var(--ink);color:#fff;cursor:pointer}
+.error{color:var(--fail);font-size:14px}
+.verdict-row{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}.summary{font-weight:600}
+.problems{border:1px solid var(--fail);border-radius:12px;padding:4px 16px;margin:12px 0;font-size:14px}.problems ul{padding-left:20px}
+details{margin-top:6px;font-size:14px}summary{cursor:pointer;color:var(--muted)}
+pre{background:var(--tint);border-radius:8px;padding:8px 10px;font-size:12px;overflow-x:auto;white-space:pre-wrap;word-break:break-word;margin:6px 0}
+.transcript pre{max-height:24rem;overflow:auto}
+.evidence{list-style:none;padding:0;margin:6px 0}.evidence li{padding:6px 0;border-top:1px solid var(--rule)}
+.evidence dl,.run-details dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;margin:6px 0}
+.evidence dt,.run-details dt{font-weight:600}.evidence dd,.run-details dd{margin:0;overflow-wrap:anywhere;white-space:pre-wrap}
+.evidence dd dl{margin:0}.evidence ul.evidence-values{margin:0;padding-left:16px}.evidence-values li{padding:0;border:0}
+.run-details{border-top:1px solid var(--rule);margin-top:20px;padding-top:8px}.run-details dl{max-width:620px}
+.start{border-top:1px solid var(--rule);padding:8px 0}.start ul{margin:4px 0;padding-left:20px}
+.start h2{font-size:17px;margin:4px 0}.found{font-weight:400}
+.start .findings{list-style:none;padding:0;margin:4px 0 8px}.findings li{padding:10px 0;border-top:1px solid var(--rule)}.findings li:first-child{border-top:0}
+.reported{border-top:1px solid var(--rule);margin-top:12px;padding-top:4px}.reported-user{padding:4px 0}.reported-user p{margin:4px 0}.reported code{font-size:13px;word-break:break-all}
+.findings p{margin:2px 0}.findings .says{font-weight:600}.findings a{color:var(--muted)}
+@media(max-width:600px){
+  .evidence dl,.run-details dl{grid-template-columns:minmax(0,1fr);gap:2px}
+  .evidence dt,.run-details dt{overflow-wrap:anywhere}
+  .evidence dd+dt,.run-details dd+dt{margin-top:6px}
+  .evidence dd dl{border-left:1px solid var(--rule);padding-left:10px}
+}
+</style></head><body><main><p><a href="../../../index.html">All runs</a></p>
+     <h1>I can start a local Convex deployment in anonymous agent mode, discover it through MCP, and run my first query.</h1>
+     <p class="verdict-row"><span class="verdict failed">Failed</span> <span class="summary">1 of 3 checks passed, 1 failed, 1 blocked.</span></p>
+
+     <section class="start" aria-label="Findings"><h2>Findings</h2><p>Not reviewed.</p></section>
+     <section class="run-player" aria-label="The run" data-open="4" id="steps">
+    <div class="rp-main"><section class="step-card" data-step="1" aria-label="Step 1" hidden>
+        <p class="how"><span aria-live="polite">Step 1 of 6</span></p>
+        <h2>Start local development in anonymous agent mode.</h2>
+        <p><span class="verdict done">Done</span></p>
+
+
+
+
+
+
+      </section><section class="step-card" data-step="2" aria-label="Step 2" hidden>
+        <p class="how"><span aria-live="polite">Step 2 of 6</span></p>
+        <h2><span class="how">Check:</span> Your local deployment is ready without a Convex account.</h2>
+        <p><span class="verdict passed">Passed</span></p>
+
+
+
+    <p>Convex reported anonymous agent mode, a local deployment on port 3210 with no Convex account, and Convex functions ready.</p>
+    <details open><summary>Evidence (1)</summary><ul class="evidence"><li><b>Log</b>
+
+    <dl><dt>Query</dt><dd>local-ready.txt, line 1</dd><dt>Got</dt><dd>CONVEX_AGENT_MODE=anonymous mode is in beta, functionality may change in the future.
+▌ Developing against deployment:
+▌ [Local] Port 3210 • No Convex account (run npx convex login to link to a project)
+▌ └─ http://127.0.0.1:3210
+- Preparing Convex functions...
+
+Convex AI files are not installed. Run npx convex ai-files install to get started or npx convex ai-files disable to hide this message.
+✔ 23:18:41 Convex functions ready! (234.63ms)
+</dd></dl>
+    <details><summary>Raw JSON</summary><pre>{
+  &quot;source&quot;: &quot;log&quot;,
+  &quot;login&quot;: &quot;you&quot;,
+  &quot;query&quot;: &quot;local-ready.txt, line 1&quot;,
+  &quot;got&quot;: &quot;CONVEX_AGENT_MODE=anonymous mode is in beta, functionality may change in the future.\n▌ Developing against deployment:\n▌ [Local] Port 3210 • No Convex account (run npx convex login to link to a project)\n▌ └─ http://127.0.0.1:3210\n- Preparing Convex functions...\n\nConvex AI files are not installed. Run npx convex ai-files install to get started or npx convex ai-files disable to hide this message.\n✔ 23:18:41 Convex functions ready! (234.63ms)\n&quot;
+}</pre></details></li></ul></details>
+
+      </section><section class="step-card" data-step="3" aria-label="Step 3" hidden>
+        <p class="how"><span aria-live="polite">Step 3 of 6</span></p>
+        <h2>Connect your MCP client and ask for the project&#39;s deployments.</h2>
+        <p><span class="verdict done">Done</span></p>
+
+
+
+
+
+
+      </section><section class="step-card" data-step="4" aria-label="Step 4">
+        <p class="how"><span aria-live="polite">Step 4 of 6</span></p>
+        <h2><span class="how">Check:</span> Your MCP client finds the running local deployment and a selector it can use.</h2>
+        <p><span class="verdict failed">Failed</span></p>
+
+    <p class="error">The MCP status tool rejected the running anonymous deployment and returned no selector.</p>
+    <p class="how">Cause: product</p>
+    <p>The preconfigured MCP server and a retry started with CONVEX_AGENT_MODE=anonymous both returned Not Authorized and instructed the user to log in.</p>
+    <details open><summary>Evidence (2)</summary><ul class="evidence"><li><b>Log</b>
+
+    <dl><dt>Query</dt><dd>convex.txt, line 6</dd><dt>Got</dt><dd>{&quot;error&quot;:&quot;Not Authorized: Run `npx convex dev` to login to your Convex project.&quot;}</dd></dl>
+    <details><summary>Raw JSON</summary><pre>{
+  &quot;source&quot;: &quot;log&quot;,
+  &quot;login&quot;: &quot;you&quot;,
+  &quot;query&quot;: &quot;convex.txt, line 6&quot;,
+  &quot;got&quot;: &quot;{\&quot;error\&quot;:\&quot;Not Authorized: Run `npx convex dev` to login to your Convex project.\&quot;}&quot;
+}</pre></details></li><li><b>Log</b>
+
+    <dl><dt>Query</dt><dd>anonymous-mcp.txt, line 4</dd><dt>Got</dt><dd>{&quot;error&quot;:&quot;Not Authorized: Run `npx convex dev` to login to your Convex project.&quot;}</dd></dl>
+    <details><summary>Raw JSON</summary><pre>{
+  &quot;source&quot;: &quot;log&quot;,
+  &quot;login&quot;: &quot;you&quot;,
+  &quot;query&quot;: &quot;anonymous-mcp.txt, line 4&quot;,
+  &quot;got&quot;: &quot;{\&quot;error\&quot;:\&quot;Not Authorized: Run `npx convex dev` to login to your Convex project.\&quot;}&quot;
+}</pre></details></li></ul></details>
+
+      </section><section class="step-card" data-step="5" aria-label="Step 5" hidden>
+        <p class="how"><span aria-live="polite">Step 5 of 6</span></p>
+        <h2>Ask your MCP client to run the sample query on that deployment.</h2>
+        <p><span class="verdict blocked">Blocked</span></p>
+
+    <p class="error">MCP status did not provide a deployment selector to pass to run.</p>
+    <p class="how">Cause: product</p>
+
+
+
+      </section><section class="step-card" data-step="6" aria-label="Step 6" hidden>
+        <p class="how"><span aria-live="polite">Step 6 of 6</span></p>
+        <h2><span class="how">Check:</span> Your MCP client returns &quot;hello from Convex&quot;.</h2>
+        <p><span class="verdict blocked">Blocked</span></p>
+
+    <p class="error">The MCP status authorization error prevented running the sample query with a discovered selector.</p>
+    <p class="how">Cause: product</p>
+
+    <details open><summary>Evidence (1)</summary><ul class="evidence"><li><b>Log</b>
+
+    <dl><dt>Query</dt><dd>anonymous-mcp.txt, line 4</dd><dt>Got</dt><dd>{&quot;error&quot;:&quot;Not Authorized: Run `npx convex dev` to login to your Convex project.&quot;}</dd></dl>
+    <details><summary>Raw JSON</summary><pre>{
+  &quot;source&quot;: &quot;log&quot;,
+  &quot;login&quot;: &quot;you&quot;,
+  &quot;query&quot;: &quot;anonymous-mcp.txt, line 4&quot;,
+  &quot;got&quot;: &quot;{\&quot;error\&quot;:\&quot;Not Authorized: Run `npx convex dev` to login to your Convex project.\&quot;}&quot;
+}</pre></details></li></ul></details>
+
+      </section></div>
+    <aside class="steps-panel"><h2>Steps</h2><ol class="rp-steps" aria-label="Every step"><li><button type="button" class="line" data-step="1">
+        <span class="n">1</span>
+        <span class="text"><span class="line-kind">Action</span>Start local development in anonymous agent mode.</span>
+        <span class="end"><span class="step-status good">Done</span></span>
+      </button></li><li><button type="button" class="line" data-step="2">
+        <span class="n">2</span>
+        <span class="text"><span class="line-kind">Check</span>Your local deployment is ready without a Convex account.</span>
+        <span class="end"><span class="step-status good">Passed</span></span>
+      </button></li><li><button type="button" class="line" data-step="3">
+        <span class="n">3</span>
+        <span class="text"><span class="line-kind">Action</span>Connect your MCP client and ask for the project&#39;s deployments.</span>
+        <span class="end"><span class="step-status good">Done</span></span>
+      </button></li><li><button type="button" class="line" data-step="4" aria-current="step">
+        <span class="n">4</span>
+        <span class="text"><span class="line-kind">Check</span>Your MCP client finds the running local deployment and a selector it can use.</span>
+        <span class="end"><span class="step-status bad">Failed</span></span>
+      </button></li><li><button type="button" class="line" data-step="5">
+        <span class="n">5</span>
+        <span class="text"><span class="line-kind">Action</span>Ask your MCP client to run the sample query on that deployment.</span>
+        <span class="end"><span class="step-status wait">Blocked</span></span>
+      </button></li><li><button type="button" class="line" data-step="6">
+        <span class="n">6</span>
+        <span class="text"><span class="line-kind">Check</span>Your MCP client returns &quot;hello from Convex&quot;.</span>
+        <span class="end"><span class="step-status wait">Blocked</span></span>
+      </button></li></ol></aside>
+  </section>
+     <details class="transcript"><summary>Transcript: local-ready.txt</summary><pre>{&quot;kind&quot;:&quot;stderr&quot;,&quot;text&quot;:&quot;CONVEX_AGENT_MODE=anonymous mode is in beta, functionality may change in the future.\n▌ Developing against deployment:\n▌ [Local] Port 3210 • No Convex account (run npx convex login to link to a project)\n▌ └─ http://127.0.0.1:3210\n- Preparing Convex functions...\n\nConvex AI files are not installed. Run npx convex ai-files install to get started or npx convex ai-files disable to hide this message.\n✔ 23:18:41 Convex functions ready! (234.63ms)\n&quot;}
+</pre></details><details class="transcript"><summary>Transcript: convex.txt</summary><pre>{&quot;kind&quot;:&quot;request&quot;,&quot;text&quot;:&quot;client initialize&quot;}
+{&quot;kind&quot;:&quot;response&quot;,&quot;text&quot;:&quot;Result returned&quot;,&quot;request&quot;:1}
+{&quot;kind&quot;:&quot;request&quot;,&quot;text&quot;:&quot;client tools/list&quot;}
+{&quot;kind&quot;:&quot;response&quot;,&quot;text&quot;:&quot;Result returned&quot;,&quot;request&quot;:3}
+{&quot;kind&quot;:&quot;request&quot;,&quot;text&quot;:&quot;client tools/call status&quot;}
+{&quot;kind&quot;:&quot;response&quot;,&quot;text&quot;:&quot;{\&quot;error\&quot;:\&quot;Not Authorized: Run `npx convex dev` to login to your Convex project.\&quot;}&quot;,&quot;request&quot;:5}
+</pre></details><details class="transcript"><summary>Transcript: anonymous-mcp.txt</summary><pre>{&quot;kind&quot;:&quot;request&quot;,&quot;text&quot;:&quot;client initialize&quot;}
+{&quot;kind&quot;:&quot;response&quot;,&quot;text&quot;:&quot;Result returned&quot;,&quot;request&quot;:1}
+{&quot;kind&quot;:&quot;request&quot;,&quot;text&quot;:&quot;client tools/call status&quot;}
+{&quot;kind&quot;:&quot;response&quot;,&quot;text&quot;:&quot;{\&quot;error\&quot;:\&quot;Not Authorized: Run `npx convex dev` to login to your Convex project.\&quot;}&quot;,&quot;request&quot;:3}
+</pre></details><details class="transcript"><summary>Transcript: local-mcp.txt</summary><pre>{&quot;kind&quot;:&quot;request&quot;,&quot;text&quot;:&quot;client initialize&quot;}
+{&quot;kind&quot;:&quot;response&quot;,&quot;text&quot;:&quot;Result returned&quot;,&quot;request&quot;:1}
+{&quot;kind&quot;:&quot;request&quot;,&quot;text&quot;:&quot;client tools/call status&quot;}
+{&quot;kind&quot;:&quot;response&quot;,&quot;text&quot;:&quot;{\&quot;error\&quot;:\&quot;Not Authorized: Run `npx convex dev` to login to your Convex project.\&quot;}&quot;,&quot;request&quot;:3}
+</pre></details><details class="transcript"><summary>Transcript: handoff.txt</summary><pre>Anonymous local development passed. Convex started on `127.0.0.1:3210` and reported that the functions were ready with no Convex account. [Startup capture](/tmp/journeysfirst-codex-CoON8J/work/.journeysfirst/captures/local-ready.txt:1)
+
+MCP discovery failed. The `status` tool returned `Not Authorized` and asked me to log in, including when I restarted the MCP server in anonymous mode. It returned no deployment selector, so the first MCP query was blocked and I couldn’t verify `hello from Convex`. I stayed signed out throughout. [MCP response](/tmp/journeysfirst-codex-CoON8J/work/.journeysfirst/captures/anonymous-mcp.txt:4) · [Journey results](/tmp/journeysfirst-codex-CoON8J/work/.journeysfirst/results.jsonl)</pre></details>
+     <details class="run-details"><summary>Run details</summary><dl><dt>Started</dt><dd>11/25/2026, 11:17:45 PM</dd><dt>Run by</dt><dd>codex</dd><dt>Case</dt><dd></dd><dt>Journey version</dt><dd>201735e1</dd><dt>Role: You</dt><dd>Played by Codex</dd><dt>${OPENAI_API_KEY}</dt><dd>Hidden</dd></dl></details>
+
+
+     <script>
+const clock = (s) => Number.isFinite(s) ? Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0") : "0:00";
+for (const player of document.querySelectorAll(".player")) {
+  const video = player.querySelector("video"), play = player.querySelector(".play"), seek = player.querySelector(".seek");
+  const time = player.querySelector(".time");
+  const show = () => {
+    play.textContent = video.paused ? "▶" : "❚❚"; play.setAttribute("aria-label", video.paused ? "Play" : "Pause");
+    if (Number.isFinite(video.duration) && video.duration > 0) seek.value = String(Math.round((video.currentTime / video.duration) * 1000));
+    time.textContent = clock(video.currentTime) + " / " + clock(video.duration);
+  };
+  const toggle = () => (video.paused ? video.play() : video.pause());
+  play.addEventListener("click", toggle);
+  video.addEventListener("click", toggle);
+  for (const event of ["play", "pause", "timeupdate", "loadedmetadata", "durationchange", "seeked"]) video.addEventListener(event, show);
+  seek.addEventListener("input", () => { if (Number.isFinite(video.duration)) video.currentTime = (Number(seek.value) / 1000) * video.duration; });
+  player.querySelector(".speed").addEventListener("change", (e) => { video.playbackRate = Number(e.target.value); });
+  const cc = player.querySelector(".cc");
+  if (cc) cc.addEventListener("click", () => {
+    const track = video.textTracks[0], on = track.mode !== "showing";
+    track.mode = on ? "showing" : "hidden";
+    cc.setAttribute("aria-pressed", String(on)); cc.setAttribute("aria-label", on ? "Hide captions" : "Show captions");
+  });
+  player.querySelector(".full").addEventListener("click", () => (document.fullscreenElement ? document.exitFullscreen() : player.requestFullscreen()));
+}
+
+const spreadMarks = function spreadMarks(marks, seconds, gap) {
+  const sorted = [...marks].sort((a, b) => a.seconds - b.seconds || a.n - b.n);
+  if (sorted.length > 1 && gap * (sorted.length - 1) > 1) gap = 1 / (sorted.length - 1);
+  const at = sorted.map((m) => (seconds > 0 ? Math.min(1, Math.max(0, m.seconds / seconds)) : 0));
+  for (let i = 1; i < at.length; i++) at[i] = Math.max(at[i], at[i - 1] + gap);
+  for (let i = at.length - 1; i >= 0; i--) at[i] = Math.min(at[i], i === at.length - 1 ? 1 : at[i + 1] - gap);
+  return sorted.map((m, i) => ({ ...m, at: Math.max(0, at[i]) }));
+};
+const root = document.querySelector(".run-player");
+if (root) {
+  const screens = [...root.querySelectorAll(".screen")];
+  const all = (selector) => [...root.querySelectorAll(selector)];
+  const showUser = (user) => {
+    for (const s of screens) {
+      const on = s.dataset.user === user;
+      if (!on) s.querySelector("video").pause();
+      s.hidden = !on;
+    }
+    for (const b of all(".users button")) b.setAttribute("aria-pressed", String(b.dataset.user === user));
+    place();
+  };
+  const pick = (n, play) => {
+    for (const el of all("[data-step]")) {
+      if (el.classList.contains("step-card")) el.hidden = el.dataset.step !== String(n);
+      else if (el.dataset.step === String(n)) el.setAttribute("aria-current", "step");
+      else el.removeAttribute("aria-current");
+    }
+    const line = root.querySelector('.line[data-step="' + n + '"]');
+    if (line && line.dataset.user) {
+      showUser(line.dataset.user);
+      const video = root.querySelector('.screen[data-user="' + line.dataset.user + '"] video');
+      video.currentTime = Number(line.dataset.at);
+      if (play) video.play().catch(() => {});
+    }
+    const url = new URL(location.href); url.searchParams.set("step", n); history.replaceState(null, "", url);
+  };
+  // Each mark's place on its video's timeline, spread so none sits on another.
+  function place() {
+    for (const s of screens) {
+      const track = s.querySelector(".track"), video = s.querySelector("video");
+      if (!track || s.hidden || !track.offsetWidth) continue;
+      const ticks = [...track.querySelectorAll(".tick")];
+      const marks = ticks.map((t) => ({ n: Number(t.dataset.step), seconds: Number(t.dataset.at), t }));
+      const length = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : Math.max(...marks.map((m) => m.seconds)) + 1;
+      for (const m of spreadMarks(marks, length, 32 / track.offsetWidth)) m.t.style.left = (m.at * 100) + "%";
+    }
+  }
+  for (const s of screens) s.querySelector("video").addEventListener("loadedmetadata", place);
+  addEventListener("resize", place);
+  root.addEventListener("click", (e) => {
+    const user = e.target.closest(".users button");
+    if (user) return showUser(user.dataset.user);
+    const step = e.target.closest(".line, .tick");
+    if (step) pick(step.dataset.step, true);
+  });
+  root.addEventListener("keydown", (e) => {
+    const line = e.target.closest(".line"); if (!line) return;
+    const lines = all(".line"), next = lines[lines.indexOf(line) + (e.key === "ArrowDown" ? 1 : e.key === "ArrowUp" ? -1 : 0)];
+    if (!next || next === line) return;
+    e.preventDefault(); next.focus(); next.click();
+  });
+  const asked = new URL(location.href).searchParams.get("step");
+  pick(root.querySelector('.line[data-step="' + asked + '"]') ? asked : root.dataset.open, false);
+}
+</script></main></body></html>

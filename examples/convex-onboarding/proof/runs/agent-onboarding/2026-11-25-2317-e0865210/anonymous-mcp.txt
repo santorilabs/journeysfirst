@@ -1,0 +1,4 @@
+{"kind":"request","text":"client initialize"}
+{"kind":"response","text":"Result returned","request":1}
+{"kind":"request","text":"client tools/call status"}
+{"kind":"response","text":"{\"error\":\"Not Authorized: Run `npx convex dev` to login to your Convex project.\"}","request":3}

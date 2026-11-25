@@ -1,0 +1,136 @@
+{
+  "format": "journeysfirst-run/v1",
+  "id": "2026-11-25-2317-e0865210",
+  "journey": {
+    "name": "agent-onboarding",
+    "version": "201735e1",
+    "case": null
+  },
+  "result": "failed",
+  "summary": "The MCP status tool rejected the running anonymous deployment and returned no selector.",
+  "started_at": "2026-11-25T23:17:45.098Z",
+  "finished_at": "2026-11-25T23:18:50.062Z",
+  "ran_by": {
+    "agent": "codex"
+  },
+  "journeysfirst": "0.0.6",
+  "users": {
+    "you": null
+  },
+  "played_by": {
+    "you": "Codex"
+  },
+  "values": {
+    "OPENAI_API_KEY": {
+      "secret": true
+    }
+  },
+  "media": [
+    {
+      "file": "local-ready.txt",
+      "kind": "transcript"
+    },
+    {
+      "file": "convex.txt",
+      "kind": "transcript"
+    },
+    {
+      "file": "anonymous-mcp.txt",
+      "kind": "transcript"
+    },
+    {
+      "file": "local-mcp.txt",
+      "kind": "transcript"
+    },
+    {
+      "file": "handoff.txt",
+      "kind": "transcript"
+    }
+  ],
+  "verified": [
+    "Your local deployment is ready without a Convex account."
+  ],
+  "not_verified": [
+    "Your MCP client finds the running local deployment and a selector it can use: the MCP status tool rejected the running anonymous deployment and returned no selector.",
+    "Your MCP client returns \"hello from Convex\": the MCP status authorization error prevented running the sample query with a discovered selector."
+  ],
+  "steps": [
+    {
+      "says": "Start local development in anonymous agent mode.",
+      "by": "you",
+      "status": "done",
+      "at": 64.6
+    },
+    {
+      "check": "Your local deployment is ready without a Convex account.",
+      "id": "local-ready",
+      "by": "you",
+      "verdict": "passed",
+      "proof": "Convex reported anonymous agent mode, a local deployment on port 3210 with no Convex account, and Convex functions ready.",
+      "evidence": [
+        {
+          "source": "log",
+          "login": "you",
+          "query": "local-ready.txt, line 1",
+          "got": "CONVEX_AGENT_MODE=anonymous mode is in beta, functionality may change in the future.\n▌ Developing against deployment:\n▌ [Local] Port 3210 • No Convex account (run npx convex login to link to a project)\n▌ └─ http://127.0.0.1:3210\n- Preparing Convex functions...\n\nConvex AI files are not installed. Run npx convex ai-files install to get started or npx convex ai-files disable to hide this message.\n✔ 23:18:41 Convex functions ready! (234.63ms)\n"
+        }
+      ],
+      "at": 64.6
+    },
+    {
+      "says": "Connect your MCP client and ask for the project's deployments.",
+      "by": "you",
+      "status": "done",
+      "at": 64.6
+    },
+    {
+      "check": "Your MCP client finds the running local deployment and a selector it can use.",
+      "id": "mcp-discovery",
+      "by": "you",
+      "verdict": "failed",
+      "proof": "The preconfigured MCP server and a retry started with CONVEX_AGENT_MODE=anonymous both returned Not Authorized and instructed the user to log in.",
+      "evidence": [
+        {
+          "source": "log",
+          "login": "you",
+          "query": "convex.txt, line 6",
+          "got": "{\"error\":\"Not Authorized: Run `npx convex dev` to login to your Convex project.\"}"
+        },
+        {
+          "source": "log",
+          "login": "you",
+          "query": "anonymous-mcp.txt, line 4",
+          "got": "{\"error\":\"Not Authorized: Run `npx convex dev` to login to your Convex project.\"}"
+        }
+      ],
+      "at": 64.6,
+      "cause": "product",
+      "reason": "The MCP status tool rejected the running anonymous deployment and returned no selector."
+    },
+    {
+      "says": "Ask your MCP client to run the sample query on that deployment.",
+      "by": "you",
+      "status": "blocked",
+      "at": 64.6,
+      "cause": "product",
+      "reason": "MCP status did not provide a deployment selector to pass to run."
+    },
+    {
+      "check": "Your MCP client returns \"hello from Convex\".",
+      "id": "first-mcp-query",
+      "by": "you",
+      "verdict": "blocked",
+      "evidence": [
+        {
+          "source": "log",
+          "login": "you",
+          "query": "anonymous-mcp.txt, line 4",
+          "got": "{\"error\":\"Not Authorized: Run `npx convex dev` to login to your Convex project.\"}"
+        }
+      ],
+      "at": 64.6,
+      "cause": "product",
+      "reason": "The MCP status authorization error prevented running the sample query with a discovered selector."
+    }
+  ]
+}
