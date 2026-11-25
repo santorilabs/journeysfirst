@@ -39,14 +39,9 @@ A fix moves the product toward its "What good means" lines, never away. It uses 
 
 A finding comes from `journey-review`. It is not a failure: it has no `cause`, and it never changes a verdict. Every finding gets an answer: you fix it in the product, or a person sees it. Never delete one.
 
-Read "Decided" first. A call a person already made is not reopened.
-
 Fix what your change caused (on a new build, that is every finding), then run the journey and `journey-review` again. What was there before your change goes in your report, and you fix it only if the person asks. A criterion that does not fit this product, and an `ask`, are the person's call: say why, with evidence.
 
-When a person makes a call, record it in two places, so the next review does not raise it again:
-
-- In the run, before it is published: `npx journeysfirst add-review <run folder> --on <finding id> --by <person> --says "<their words>"`.
-- One line under "Decided" in `journeys/README.md`, starting with the criterion id, with the person's name and the date.
+When a person makes a call, record it in the run, before it is published: `npx journeysfirst add-review <run folder> --on <finding id> --by <person> --says "<their words>"`. Say it in the pull request too. Never copy it into `journeys/README.md`.
 
 ## Never
 
@@ -60,4 +55,4 @@ When a person makes a call, record it in two places, so the next review does not
 - The cause, the earliest wrong step and the evidence.
 - What you changed, and the rerun's `result` and `not_verified`.
 - A promise change: the proposed journey diff, waiting for a person.
-- Each finding: fixed, with the new review line, or waiting for a person. Each `add-review` call and each "Decided" line you added.
+- Each finding: fixed, with the new review line, or waiting for a person. Each `add-review` call.

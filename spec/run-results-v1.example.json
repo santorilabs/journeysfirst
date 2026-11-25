@@ -139,7 +139,7 @@
       "id": "foundation-values-3",
       "criterion": "foundation-values",
       "step": 3,
-      "says": "\"Download\" has a 4 px corner. The measured line has 10 and 16 px.",
+      "says": "\"Download\" has a 4 px corner. The design system uses 10 and 16 px.",
       "ask": "Is a 4 px corner right for this button?",
       "evidence": [
         { "source": "page", "login": "viewer", "url": "https://preview-12.example.test/view/q3-plan", "file": "measure-3.txt", "measured": { "radius": "4 px", "on": "button \"Download\"" } }

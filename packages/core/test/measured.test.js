@@ -1,7 +1,7 @@
 // The facts a review reads from a run's measure files.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { knownValues, measuredFacts, measuredLine } from "../src/review/measured.js";
+import { measuredFacts, valuesUsed } from "../src/review/measured.js";
 
 const tally = (...values) => Object.fromEntries(values.map((v) => [v, { n: 1, on: 'button "Share"' }]));
 /** A measured screen with the example app's values, changed by `over`. */
@@ -42,26 +42,16 @@ test("a line that takes more clicks or fields than in the earlier run is a fact"
   assert.deepEqual(measuredFacts({ lines: new Map([[1, same], [2, reworded], [5, lines.get(5)]]), earlier: new Map([[1, measure({ wide: screen({ text: "a1" }) })], [2, same], [5, earlier.get(5)]]) }).differ, [2, 5], "a screen differs when its words, controls, values or actions do");
 });
 
-test("a value is new when the earlier run's same line did not have it and the measured line does not list it", () => {
-  const changed = measure({ wide: screen({ spacing: tally("10", "11", "16", "17"), radius: tally("4", "10"), effects: tally("gradient: linear-gradient(red, blue)") }) });
-  const known = knownValues("Measured in the running product: spacing 10, 16, 17 px. Type 16 px. Font system-ui. Radius 10 px. (measured, run 1)");
-  const withEarlier = measuredFacts({ lines: new Map([[1, changed], [2, changed]]), earlier: new Map([[1, measure()], [2, measure()]]), known });
+test("a value is new when the earlier run's same line did not have it", () => {
+  const changed = measure({ wide: screen({ spacing: tally("10", "11", "16"), radius: tally("4", "10"), effects: tally("gradient: linear-gradient(red, blue)") }) });
+  const withEarlier = measuredFacts({ lines: new Map([[1, changed], [2, changed]]), earlier: new Map([[1, measure()], [2, measure()]]) });
   assert.deepEqual(says(withEarlier), ['fact foundation-values 1: New since the earlier run: spacing 11 px on button "Share"; radius 4 px on button "Share"; gradient: linear-gradient(red, blue) on button "Share".']);
-  assert.deepEqual([...withEarlier.fresh], ["spacing 11", "radius 4"]);
-  const firstRunOfLine = measuredFacts({ lines: new Map([[1, changed]]), known });
-  assert.deepEqual(says(firstRunOfLine), ['ask foundation-values 1: Not in the measured line: spacing 11 px on button "Share"; radius 4 px on button "Share".'], "with no earlier run nothing says it is new, so a person decides; an effect has nothing to compare with");
-  assert.deepEqual(says(measuredFacts({ lines: new Map([[1, changed]]) })), [], "with no measured line and no earlier run, the product starts quiet");
+  assert.deepEqual(says(measuredFacts({ lines: new Map([[1, changed]]) })), [], "with no earlier run there is nothing to call new: a review checks the values against the design system the README links to");
 });
 
-test("the measured line lists every value in use, sorted, and is read back the same", () => {
+test("the values a run uses are listed once, sorted", () => {
   const lines = new Map([[1, measure({ wide: screen({ spacing: tally("24", "3", "10"), radius: tally("16", "50%") }) })]]);
-  const line = measuredLine(lines);
-  assert.equal(line, "Measured in the running product: spacing 3, 10, 16, 24 px. Type 16 px. Font system-ui. Radius 10, 16, 50% px.");
-  const known = knownValues(`### Design system\n\n${line} (measured, run 2026-11-18-2151-8cfdb1fb)\n`);
-  assert.deepEqual([[...known.spacing], [...known.type], [...known.fonts], [...known.radius]], [["3", "10", "16", "24"], ["16"], ["system-ui"], ["10", "16", "50%"]]);
-  assert.equal(measuredLine(lines, { leaveOut: new Set(["spacing 3"]) }), "Measured in the running product: spacing 10, 16, 24 px. Type 16 px. Font system-ui. Radius 10, 16, 50% px.");
-  assert.equal(knownValues("Measured in the running product: not yet. The first review fills this in."), null);
-  assert.equal(knownValues("# Journeys"), null);
+  assert.equal(valuesUsed(lines), "Spacing 3, 10, 16, 24 px. Type 16 px. Font system-ui. Radius 10, 16, 50% px.");
 });
 
 test("at 375 px: a page that scrolls sideways, a dialog cut off, and a small control the journey uses are facts, each once", () => {

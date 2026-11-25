@@ -21,7 +21,7 @@
 
 ### Design system
 
-Measured in the running product: spacing 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 16, 17, 18, 19, 20, 21, 22, 24, 26, 32, 45, 48, 50, 61, 64, 66, 74, 80 px. Type 8, 10, 11, 12, 14, 16, 18, 25, 26, 30, 32 px. Font -apple-system, Greycliff CF. Radius 4, 8, 1000, 16000 px. (measured, the fix commit's run)
+Not linked yet: link the files that hold Docmost's spacing, type and radius here.
 
 ## Journeys
 

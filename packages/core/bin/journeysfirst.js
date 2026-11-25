@@ -39,7 +39,7 @@ const USAGE = `Usage:
       Without --journey, it compares the steps with journeys/<name>.journey.yaml when that file exists.
   journeysfirst measured <run folder>
       Prints what the run's measure files say, for a review: one line for each measured fact a criterion names.
-      It compares with the earlier reviewed run of the journey and with the measured line in journeys/README.md.
+      It compares with the earlier reviewed run of the journey. With none, it lists the values the run uses, to check against the design system journeys/README.md links to.
   journeysfirst add-findings <run folder> <findings file> [--journey <file>]
       Writes a review's findings into the run. The file is {"findings": [...]}, with an empty list when the review found nothing.
       Nothing else in the run changes: a finding never changes a verdict or the result. Do it before publish.

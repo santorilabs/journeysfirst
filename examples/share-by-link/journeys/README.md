@@ -23,10 +23,6 @@ What good means for this app. Every journey skill reads this first.
 
 - Corners are 10 px on buttons and 16 px on cards and dialogs. (the example's authors)
 
-**Decided.** Calls a person made on a review. Each starts with the criterion. A review does not raise these again.
-
-None yet.
-
 ### Brand
 
 | What | Where |
@@ -42,8 +38,6 @@ None yet.
 | Spacing | the style block of `app/owner.html` and `app/viewer.html` |
 | Components | not stated yet |
 | Loading | "Loading…" in `app/viewer.html`, "Opening…" on the Share button in `app/owner.html` |
-
-Measured in the running product: spacing 3, 4, 8, 10, 16, 19, 20, 21, 24, 40, 48 px. Type 16, 19, 24, 32 px. Font system-ui. Radius 10, 16 px. (measured, the example's first run)
 
 ## Journeys
 
