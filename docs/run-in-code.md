@@ -41,6 +41,20 @@ The full example is [examples/share-by-link/tests/share-by-link.spec.js](../exam
 
 ## Without Playwright
 
+### Let your agent run a journey
+
+```sh
+npx journeysfirst run journeys/onboarding.journey.yaml --agent "<your agent command>" --project ./signed-out-project
+```
+
+`--agent` takes the command you would type to run your agent once, without a chat. For example `claude -p` or `codex exec -`. Journeys First copies the project to a scratch folder, without `.git`, `.env` files, `node_modules` or earlier runs. It runs the command there, through your shell, with your environment unchanged. The command gets the journey's promise, start and steps on stdin. The agent writes its results and captures to `.journeysfirst/` in that folder. Journeys First then saves them as a run, with the agent's printed output as `handoff.txt`. This launcher only runs the `you` seat.
+
+Sign-in and sandboxing are your agent's own setup. Sign in to the agent the way you already do. Journeys First does not read or pass any login. It also cannot see what the agent's sandbox allows, so every run has the tag `sandbox: unverified`. The agent can read whatever your own agent settings let it read, including the original project and your home folder. Set those limits in the agent before you run a journey that must start signed out.
+
+To capture an MCP server's exchanges, start it in the agent's own MCP config through the capture helper, from the project folder: `node .journeysfirst/capture.mjs mcp-proxy NAME.txt -- <server command>`.
+
+`--timeout <seconds>` sets a limit (default 1800). If the agent times out or exits with an error, the run is saved with an aborted attempt, so it cannot pass.
+
 ### Let Codex run a journey
 
 ```sh

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
 import { createServer } from "node:net";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -233,5 +233,73 @@ test("review and dev-server listen on the --host they are given", async () => {
     } finally {
       server.stop();
     }
+  }
+});
+
+// A stand-in for any agent CLI: it reads the journey on stdin, records a capture and submits results.
+const fakeAgent = `
+import { spawnSync } from "node:child_process";
+import fs from "node:fs";
+const prompt = fs.readFileSync(0, "utf8");
+const capture = spawnSync(process.execPath, [".journeysfirst/capture.mjs", "capture", "command.txt", "--",
+  process.execPath, "-e", "console.log('Sharing is on')"], { encoding: "utf8" });
+if (capture.status !== 0) process.exit(9);
+const results = [{ line: 1, status: "done" }];
+if (prompt.includes("Check link-on: Link sharing is still on after a reload.")) {
+  results.push({ id: "link-on", verdict: "passed", proof: "The command showed it.", refs: [{ file: "command.txt", line: 1 }] });
+}
+fs.writeFileSync(".journeysfirst/results.jsonl", results.map((r) => JSON.stringify(r)).join("\\n"));
+console.log(prompt.split("\\n")[0]);
+console.log("login " + (process.env.JF_TEST_AGENT_LOGIN ?? "missing") + ", env file " + (fs.existsSync(".env.local") ? "copied" : "left out"));
+process.exitCode = Number(process.argv[2] ?? 0);
+`;
+
+function agentRun(extra = [], exitCode = 0) {
+  const dir = mkdtempSync(join(tmpdir(), "jf-agent-"));
+  mkdirSync(join(dir, "project"));
+  writeFileSync(join(dir, "project", ".env.local"), "Private product login");
+  writeFileSync(join(dir, "agent.mjs"), fakeAgent);
+  writeFileSync(join(dir, "share.journey.yaml"), JOURNEY.replace("users: [viewer]\n", ""));
+  const command = `node ${JSON.stringify(join(dir, "agent.mjs"))} ${exitCode}`;
+  const result = spawnSync(process.execPath, [BIN, "run", "share.journey.yaml", "--agent", command, "--project", "project", ...extra],
+    { cwd: dir, encoding: "utf8", env: { ...process.env, JF_TEST_AGENT_LOGIN: "kept" } });
+  const runs = join(dir, "journey-runs", "share");
+  let folder;
+  try { folder = join(runs, readdirSync(runs)[0]); } catch { return { result }; }
+  return { result, folder, run: JSON.parse(readFileSync(join(folder, "run.json"), "utf8")) };
+}
+
+test("run --agent gives any agent command the journey on stdin and saves what it submits", () => {
+  const { result, folder, run } = agentRun();
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /^Saved not_fully_checked run to /);
+  assert.equal(run.steps[0].status, "done");
+  assert.equal(run.steps[1].verdict, "passed");
+  assert.equal(run.steps[1].evidence[0].login, "you");
+  assert.equal(run.result, "not_fully_checked");
+  assert.equal(run.attempt, undefined);
+  assert.deepEqual(run.ran_by, { agent: "node" });
+  assert.equal(run.tags.sandbox, "unverified");
+  const handoff = readFileSync(join(folder, "handoff.txt"), "utf8");
+  assert.match(handoff, /^You can share a presentation by link/);
+  assert.match(handoff, /login kept, env file left out/);
+  assert.equal(cli(["validate-run", folder, "--journey", join(folder, "../../../share.journey.yaml")]).status, 0);
+});
+
+test("run --agent saves an aborted attempt when the agent exits with an error, so it cannot pass", () => {
+  const { result, run } = agentRun([], 3);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /exited with status 3/);
+  assert.equal(run.steps[1].verdict, "passed");
+  assert.equal(run.attempt.status, "aborted");
+  assert.equal(run.result, "not_fully_checked");
+});
+
+test("run --agent refuses options it does not use", () => {
+  for (const extra of [["--mcp", "mcp.json"], ["--container", "image"], ["--", "--model", "x"]]) {
+    const { result, run } = agentRun(extra);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /--agent "<command>"/);
+    assert.equal(run, undefined);
   }
 });

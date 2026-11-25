@@ -5,6 +5,7 @@
 // journeysfirst add-findings <run folder> <findings file>        write a review's findings into a run
 // journeysfirst add-review <run folder> --on <id> --by <who> --says <words>   record a person's call on a check or a finding
 // journeysfirst review [dir] [--port n] [--host h] [--out dir]   browse or export the review UI
+// journeysfirst run <journey> --agent "<command>"                  run your own agent on a fresh project copy and save a run
 // journeysfirst publish <run folder> [--to url] [--journey file]   publish a run (token from JOURNEYSFIRST_TOKEN)
 // journeysfirst dev-server [--port n] [--host h]                 a local in-memory service to publish to
 // journeysfirst affected <path...>                               which journeys cover these changed paths
@@ -31,6 +32,7 @@ import { init, nextSteps, upgrade } from "../src/setup.js";
 import { reviewLine } from "../src/shared/display.js";
 import { VERSION } from "../src/shared/version.js";
 import { captureCommand } from "../src/runner/capture.js";
+import { runAgent } from "../src/runner/agent.js";
 import { runCodex } from "../src/runner/codex.js";
 
 const USAGE = `Usage:
@@ -55,6 +57,9 @@ const USAGE = `Usage:
       Run a terminal command and save bounded, redacted output.
   journeysfirst mcp-proxy --out <new file> [--secret-env <NAME,NAME>] -- <server command> [args...]
       Relay an MCP server's stdio and save request labels and response summaries.
+  journeysfirst run <journey.yaml> --agent "<command>" [--project <folder>] [--case <id>] [--timeout <seconds>]   (default 1800)
+      Run your own agent command, signed in as you already are, on a fresh copy of the project, and save a run.
+      The command gets the journey on stdin. Sign-in and sandboxing are the agent's own setup. See docs/run-in-code.md.
   journeysfirst run <journey.yaml> --agent codex [--project <folder>] [--case <id>] [--mcp <json>] [--container <image> | --allow-host-read] [--timeout <seconds>] -- [--model <name>]
       Give Codex a signed-out scratch project and save a run. Requires Codex with a working permission sandbox.
   journeysfirst publish <run folder> [--to <url>] [--journey <file>]   (default JOURNEYSFIRST_URL; token from JOURNEYSFIRST_TOKEN)
@@ -84,7 +89,20 @@ const USAGE = `Usage:
 const [command, ...rest] = process.argv.slice(2);
 const { positional, flags } = parseArgs(rest);
 
-if (command === "run") {
+if (command === "run" && typeof flags.agent === "string" && flags.agent !== "codex") {
+  try {
+    if (positional.length !== 1 || rest.includes("--") || !flags.agent.trim() ||
+        Object.entries(flags).some(([name, value]) => !["agent", "project", "case", "timeout"].includes(name) || typeof value !== "string")) {
+      throw new Error('Use journeysfirst run <journey.yaml> --agent "<command>" [--project <folder>] [--case <id>] [--timeout <seconds>].');
+    }
+    const saved = await runAgent({ journey: positional[0], command: flags.agent, caseId: flags.case, project: flags.project, timeoutMs: timeoutFlag(flags.timeout) });
+    console.log(`Saved ${saved.run.result} run to ${saved.folder}.`);
+    if (saved.problem) { console.error(saved.problem); process.exitCode = 1; }
+  } catch (error) {
+    console.error(error.message);
+    process.exitCode = 1;
+  }
+} else if (command === "run") {
   try {
     const end = rest.indexOf("--");
     const { positional, flags } = parseArgs(end === -1 ? rest : rest.slice(0, end));
@@ -92,12 +110,9 @@ if (command === "run") {
         Object.entries(flags).some(([name, value]) => name === "allow-host-read" ? value !== true
           : !["agent", "project", "case", "mcp", "container", "timeout"].includes(name) || typeof value !== "string") ||
         (flags.container && flags["allow-host-read"])) {
-      throw new Error("Use journeysfirst run <journey.yaml> --agent codex. See --help for options.");
+      throw new Error('Use journeysfirst run <journey.yaml> --agent "<command>". See --help for options.');
     }
-    const timeoutMs = flags.timeout === undefined ? undefined : Number(flags.timeout) * 1000;
-    if (timeoutMs !== undefined && (!Number.isFinite(timeoutMs) || timeoutMs < 1000 || timeoutMs > 3600000)) {
-      throw new Error("Give --timeout a number of seconds between 1 and 3600.");
-    }
+    const timeoutMs = timeoutFlag(flags.timeout);
     if (!flags.container) console.error("Running without a container. Codex commands use its permission sandbox; the agent process runs on this machine.");
     if (flags["allow-host-read"]) console.error("Host files, including files in your home directory, can be read by agent commands.");
     const saved = await runCodex({ journey: positional[0], caseId: flags.case, project: flags.project,
@@ -318,6 +333,14 @@ function openRun(folder) {
   } catch (error) {
     throw new Error(error.message.replace("is not a valid run:", `is unverified against ${found.file}:`));
   }
+}
+
+/** @param {unknown} value seconds from --timeout */
+function timeoutFlag(value) {
+  if (value === undefined) return undefined;
+  const ms = Number(value) * 1000;
+  if (!Number.isFinite(ms) || ms < 1000 || ms > 3600000) throw new Error("Give --timeout a number of seconds between 1 and 3600.");
+  return ms;
 }
 
 function parseArgs(args) {
