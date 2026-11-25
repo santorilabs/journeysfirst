@@ -2,25 +2,40 @@
   <img src="assets/banner.png" alt="Santori Labs logo. Journeys First. An open format for user journeys, with skills and a CLI. Your agent verifies each journey in the real product before it says done, as every user, human or agent." width="100%" />
 </p>
 
-# Journeys First
+An open format for user journeys, with skills and a CLI. Your agent verifies each journey in the real product before it says done, as every user, human or agent.
 
-[![npm](https://img.shields.io/npm/v/journeysfirst)](https://www.npmjs.com/package/journeysfirst)
-[![Changelog](https://img.shields.io/badge/changelog-CHANGELOG.md-blue)](CHANGELOG.md)
-[![Tests](https://github.com/santorilabs/journeysfirst/actions/workflows/test.yml/badge.svg)](https://github.com/santorilabs/journeysfirst/actions/workflows/test.yml)
-[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
-[![skills.sh installs](https://skills.sh/b/santorilabs/journeysfirst)](https://skills.sh/santorilabs/journeysfirst)
+[MIT](LICENSE), by [Santori Labs](https://github.com/santorilabs/journeysfirst).
 
-Agents build your product, and **agents now use it too.**
+<p align="center">
+  <img src="assets/docmost-every-user.png" alt="Docmost, as every user. The same journey fails on the breaking commit and passes on the fix." />
+</p>
 
-An open format and skills for writing the contracts your product keeps: what each user, person or agent, must be able to do. 
-Your agents build to them, and check their work against what your users experience.
+```text
+Set up Journeys First in this repo: https://journeysfirst.com/start
+```
 
-- **Format:** journeys in plain sentences, and a run file with proof for every check.
-- **Skills:** onboard, build, write, run, review, fix.
-- **Runner:** replays each journey as a Playwright test.
-- **Review page:** watch each run step by step, as each user.
+Or do it yourself (Node 20 or newer):
 
-Everything lives in your repo and runs wherever your code runs: your machine, CI or your own cloud.
+```bash
+npm install --save-dev journeysfirst @playwright/test
+npx playwright install --only-shell chromium
+npx journeysfirst init
+```
+
+Or only the skills: `npx skills add santorilabs/journeysfirst --skill '*' --agent claude-code codex -y`
+
+## Caught in real apps
+
+3 small tests, from [docs/results.md](docs/results.md). Early signs, not a benchmark.
+
+| App | What the runs showed | Source |
+|---|---|---|
+| Docmost | The same journey fails on the breaking commit (3 of 6 checks passed). It passes on the fix (6 of 6). On the breaking commit, a trashed page stayed on its public link and in a teammate's search. | [examples/docmost-trash/README.md](examples/docmost-trash/README.md) |
+| Immich | The same journey fails on the breaking commit (`app-hides-details`). It passes on the fix (5 of 5 checks). On the breaking commit, a shared link with "Show metadata" off still returned the photo's GPS, camera and file name. | [examples/immich-shared-link/README.md](examples/immich-shared-link/README.md) |
+| Chatwoot | Codex added shift handoffs. The task never mentioned the customer. Every agent kept the summary private (3 of 3 with journeys and 3 of 3 without). The customer still saw their own message in 3 of 3 runs with journeys and 1 of 3 without. Both checks, with a video of what the customer saw: 2 of 3 with journeys and 0 of 3 without. | [docs/results.md](docs/results.md#1-adding-a-feature-to-an-existing-app) |
+| WebGen-Bench | Claude Code built 2 prompts, 3 times with journeys and 3 times without. With journeys, the agent opened and used each app as each user first, and all 6 apps could be used. Without, agents said done without opening the app, and 2 of 6 apps could not be clicked. Builds took 3 to 4 times longer and cost 3 to 4 times as much. 2 study group apps lost their data on restart. | [docs/results.md](docs/results.md#2-building-a-new-app-from-1-prompt) |
+
+The Docmost and Immich journeys were written after the bugs were known, then replayed on the breaking and fixing commits.
 
 ## The problem
 
@@ -151,6 +166,10 @@ After the first run, a replay is a plain Playwright test: `npx playwright test`.
 - You set up the test accounts and start states. Onboarding tells you what it needs.
 - Onboarding drafts your top journeys, so it can miss one, like a single privacy setting. You or your agent add the rest as you work.
 - Your agent writes the check code, so read the checks in review like you would any test.
+
+## FAQ
+
+How this differs from running Claude Code on a schedule, from TestMu's Kane CLI, and from CheckMyApp: Journeys First is an open format (`journeysfirst/v1`) and skills that live in your repo. A journey names every affected user, human or agent, and checks each one from that user's own login. After the first run, a replay is a plain Playwright test: `npx playwright test`. It needs no model, unless one of the users is an agent.
 
 ## More
 
