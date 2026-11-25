@@ -22,7 +22,7 @@ Nothing may leave the test environment.
 
 - **Never production.** Use a local app, a preview or a staging environment the app skill names.
 - **Test accounts only.** Check every account against the app skill's rule before you sign in, seed, wipe or send.
-- **Real sends must be impossible:** email, SMS, Slack, payments, any write to a third party. The environment enforces it (a sandbox key, a mail catcher, a fake provider, no provider key). Your own care is not a block.
+- **Real sends must be impossible:** email, SMS, chat messages, payments, any write to a third party. The environment enforces it (a sandbox key, a mail catcher, a fake provider, no provider key). Your own care is not a block.
 - **Show the block before you run.** Show that a real send is refused or caught. If you cannot, the checks it touches are `blocked` with cause `environment`.
 
 No safe environment, no test sign-in, or no sink for a send: the affected checks are `blocked` with cause `environment`, not failed.
