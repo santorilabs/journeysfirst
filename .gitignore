@@ -1,6 +1,9 @@
 node_modules
 journey-runs
+journey-runs-broken
 test-results
 playwright-report
 packages/core/skills
+packages/core/spec
+packages/core/docs
 .DS_Store

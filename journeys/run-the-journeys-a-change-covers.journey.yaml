@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/santorilabs/journeysfirst/main/spec/journey-v1.schema.json
+format: journeysfirst/v1
+title: Try again only what a change touches
+promise: |
+  When I change one part of the product, I want every journey that covers that part to be tried again.
+  I do not want the others to be tried.
+  The person reviewing my change, and anyone reading the write-up, should see which ones were tried and which were not.
+users: [reviewer, reader]
+start: Two journeys cover different parts. One covers the page a visitor opens. The other covers the notes a maintainer reads. Neither has been tried for this change.
+steps:
+  - Change the page a visitor opens. Leave the notes alone.
+  - Try again every journey that covers that page.
+  - check: You see the one for the page tried again.
+    id: covered-journey-runs
+  - check: You see the one for the notes left alone.
+    id: other-journey-stays
+  - check: You see which ones were tried and which were not.
+    id: you-see-which-ran
+  - check: The reviewer sees which one was tried and which was not.
+    id: reviewer-sees-the-choice
+  - check: The reader sees the same choice in the write-up.
+    id: reader-sees-the-report
+    added: true
+  - check: The reader does not see the notes one listed as tried.
+    id: reader-does-not-see-a-false-run
+    added: true
+notes: Which part a journey covers is listed beside the journeys, in journeys/covered-by.yaml, not in these sentences. A change is a file path. The list has one line per journey, tried or left alone.

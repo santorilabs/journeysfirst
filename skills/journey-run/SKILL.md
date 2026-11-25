@@ -7,7 +7,7 @@ description: Run a journey against the app, prove each check, and write a run fo
 
 An existing product: read Foundation in `journeys/README.md` first (none yet: follow `journey-onboard`). A new build: the README's "Running safely" lines are your app skill.
 
-The first thing you do is find out who you are playing. Then you run the journey the way each user would, prove each check, and write one run folder anyone can review ([run results spec](https://github.com/santorilabs/journeysfirst/blob/main/spec/run-results-v1.md)). Code enforces the limits: a pass needs evidence from the right login, and the run file must match the journey line by line.
+The first thing you do is find out who you are playing. Then you run the journey the way each user would, prove each check, and write one run folder anyone can review. The run results spec is `node_modules/journeysfirst/spec/run-results-v1.md`. Code enforces the limits: a pass needs evidence from the right login, and the run file must match the journey line by line.
 
 ## 1. Read
 

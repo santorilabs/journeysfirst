@@ -5,7 +5,7 @@ How [Journeys First](../README.md) runs a journey, what a journey and a run look
 ## What setup changes in your repo
 
 - `package.json`: adds `journeysfirst` and `@playwright/test` as dev dependencies.
-- Skills in your agent's skills folder, like `.claude/skills/`.
+- Skills in your agent's skills folder: `.agents/skills/` and `.claude/skills/`.
 - `playwright.config.js`, only if you have none.
 - `.gitignore`: ignores `journey-runs/`.
 - `AGENTS.md` (and `CLAUDE.md`): a short Journeys section.

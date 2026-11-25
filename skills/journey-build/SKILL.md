@@ -9,7 +9,7 @@ The request says what to build. It is the start, not the edge. A real person sig
 
 The first thing you do is understand the people the product is for. Then you write their journeys, build to them, and use the product as each of them before you say it is done.
 
-Install `journeysfirst` and `@playwright/test` as dev dependencies, then run `npx journeysfirst init`. Say your plan in one line first.
+Install `journeysfirst` and `@playwright/test` as dev dependencies, then run `npx journeysfirst init`. Say your plan in one line first. If init adds `demo/` and `journeys/see-the-example.journey.yaml`, that example is not this product. Delete `demo/`, that journey and `e2e/see-the-example.spec.js` when you point Playwright at the product.
 
 ## 1. Who it is for, and what good means
 

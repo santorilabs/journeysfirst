@@ -17,6 +17,7 @@ import { basename } from "node:path";
 import { journeyName, journeyPlan, loadJourney, validateJourney } from "../format/format.js";
 import { writeRunFolder } from "../format/run-folder.js";
 import { FILE_NAME, RUN_FORMAT, isCheck, settle, stepProblems } from "../format/runfile.js";
+import { maskRun } from "./mask.js";
 import { VERSION } from "../shared/version.js";
 
 /**
@@ -136,6 +137,20 @@ export class RunRecorder {
   }
 
   /**
+   * Secret values still in memory, longest first. For a screenshot and a
+   * trace. Nothing here is written into the run file.
+   * @returns {string[]}
+   */
+  secretValues() {
+    const values = [];
+    for (const value of this.#secrets.values()) {
+      const text = typeof value === "string" || typeof value === "number" || typeof value === "bigint" ? String(value) : "";
+      if (text.length >= 4) values.push(text);
+    }
+    return values.sort((a, b) => b.length - a.length);
+  }
+
+  /**
    * A fact about this run to filter on, like environment or device.
    * @param {string} key
    * @param {unknown} value
@@ -245,6 +260,9 @@ export class RunRecorder {
     run.summary ??= defaultSummary(run.result, run.steps);
     const leaks = secretLeaks(run, this.#secrets);
     if (leaks.length) throw new Error(`${leaks.join("\n")}\nA secret's value must never be written to the run. Take it out of those fields, or don't mark the value secret.`);
+    // After the check, so a declared secret still refuses the run. Patterns
+    // that were never marked secret are covered instead of kept.
+    maskRun(run);
     return { run: compact(run), files: new Map(this.files) };
   }
 

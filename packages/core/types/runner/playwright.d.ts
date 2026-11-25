@@ -2,6 +2,8 @@ import { RunRecorder } from "./recorder.js";
 export { expect } from "@playwright/test";
 export declare const RUN_ATTACHMENT = "journeysfirst-run";
 export declare const FILE_ATTACHMENT = "journeysfirst-file:";
+/** Declared secret values for the reporter, so it can redact a trace. Not a run file. */
+export declare const SECRET_ATTACHMENT = "journeysfirst-secrets";
 export declare const THREW = "The check threw an error before it could prove anything.";
 export declare const NO_PROOF = "The runner did not say how it was proven.";
 /** The pause after each line while video records, in ms, so a person watching can follow. */

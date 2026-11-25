@@ -28,9 +28,10 @@
 // on the digest.
 // Uploading only what is missing makes publish safe to rerun after an
 // interruption: it picks up where it stopped.
-// A Playwright trace (media kind "trace") is never sent. It holds anything the
-// page or the network saw, and the recorder can't check it for secrets. publish
-// sends the run without those media items, and the digest covers what it sends.
+// A Playwright trace (media kind "trace") is never sent. The copy in the run
+// folder is redacted, and publish still leaves it on the machine that ran the
+// journey. publish sends the run without those media items, and the digest
+// covers what it sends.
 import { isLoopback } from "../shared/local-host.js";
 import { readRunFolder } from "../format/run-folder.js";
 import { runDigest } from "../format/runfile.js";

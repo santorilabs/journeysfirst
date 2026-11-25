@@ -17,7 +17,7 @@ const MAY_IMPORT = {
   "src/runner": ["src/format", "src/shared"],
   "src/review": ["src/format", "src/shared"],
   "src/publish": ["src/format", "src/review", "src/shared"],
-  src: ["src/format"],
+  src: ["src/format", "src/shared"],
   bin: ["src", "src/format", "src/publish", "src/review", "src/shared"],
 };
 

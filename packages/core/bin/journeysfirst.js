@@ -7,8 +7,12 @@
 // journeysfirst review [dir] [--port n] [--host h]               browse run folders in a local review UI
 // journeysfirst publish <run folder> [--to url] [--journey file]   publish a run (token from JOURNEYSFIRST_TOKEN)
 // journeysfirst dev-server [--port n] [--host h]                 a local in-memory service to publish to
+// journeysfirst affected <path...>                               which journeys cover these changed paths
 // journeysfirst merge-check [runs folder] [--main <runs folder>]   may this change merge, from the runs of every journey
-// journeysfirst init [--skills dir]                              set up this repo: skills, Playwright config, .gitignore
+// journeysfirst report <run folder>                              write report.html into the run folder
+// journeysfirst summary <run folder>                             print a markdown summary for a pull request
+// journeysfirst doctor                                           check Node, Playwright, the config, baseURL and the journeys
+// journeysfirst init [--skills dir] [--demo]                     set up this repo: skills, Playwright config, .gitignore, and an example that passes when there is no app
 // journeysfirst upgrade [--skills dir]                           refresh the skills after installing a new version
 import { FORMAT_V0, caseIds, journeyVersion, journeyWarnings, loadJourney, validateJourney } from "../src/format/format.js";
 import { startDevServer } from "../src/publish/dev-server.js";
@@ -17,8 +21,11 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { addFindings, addReview, findJourney, newestRunFolder, readRunFolder, readRunJson } from "../src/format/run-folder.js";
 import { measuredReport } from "../src/review/measured.js";
+import { summaryMarkdown, writeReport } from "../src/review/report.js";
 import { serveReview } from "../src/review/review.js";
+import { affectedLines } from "../src/format/affected.js";
 import { mergeCheck } from "../src/format/merge-check.js";
+import { doctor } from "../src/doctor.js";
 import { init, nextSteps, upgrade } from "../src/setup.js";
 import { reviewLine } from "../src/shared/display.js";
 import { VERSION } from "../src/shared/version.js";
@@ -40,12 +47,26 @@ const USAGE = `Usage:
   journeysfirst review [runs folder] [--port <n>] [--host <address>]   (default port 4400, or PORT; host 127.0.0.1)
   journeysfirst publish <run folder> [--to <url>] [--journey <file>]   (default JOURNEYSFIRST_URL; token from JOURNEYSFIRST_TOKEN)
   journeysfirst dev-server [--port <n>] [--host <address>]   (default port 4500; host 127.0.0.1)
+  journeysfirst affected <path...>
+      Prints run or skip for each journey in journeys/, from journeys/covered-by.yaml.
+      A journey runs when a path matches one it covers. A journey with no entry is skipped.
   journeysfirst merge-check [runs folder] [--main <runs folder>]   (default journey-runs)
       Ok only when every journey in journeys/ has a valid run in which every check passed.
       A blocked check is ok only if the same check was blocked in main's newest run, in --main.
-  journeysfirst init [--skills <folder>]      set up this repo: copy the skills, add playwright.config.js if there is none, ignore journey-runs/, write a Journeys section in AGENTS.md, add the upgrade workflow
+  journeysfirst report <run folder>
+      Writes report.html into the run folder. Open it in a browser. Images are the screenshots beside it.
+  journeysfirst summary <run folder>
+      Prints markdown for a pull request: the result, each line, and why. It does not include images or video.
+  journeysfirst doctor
+      Checks Node, Playwright, Chromium, playwright.config.js, whether baseURL answers, and each journey file.
+      A failed check says what to run next. Chromium is installed with: npx playwright install --only-shell chromium
+  journeysfirst init [--skills <folder>] [--demo]
+      Set up this repo: copy the skills, add playwright.config.js if there is none, ignore journey-runs/, write a Journeys section in AGENTS.md, add the upgrade workflow.
+      Skills go to .agents/skills and .claude/skills. --skills <folder> copies to that folder only.
+      With no dev or start script, also add an example page, journey and script that pass. --demo adds that example even when a dev or start script exists.
+      When baseURL and webServer are both missing, init says what to set.
   journeysfirst upgrade [--skills <folder>]   after installing a new version: refresh the copied skills and delete retired ones
-      --skills defaults to .claude/skills. The app's own skill is never touched.`;
+      With no --skills, upgrade refreshes .agents/skills and .claude/skills. The app's own skill is never touched.`;
 
 const [command, ...rest] = process.argv.slice(2);
 const { positional, flags } = parseArgs(rest);
@@ -143,6 +164,17 @@ if (command === "--version" || command === "version") {
     console.error(error.message);
     process.exit(1);
   }
+} else if (command === "affected") {
+  if (!positional.length) {
+    console.error("Name the files that changed: journeysfirst affected <path>...");
+    process.exit(1);
+  }
+  try {
+    for (const line of affectedLines(process.cwd(), positional)) console.log(line);
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
 } else if (command === "merge-check") {
   try {
     const { ok, lines } = mergeCheck({ runsDir: positional[0] ?? "journey-runs", mainDir: flags.main });
@@ -154,9 +186,34 @@ if (command === "--version" || command === "version") {
     console.error(error.message);
     process.exit(1);
   }
+} else if (command === "report" && positional[0]) {
+  try {
+    console.log(writeReport(positional[0]));
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
+} else if (command === "summary" && positional[0]) {
+  try {
+    console.log(summaryMarkdown(readRunFolder(positional[0]).run));
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
+} else if (command === "doctor") {
+  try {
+    const { ok, lines } = await doctor();
+    for (const line of lines) console.log(`${line.ok ? "ok" : "NO"} ${line.name}: ${line.says}`);
+    if (!ok) console.log("Fix the lines marked NO, then run journeysfirst doctor again.");
+    process.exit(ok ? 0 : 1);
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
 } else if (command === "init" || command === "upgrade") {
   try {
-    const changes = (command === "init" ? init : upgrade)({ skillsDir: flags.skills });
+    const demo = flags.demo === true || flags.demo === "true";
+    const changes = command === "init" ? init({ skillsDir: flags.skills, demo }) : upgrade({ skillsDir: flags.skills });
     console.log(`journeysfirst ${VERSION} ${command}`);
     console.log(changes.map((line) => `  ${line}`).join("\n"));
     if (changes.every((line) => line.startsWith("unchanged "))) console.log("  Nothing changed.");
@@ -202,6 +259,7 @@ function parseArgs(args) {
     if (args[i].startsWith("--")) {
       const eq = args[i].indexOf("=");
       if (eq !== -1) flags[args[i].slice(2, eq)] = args[i].slice(eq + 1);
+      else if (args[i + 1] === undefined || args[i + 1].startsWith("--")) flags[args[i].slice(2)] = true;
       else flags[args[i].slice(2)] = args[++i];
     } else positional.push(args[i]);
   }

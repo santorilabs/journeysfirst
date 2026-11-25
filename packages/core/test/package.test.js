@@ -61,6 +61,8 @@ test("the package ships every skill from the repo's skills/, and only skills the
   const core = join(repo, "packages/core");
   for (const name of ["package.json", "README.md", "LICENSE", "src", "types", "bin", "templates"]) cpSync(join(ROOT, name), join(core, name), { recursive: true });
   cpSync(SKILLS, join(repo, "skills"), { recursive: true });
+  cpSync(join(ROOT, "../../spec"), join(repo, "spec"), { recursive: true });
+  cpSync(join(ROOT, "../../docs"), join(repo, "docs"), { recursive: true });
   cpSync(join(ROOT, "../../scripts/copy-skills.mjs"), join(repo, "scripts/copy-skills.mjs"));
   const packed = spawnSync("npm", ["pack", "--dry-run", "--json"], { cwd: core, encoding: "utf8" });
   assert.equal(packed.status, 0, packed.stderr);
@@ -69,7 +71,15 @@ test("the package ships every skill from the repo's skills/, and only skills the
   assert.deepEqual(underSkills.sort(), readdirSync(SKILLS).sort().map((name) => `skills/${name}/SKILL.md`));
   for (const file of underSkills) assert.match(file, /^skills\/[a-z-]+\/SKILL\.md$/, file);
   assert.ok(!existsSync(join(core, "skills")), "postpack removes the copy prepack made");
+  assert.ok(files.includes("spec/journey-format-v1.md"), "the journey spec ships in the package");
+  assert.ok(files.includes("spec/run-results-v1.md"), "the run spec ships in the package");
+  assert.ok(files.includes("docs/how-it-fits.md"), "the docs ship in the package");
+  assert.ok(!existsSync(join(core, "spec")), "postpack removes the spec copy");
+  assert.ok(!existsSync(join(core, "docs")), "postpack removes the docs copy");
   assert.ok(files.includes("templates/app-skill.md"), "the app skill template ships outside skills/");
+  for (const name of ["index.html", "serve.mjs", "see-the-example.journey.yaml", "see-the-example.spec.js"]) {
+    assert.ok(files.includes(`templates/demo/${name}`), `templates/demo/${name} ships so init can copy the example`);
+  }
 });
 
 test("each skill's name matches its folder, so a copied skill is found by the name the docs use", () => {

@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/santorilabs/journeysfirst/main/spec/journey-v1.schema.json
+format: journeysfirst/v1
+title: Hand a project to a new agent
+promise: |
+  I want to hand this project to an agent that has never seen it.
+  The agent should figure out what this is, set it up, and get a first try to pass.
+  It should use only what I handed it. I should not have to explain anything.
+users: [agent, teammate]
+start: The agent has only this project, and no memory of an earlier session. You are not in the session. A teammate has not seen a result yet.
+steps:
+  - The agent finds Journeys First in the project.
+  - The agent finds the instructions that come with it.
+  - The agent sets the project up.
+  - The agent tries the sample.
+  - check: The agent sees the sample pass.
+    id: agent-sees-the-pass
+  - check: The agent did not look outside what you handed it.
+    id: only-what-is-here
+    added: true
+  - check: You did not have to answer a question.
+    id: you-were-not-asked
+  - check: The teammate sees the same passing result.
+    id: teammate-sees-the-run
+    added: true
+  - check: The teammate does not see a step left undone.
+    id: teammate-sees-no-gap
+    added: true
+notes: The agent may read the project and the installed package. It may not read notes, chat, or another repo. The sample is the one setup adds when the project has no app of its own.

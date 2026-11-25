@@ -56,7 +56,7 @@ A file may always import a file in its own folder. Past that, it may import only
 | `src/runner` | `src/format`, `src/shared` |
 | `src/review` | `src/format`, `src/shared` |
 | `src/publish` | `src/format`, `src/review`, `src/shared` |
-| `src` | `src/format` |
+| `src` | `src/format`, `src/shared` |
 | `bin` | `src`, `src/format`, `src/publish`, `src/review`, `src/shared` |
 
 Any folder may also import Node built-ins. The only packages the source may import are `yaml` and `@playwright/test`. `npm run check:names` checks that.
@@ -72,6 +72,7 @@ Files, in `src/format/`:
 - `run-check.js`: `checkRun`, the one way every reader takes in a run file.
 - `run-folder.js`: a run folder on disk. `addFindings` writes a review's findings into it, and `addReview` a person's call. Neither changes anything else in `run.json`.
 - `merge-check.js`: whether a change may merge, from the runs of every journey in the repo. Each journey needs a valid run where every check passed. A check may stay blocked only if it was blocked in main's latest run too.
+- `affected.js`: which journeys to run again after a change. It reads `journeys/covered-by.yaml`, a list of paths each journey covers. `journeysfirst affected <path...>` prints `run` or `skip` for each journey. A journey with no entry is not selected. The paths are not part of the journey file, so the sentences stay plain.
 - `stable-json.js`: JSON with sorted keys, for the journey version and the digest.
 - `draft0/format-v0.js`: reads draft 0 journeys (`journeysfirst/v0`). Only `format.js` imports it.
 
@@ -91,9 +92,10 @@ Files, in `src/runner/`:
 - `playwright.js`: `test.journey` and the `journey` fixture (`page`, `step`, `check`, `value`). It uses `RunRecorder`.
 - `captions.js`: the caption bar each user's video shows for the line in progress, and screenshots taken without it. Only `playwright.js` uses it.
 - `measure.js`: what the runner reads from a user's screen after each line, for a review: the values in use, each control's box, and each click with the ms until the page first changed. It also holds the slow replay (`JOURNEYS_DELAY_MS`). Only `playwright.js` uses it.
+- `mask.js`: covers password fields and secret values in a screenshot, and redacts them in a trace zip and in the run file. `playwright.js`, `recorder.js` and `reporter.js` use it.
 - `reporter.js`: the Playwright reporter that writes each run to a folder.
 
-May import: the format layer, `src/shared`, and `@playwright/test` (only `playwright.js`). `reporter.js` imports two names from `playwright.js`.
+May import: the format layer, `src/shared`, and `@playwright/test` (only `playwright.js`). `reporter.js` imports the attachment names from `playwright.js`.
 
 Read first: `RunRecorder.result` in `recorder.js`, then `declareJourney` in `playwright.js` (it is `test.journey`).
 
@@ -119,6 +121,7 @@ Files, in `src/review/`:
 
 - `run-answer.js`: `runAnswer`, the short answer about one run: the result first, then what failed and what was not checked, then the link. It imports only `src/shared/display.js`.
 - `review.js`: `serveReview`, the local review page for a folder of runs.
+- `report.js`: `writeReport` writes `report.html` into a run folder, and `summaryMarkdown` is the pull request summary. Neither copies a video or a trace.
 - `measured.js`: `measuredReport`, what a run's `measure-<step>.txt` files show against the earlier reviewed run and the measured line in `journeys/README.md`. The `journey-review` skill has the criteria. This file settles only the ones a number can.
 - `run-player.js`: the run player on the review page: one user's video at a time, a switch between users, and each step as a mark on the timeline.
 - `player.js`: the review page's video player. Its controls sit under the video, so they never cover the captions.
@@ -134,11 +137,14 @@ Files, in `src/shared/`. None of them imports another source file.
 - `display.js`: small helpers a page needs to show a run (`isCheck`, `stepState`, `runTitle`, the verdict labels, and `reviewCounts` and `reviewLine` for a run's findings). It imports nothing, so a browser can load it (a test checks this). `runfile.js` uses it too, which is why it sits here and not in `review/`.
 - `local-host.js`: what counts as this machine (`localhost`, `127.0.0.1`, `::1`). The review page and the dev server use `hostAllowed` to answer only requests addressed to this machine when they listen on it. `publish.js` uses `isLoopback` to allow plain `http://` only to this machine.
 - `version.js`: the package version, read from `package.json`.
+- `target.js`: the message when a run has no `baseURL` and no `webServer`. `init` prints it, and the Playwright fixture throws it.
 
 ### The rest
 
-- `bin/journeysfirst.js`: the CLI (`validate`, `validate-run`, `merge-check`, `measured`, `add-findings`, `add-review`, `review`, `publish`, `dev-server`, `init`, `upgrade`, `--version`). It does not import the runner. Playwright runs the runner.
-- `src/setup.js`: `init` and `upgrade`. They copy the skills, add `playwright.config.js` when there is none, ignore `journey-runs/`, write a Journeys section in `AGENTS.md`, and add the upgrade workflow, `.github/workflows/journeysfirst-upgrade.yml`. It imports only Node built-ins.
+- `bin/journeysfirst.js`: the CLI (`validate`, `validate-run`, `merge-check`, `measured`, `add-findings`, `add-review`, `review`, `report`, `summary`, `publish`, `dev-server`, `doctor`, `init`, `upgrade`, `--version`). It does not import the runner. Playwright runs the runner.
+- `prepack` copies `skills/`, `spec/` and `docs/` from the repo root into this package, and `postpack` removes the copies. An install then has them at `node_modules/journeysfirst/spec` and `node_modules/journeysfirst/docs`.
+- `src/doctor.js`: `doctor`. Checks Node, Playwright, Chromium, the Playwright config, whether `baseURL` answers, and each journey file. The CLI is the only caller.
+- `src/setup.js`: `init` and `upgrade`. They copy the skills into `.agents/skills` and `.claude/skills` (or the folder `--skills` names), add `playwright.config.js` when there is none, ignore `journey-runs/`, write a Journeys section in `AGENTS.md`, and add the upgrade workflow, `.github/workflows/journeysfirst-upgrade.yml`. With no app to start, `init` also adds an example page, journey and script that pass. It imports Node built-ins and `src/shared/target.js`.
 - `src/index.js`: the main entry. It re-exports `format.js`, `runfile.js`, `checkRun` and `stableJson`.
 
 ## One run, from recorder to a sealed run on a service

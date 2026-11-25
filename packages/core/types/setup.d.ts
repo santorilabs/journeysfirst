@@ -1,17 +1,21 @@
 export declare const UPGRADE_WORKFLOW = ".github/workflows/journeysfirst-upgrade.yml";
 export declare const DEFAULT_SKILLS_DIR = ".claude/skills";
+/** init copies here unless --skills names one folder. .claude is first so a link from it into .agents is written through. */
+export declare const DEFAULT_SKILL_DIRS: string[];
 /** Skills an earlier release shipped and this one does not. upgrade deletes their copies. */
 export declare const RETIRED_SKILLS: string[];
 /** @returns {string[]} the names of the skills this package ships */
 export declare function packageSkills(): string[];
 /**
  * Set up a repo that has no Journeys First skills yet.
- * @param {{root?: string, skillsDir?: string}} [options]
+ * @param {{root?: string, skillsDir?: string, demo?: boolean}} [options]
+ *   demo: add the example page, journey and script even when the repo has a dev or start script.
  * @returns {string[]} one line per change
  */
-export declare function init({ root, skillsDir }?: {
+export declare function init({ root, skillsDir, demo }?: {
     root?: string;
     skillsDir?: string;
+    demo?: boolean;
 }): string[];
 /**
  * Refresh the skills in a repo set up by any earlier version. Only folders named

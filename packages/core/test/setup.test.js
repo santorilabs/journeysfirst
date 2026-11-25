@@ -37,12 +37,17 @@ test("the new Playwright config starts the app with its dev script, else its sta
   const dev = withScripts({ dev: "vite", start: "node server.js" });
   assert.match(read(dev.dir, "playwright.config.js"), /command: "npm run dev",/);
   assert.ok(dev.changes.includes("added playwright.config.js: webServer starts the app with npm run dev, on the port in JOURNEYS_PORT (4321 if unset). Check that the app listens on PORT"), dev.changes.join("\n"));
+  assert.ok(!existsSync(join(dev.dir, "demo")), "a repo with a dev script does not get the example");
   const start = withScripts({ start: "node server.js" });
   assert.match(read(start.dir, "playwright.config.js"), /command: "npm start",/);
   assert.ok(start.changes.some((c) => c.startsWith("added playwright.config.js: webServer starts the app with npm start")), start.changes.join("\n"));
+  assert.ok(!existsSync(join(start.dir, "demo")));
   const none = withScripts({ test: "node --test" });
-  assert.match(read(none.dir, "playwright.config.js"), /command: "echo \\"Set webServer\.command in playwright\.config\.js to the command that starts this app\.\\" >&2 && exit 1",/);
-  assert.ok(none.changes.includes("added playwright.config.js: package.json has no dev or start script. Set webServer's command to the command that starts this app"), none.changes.join("\n"));
+  assert.match(read(none.dir, "playwright.config.js"), /command: "node demo\/serve\.mjs",/);
+  assert.ok(none.changes.some((c) => c.startsWith("added playwright.config.js: webServer serves the example page in demo/")), none.changes.join("\n"));
+  assert.ok(existsSync(join(none.dir, "demo/index.html")));
+  assert.ok(existsSync(join(none.dir, "e2e/see-the-example.spec.js")));
+  assert.match(read(none.dir, "journeys/see-the-example.journey.yaml"), /journeysfirst example/);
 });
 
 test("the new Playwright config takes the app's port from JOURNEYS_PORT, so two runs can share a repo", async () => {
@@ -67,6 +72,45 @@ test("the new Playwright config takes the app's port from JOURNEYS_PORT, so two 
   assert.notEqual(other.outputDir, plain.outputDir, "each port has its own test-results folder");
 });
 
+test("with no app and an existing script, the new config sets neither baseURL nor webServer and says what to set", () => {
+  const dir = repo();
+  writeFileSync(join(dir, "package.json"), JSON.stringify({ scripts: { test: "node --test" } }));
+  mkdirSync(join(dir, "e2e"));
+  writeFileSync(join(dir, "e2e/own.spec.js"), "the product's script\n");
+  const changes = init({ root: dir });
+  const config = read(dir, "playwright.config.js");
+  assert.doesNotMatch(config, /\bwebServer\s*:/);
+  assert.doesNotMatch(config, /\bbaseURL\s*:/);
+  assert.match(config, /npx journeysfirst init --demo/);
+  assert.ok(!existsSync(join(dir, "demo")));
+  assert.ok(changes.some((c) => c.includes("This run has no baseURL and no webServer.") && c.includes("npx journeysfirst init --demo")), changes.join("\n"));
+});
+
+test("init --demo adds the example even when the repo has a start script, and skips it when a config is already there", () => {
+  const dir = repo();
+  writeFileSync(join(dir, "package.json"), JSON.stringify({ scripts: { start: "node server.js" } }));
+  const added = init({ root: dir, demo: true });
+  assert.match(read(dir, "playwright.config.js"), /command: "node demo\/serve\.mjs",/);
+  assert.ok(added.includes("added journeys/see-the-example.journey.yaml"), added.join("\n"));
+  assert.ok(added.some((c) => c.startsWith("added playwright.config.js: webServer serves the example page")), added.join("\n"));
+  const taken = repo();
+  writeFileSync(join(taken, "playwright.config.js"), "export default { use: { baseURL: \"http://127.0.0.1:3000\" }, webServer: { command: \"npm start\" } };\n");
+  const skipped = init({ root: taken, demo: true });
+  assert.ok(!existsSync(join(taken, "demo")));
+  assert.ok(skipped.some((c) => c.includes("--demo did not add the example")), skipped.join("\n"));
+});
+
+test("the example from init does not count as the product's own journeys, so the next steps still install the browser", () => {
+  const dir = repo();
+  init({ root: dir });
+  const steps = nextSteps("init", { root: dir }).join("\n");
+  assert.match(steps, /npx playwright install --only-shell chromium/);
+  assert.match(steps, /journey-onboard/);
+  const upgraded = nextSteps("upgrade", { root: dir }).join("\n");
+  assert.match(upgraded, /journey-onboard/);
+  assert.doesNotMatch(upgraded, /Run the journeys again/);
+});
+
 test("init keeps an existing Playwright config and .gitignore lines, and says when the config lacks the reporter", () => {
   const dir = repo();
   writeFileSync(join(dir, "playwright.config.ts"), "export default {};\n");
@@ -76,6 +120,8 @@ test("init keeps an existing Playwright config and .gitignore lines, and says wh
   assert.ok(!existsSync(join(dir, "playwright.config.js")));
   assert.equal(read(dir, "playwright.config.ts"), "export default {};\n");
   assert.ok(changes.some((c) => c.startsWith("kept playwright.config.ts") && c.includes("journeysfirst/reporter")), changes.join("\n"));
+  assert.ok(changes.some((c) => c.startsWith("kept playwright.config.ts. This run has no baseURL and no webServer.")), changes.join("\n"));
+  assert.ok(changes.some((c) => c.includes("npx journeysfirst init --demo")), changes.join("\n"));
   assert.equal(read(dir, ".gitignore"), "node_modules/\njourney-runs/\ntest-results/\n");
 });
 
@@ -185,16 +231,37 @@ test("upgrade writes through linked skill folders, the layout npx skills add mak
   assert.ok(changes.includes("added AGENTS.md"), changes.join("\n"));
 });
 
-test("upgrade falls back to .agents/skills when .claude/skills has none of our skills", () => {
+test("upgrade on a repo that only has .agents/skills also fills .claude/skills", () => {
   const dir = repo();
   mkdirSync(join(dir, ".agents/skills/journey-write"), { recursive: true });
   writeFileSync(join(dir, ".agents/skills/journey-write/SKILL.md"), "an older copy\n");
   const changes = upgrade({ root: dir });
   assert.equal(read(dir, ".agents/skills/journey-write/SKILL.md"), skill("journey-write"));
+  assert.equal(read(dir, ".claude/skills/journey-write/SKILL.md"), skill("journey-write"));
   assert.ok(changes.includes("added .agents/skills/journey-onboard"), changes.join("\n"));
-  assert.match(read(dir, "AGENTS.md"), /\.agents\/skills\/journey-run\/SKILL\.md/);
-  assert.match(read(dir, UPGRADE_WORKFLOW), /journeysfirst upgrade --skills \.agents\/skills/);
-  assert.match(nextSteps("upgrade", { root: dir }).join("\n"), /\.agents\/skills\/journey-onboard\/SKILL\.md/);
+  assert.ok(changes.includes("added .claude/skills/journey-onboard"), changes.join("\n"));
+  assert.match(read(dir, "AGENTS.md"), /\.claude\/skills\/journey-run\/SKILL\.md/);
+  assert.match(read(dir, UPGRADE_WORKFLOW), /\$run journeysfirst upgrade \|/);
+  assert.doesNotMatch(read(dir, UPGRADE_WORKFLOW), /--skills/);
+  assert.match(nextSteps("upgrade", { root: dir }).join("\n"), /\.claude\/skills\/journey-onboard\/SKILL\.md/);
+});
+
+test("init copies the skills into .agents/skills and .claude/skills, and --skills copies to one folder", () => {
+  const dir = repo();
+  const changes = init({ root: dir });
+  assert.deepEqual(readdirSync(join(dir, ".agents/skills")).sort(), packageSkills());
+  assert.deepEqual(readdirSync(join(dir, ".claude/skills")).sort(), packageSkills());
+  for (const name of packageSkills()) assert.equal(read(dir, `.agents/skills/${name}/SKILL.md`), skill(name));
+  assert.ok(changes.includes("added .agents/skills/journey-onboard"), changes.join("\n"));
+  assert.ok(changes.includes("added .claude/skills/journey-onboard"), changes.join("\n"));
+  const one = repo();
+  init({ root: one, skillsDir: ".claude/skills" });
+  assert.ok(existsSync(join(one, ".claude/skills/journey-run/SKILL.md")));
+  assert.ok(!existsSync(join(one, ".agents")));
+  const agents = repo();
+  mkdirSync(join(agents, ".agents/skills/journey-run"), { recursive: true });
+  writeFileSync(join(agents, ".agents/skills/journey-run/SKILL.md"), "already\n");
+  assert.throws(() => init({ root: agents }), /\.agents\/skills already has journey-run[\s\S]*npx journeysfirst upgrade/);
 });
 
 test("CLI --help exits 0 and accepts --flag=value syntax", () => {
@@ -203,6 +270,7 @@ test("CLI --help exits 0 and accepts --flag=value syntax", () => {
     const res = cli([arg], dir);
     assert.equal(res.status, 0, `${arg}: ${res.stdout}${res.stderr}`);
     assert.match(res.stdout, /^Usage:/);
+    assert.match(res.stdout, /Skills go to \.agents\/skills and \.claude\/skills/);
   }
   const eqInit = cli(["init", "--skills=.agents/skills"], dir);
   assert.equal(eqInit.status, 0, eqInit.stdout + eqInit.stderr);
@@ -228,6 +296,12 @@ test("the CLI runs init and upgrade in the current folder, takes --skills, and p
   const refused = cli(["init", "--skills", ".agents/skills"], dir);
   assert.equal(refused.status, 1);
   assert.match(refused.stderr, /npx journeysfirst upgrade/);
+  const demo = repo();
+  writeFileSync(join(demo, "package.json"), JSON.stringify({ scripts: { start: "node server.js" } }));
+  const flagged = cli(["init", "--demo"], demo);
+  assert.equal(flagged.status, 0, flagged.stdout + flagged.stderr);
+  assert.match(flagged.stdout, /added demo\/index\.html/);
+  assert.match(flagged.stdout, /node demo\/serve\.mjs|example page in demo/);
 });
 
 test("init adds the Journeys section to AGENTS.md, and never makes a CLAUDE.md", () => {

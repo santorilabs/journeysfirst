@@ -99,7 +99,7 @@ Agree with the person on which journeys to draft first. Then update the file.
 
 ## 7. Draft the top journeys
 
-- No Journeys section in `AGENTS.md` (no `<!-- journeysfirst:start -->`)? Run `npx journeysfirst init`, or `npx journeysfirst upgrade` when the skills are already there (pass `--skills .agents/skills` for Codex, Devin or Cursor, or `--skills <folder>` for another folder).
+- No Journeys section in `AGENTS.md` (no `<!-- journeysfirst:start -->`)? Run `npx journeysfirst init`, or `npx journeysfirst upgrade` when the skills are already there. init copies the skills to `.agents/skills` and `.claude/skills`. Pass `--skills <folder>` to use one folder. If that adds `demo/` and an example journey, they are not this product. Delete them before you draft the real journeys.
 - For each top journey, follow `journey-write`, but write from what you read: skip its "Exploring a product that exists" section, since onboarding starts nothing and signs in to nothing. Each "What good means" line that applies becomes a check. Check each file with `npx journeysfirst validate`.
 - A planned promise gets a journey too. It fails until the feature exists.
 - Set each status to **drafted** in `journeys/README.md`.

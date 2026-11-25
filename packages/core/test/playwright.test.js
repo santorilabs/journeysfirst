@@ -68,7 +68,7 @@ function journeyRun({ screencast, ...options } = {}) {
   const browser = fakeBrowser({ screencast });
   const attached = [];
   const testInfo = { project: { use: { baseURL: "http://localhost:4321" } }, outputPath: (p) => join(dir, p), attach: async (name) => attached.push(name) };
-  return { browser, attached, run: new JourneyRun({ file, caseId: null, browser, testInfo, video: true, pause: 0, ...options }) };
+  return { browser, attached, testInfo, run: new JourneyRun({ file, caseId: null, browser, testInfo, video: true, pause: 0, ...options }) };
 }
 
 test("each user gets their own context, with clipboard access and video", async () => {
@@ -462,4 +462,41 @@ test("captions: { position: \"bottom\" } puts the bar at the bottom and the clic
   assert.match(log.find(([c]) => c === "show")[1], /part="jf-bar jf-bottom /);
   assert.deepEqual(log.filter(([c]) => c === "showActions").map(([, o]) => o.position), ["top-right", "top-right"], "after a screenshot the marks go back to the same corner");
   assert.throws(() => journeyRun({ captions: { position: "left" } }), /captions position must be "top" or "bottom", not "left"\./);
+});
+
+test("a screenshot covers the page, then puts it back", async () => {
+  const { run } = journeyRun({ measure: false });
+  const you = await run.page("you");
+  const names = [];
+  you.evaluate = async (fn) => {
+    names.push(fn.name);
+    return fn.name === "applyMask" ? true : undefined;
+  };
+  await run.step(1, { by: "you" }, async () => {});
+  assert.deepEqual(names, ["applyMask", "restoreMask"]);
+});
+
+test("a screenshot does not restore the page when nothing was covered", async () => {
+  const { run } = journeyRun({ measure: false });
+  const you = await run.page("you");
+  const names = [];
+  you.evaluate = async (fn) => {
+    names.push(fn.name);
+    return false;
+  };
+  await run.step(1, { by: "you" }, async () => {});
+  assert.deepEqual(names, ["applyMask"]);
+});
+
+test("finish gives the reporter the secret values, and the run file does not contain them", async () => {
+  const { run, testInfo } = journeyRun({ measure: false, video: false });
+  /** @type {Map<string, Buffer>} */
+  const bodies = new Map();
+  testInfo.attach = async (name, options) => bodies.set(name, options?.body);
+  await run.page("you");
+  run.recorder.value("code", "481516-secret", { secret: true });
+  await run.step(1, { by: "you" }, async () => {});
+  await run.finish();
+  assert.deepEqual(JSON.parse(bodies.get("journeysfirst-secrets").toString()), ["481516-secret"]);
+  assert.doesNotMatch(bodies.get("journeysfirst-run").toString(), /481516-secret/);
 });

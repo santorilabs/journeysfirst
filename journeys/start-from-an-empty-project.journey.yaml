@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/santorilabs/journeysfirst/main/spec/journey-v1.schema.json
+format: journeysfirst/v1
+title: See what it is before you install
+promise: I just found Journeys First. I wanna see what it is about and if I wanna install it
+users: [teammate]
+start: Nothing is installed. You and a teammate are reading the same public page.
+steps:
+  - Read the page.
+  - check: You see what Journeys First is.
+    id: what-it-is
+  - check: You see who it is for.
+    id: who-it-is-for
+  - check: You see how to get started.
+    id: how-to-start
+  - check: The teammate sees the same way to get started.
+    id: teammate-sees-how-to-start
+    added: true
+  - check: The teammate sees "Journeys First", the same thing you see.
+    id: teammate-sees-the-same-product
+    added: true
+  - Install it.
+  - Try the sample it gives you.
+  - check: You see the sample pass.
+    id: first-run-passes
+  - check: The teammate sees that it passed.
+    id: teammate-sees-the-pass
+    added: true
+  - check: The teammate does not see an error.
+    id: teammate-sees-no-error
+    added: true
+  - Leave out where the app lives.
+  - Ask what is wrong.
+  - check: You see that it does not know where the app is, and you see what to tell it.
+    id: missing-address
+    added: true
+  - check: The teammate does not see this called a success.
+    id: teammate-no-false-pass
+    added: true
+notes: The public page is the README, the package page, and the overview shipped with the repo. The sample is the one setup adds when the project has no app of its own. Where the app lives is the address a run opens.

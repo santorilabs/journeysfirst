@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/santorilabs/journeysfirst/main/spec/journey-v1.schema.json
+format: journeysfirst/v1
+title: Let an agent show you the proof
+promise: |
+  I want my coding agent to learn how this works, try one thing on the page, and show me the proof.
+  I do not want to step in.
+users: [agent, reviewer]
+start: The project is ready. The instructions are already there. Nothing for this task is written yet. You are not watching. A reviewer will look at the proof.
+steps:
+  - The agent finds the instructions.
+  - The agent writes down one thing the page should do.
+  - The agent tries that.
+  - check: The agent sees whether each step worked.
+    id: result-on-every-line
+  - check: The agent is not asked to wait for you.
+    id: agent-not-waiting
+    added: true
+  - check: You see the proof, and you did none of the steps.
+    id: you-see-the-proof
+  - check: The reviewer sees whether each step worked.
+    id: reviewer-sees-every-line
+    added: true
+  - check: The reviewer does not see a secret in the proof.
+    id: reviewer-sees-no-secret
+    added: true
+notes: The instructions are the skill files the setup copies into the project. The proof is the saved run of what the agent wrote. You do not type, click, or answer.

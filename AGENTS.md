@@ -22,7 +22,7 @@ Run them on the final change and read the results. Fix failures your change caus
   - Writing runs: `src/runner/` (`recorder.js`, `playwright.js`).
   - Showing runs: `src/review/review.js`, and `src/shared/display.js` (browser-safe).
   - Sending runs: `src/publish/` (`publish.js`, `publish-handler.js`).
-- Skills are in `skills/` at the repo root. The format specs are in `spec/`. `prepack` copies `skills/` into the package, so `npx journeysfirst init` can copy them from `node_modules`.
+- Skills are in `skills/` at the repo root. The format specs are in `spec/`. The docs are in `docs/`. `prepack` copies `skills/`, `spec/` and `docs/` into the package, so `npx journeysfirst init` can copy the skills from `node_modules`, and an agent can read `node_modules/journeysfirst/spec` and `node_modules/journeysfirst/docs`.
 - Which folder may import which: the table in [docs/how-it-fits.md](docs/how-it-fits.md). `test/layers.test.js` enforces it.
 
 ## Rules for changes

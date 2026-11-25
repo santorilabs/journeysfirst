@@ -71,6 +71,8 @@
     "types",
     "bin",
     "skills",
+    "spec",
+    "docs",
     "templates"
   ],
   "scripts": {
