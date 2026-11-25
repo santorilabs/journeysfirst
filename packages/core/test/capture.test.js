@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { recording } from "../src/runner/recorder.js";
-import { recordAllPassed, recorder } from "./helpers.js";
+import { JOURNEY, recordAllPassed, recorder } from "./helpers.js";
 
 const cli = fileURLToPath(new URL("../bin/journeysfirst.js", import.meta.url));
 const node = process.execPath;
@@ -114,4 +114,187 @@ test("a newly declared secret in an attached capture prevents sealing the run", 
   run.value("fixture", value, { secret: true });
   assert.throws(() => run.finish(), { message: "A declared secret is in an attached transcript. Remove it from the transcript before writing the run." });
   assert.equal(existsSync(join(root, "share-by-link")), false);
+});
+
+const fakeCodex = `#!/usr/bin/env node
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const { spawnSync } = require("node:child_process");
+const path = require("node:path");
+const args = process.argv.slice(2);
+const input = fs.readFileSync(0, "utf8");
+const auth = path.join(process.env.CODEX_HOME, "auth.json");
+assert.equal(process.env.OPENAI_API_KEY, undefined);
+assert.ok(!fs.existsSync(".env.local"));
+assert.ok(!fs.existsSync(path.join(process.env.HOME, ".convex")));
+if (args[0] === "sandbox") {
+  assert.match(args.join(" "), /default_permissions="journeysfirst"/);
+  assert.ok(args.join(" ").includes(JSON.stringify(process.env.CODEX_HOME) + '="deny"'));
+  const probe = args.at(-2);
+  if (probe === auth) {
+    assert.match(fs.readFileSync(probe, "utf8"), /Synthetic probe/);
+    if (fs.existsSync("unsafe.txt")) process.exit(1);
+  } else {
+    assert.match(fs.readFileSync(probe, "utf8"), /Synthetic host home probe/);
+    assert.ok(args.join(" ").includes(JSON.stringify(path.dirname(path.dirname(probe))) + '="deny"'));
+    assert.match(args.join(" "), /":minimal"="read"/);
+    if (fs.existsSync("leaky-home.txt")) process.exit(1);
+  }
+  console.log("journeysfirst: workspace readable, auth directory denied");
+} else if (args[0] === "login") {
+  assert.equal(input.trim(), "synthetic-fixture-key");
+  assert.ok(!fs.existsSync(auth));
+  fs.writeFileSync(auth, "fake auth");
+} else {
+  assert.ok(args.includes("exec") && args.includes("--json") && !args.some(a => a.includes("dangerously")));
+  assert.match(input, /1\\. /);
+  assert.match(input, /Check link-on/);
+  assert.match(input, /cause: product, test, environment/);
+  assert.doesNotMatch(input, /private setup hint/);
+  if (fs.existsSync("mcp-crash.txt")) {
+    const argsJson = args.find(a => a.startsWith("mcp_servers.demo.args=")).slice("mcp_servers.demo.args=".length);
+    const proxy = JSON.parse(argsJson);
+    const [command, ...argv] = proxy.slice(proxy.indexOf("--") + 1);
+    const child = spawnSync(command, argv, { input: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "status" } }) + "\\n", encoding: "utf8" });
+    assert.equal(child.status, 32);
+    assert.equal(child.stdout, "");
+  } else if (fs.existsSync("timeout.txt")) {
+    fs.writeFileSync(".journeysfirst/results.jsonl", '{"line":1,"status":"done"}\\n');
+    setInterval(() => {}, 500);
+  } else if (fs.existsSync("failures.txt")) {
+    fs.writeFileSync(".journeysfirst/results.jsonl", [
+      { line: 1, status: "failed", cause: "product", reason: "The control refused the change." },
+      { id: "link-on", verdict: "blocked", cause: "environment", reason: "The browser did not start." },
+      { id: "viewer-blocked", verdict: "blocked", reason: "Missing cause." },
+    ].map(JSON.stringify).join("\\n"));
+  } else {
+    assert.equal(fs.readFileSync(auth, "utf8"), "fake auth");
+    const proxy = JSON.parse(args.find(a => a.startsWith("mcp_servers.demo.args=")).split("=").slice(1).join("="));
+    assert.deepEqual(proxy.slice(0, 3), ["sandbox", "-P", "journeysfirst"]);
+    assert.ok(proxy.includes("mcp-proxy"));
+    assert.ok(proxy.some(a => a.includes(JSON.stringify(process.env.CODEX_HOME) + '="deny"')));
+    assert.deepEqual(args.filter(a => a.includes("default_tools_approval_mode")), ['mcp_servers.demo.default_tools_approval_mode="approve"']);
+    assert.deepEqual(args.slice(0, 2), ["-a", "never"]);
+    const cmd = spawnSync(process.execPath, [".journeysfirst/codex-capture.mjs", "capture", "command.txt", "--",
+      process.execPath, "-e", "console.log('Sharing is on')"], { encoding: "utf8" });
+    assert.equal(cmd.status, 0);
+    const outcomes = [
+      { line: 1, status: "done" },
+      { id: "link-on", verdict: "passed", proof: "The command showed it.", refs: [{ file: "command.txt", line: 1 }] },
+      { id: "viewer-blocked", verdict: "passed", proof: "No capture." },
+    ];
+    if (fs.existsSync("complete.txt") || fs.existsSync("complete-clean.txt")) {
+      const [, pass] = outcomes;
+      outcomes.pop();
+      outcomes.push(...[3, 5, 6].map(line => ({ line, status: "done" })),
+        ...["viewer-sees-it", "viewer-blocked"].map(id => ({ ...pass, id })));
+      if (fs.existsSync("complete.txt")) process.exitCode = 7;
+    }
+    fs.writeFileSync(".journeysfirst/results.jsonl", outcomes.map(JSON.stringify).join("\\n"));
+    console.log(JSON.stringify({ type: "item.completed", item: { type: "reasoning", text: "Private reasoning" } }));
+    console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "Sharing worked. The rest was not checked." } }));
+  }
+}
+`;
+
+function codexFixture(mode, flags = []) {
+  const root = dir();
+  const bin = join(root, "bin");
+  const project = join(root, "project");
+  mkdirSync(bin);
+  mkdirSync(project);
+  writeFileSync(join(bin, "codex"), fakeCodex, { mode: 0o700 });
+  const journey = mode === "multi-seat" ? JOURNEY : JOURNEY.replace("users: [viewer]\n", "");
+  writeFileSync(join(root, "share-by-link.journey.yaml"), journey + "\nnotes: private setup hint\n");
+  writeFileSync(join(project, ".env.local"), "Private product login");
+  if (mode) writeFileSync(join(project, mode + ".txt"), "");
+  const server = mode === "mcp-crash" ? [node, "-e", "process.stdin.once('data', () => process.exit(32))"] : ["node", "server.js"];
+  writeFileSync(join(root, "mcp.json"), JSON.stringify({ demo: server }));
+  const args = [cli, "run", "share-by-link.journey.yaml", "--agent", "codex", "--project", project, "--mcp", "mcp.json", "--timeout", mode === "timeout" ? "1" : "5", ...flags, "--"];
+  const env = { ...process.env, PATH: bin + ":" + process.env.PATH, OPENAI_API_KEY: "synthetic-fixture-key" };
+  const result = spawnSync(process.execPath, args, { cwd: root, env, encoding: "utf8", timeout: 10000 });
+  const runs = join(root, "journey-runs", "share-by-link");
+  if (!existsSync(runs)) return { result };
+  const folder = join(runs, readdirSync(runs)[0]);
+  return { result, folder, run: JSON.parse(readFileSync(join(folder, "run.json"), "utf8")) };
+}
+
+test("Codex gets the journey without hints, safe auth setup, wrapped MCP config and an evidence-backed result", () => {
+  const { result, folder, run } = codexFixture();
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stderr, /without a container/);
+  assert.equal(run.steps[1].verdict, "passed");
+  assert.equal(run.steps[1].evidence[0].login, "you");
+  assert.equal(run.steps.find((step) => step.id === "viewer-blocked").verdict, "not_checked");
+  assert.equal(run.result, "not_fully_checked");
+  assert.equal(readFileSync(join(folder, "handoff.txt"), "utf8"), "Sharing worked. The rest was not checked.");
+  assert.doesNotMatch(JSON.stringify(run), /synthetic-fixture-key|Private reasoning/);
+});
+
+test("timeout saves completed steps and leaves missing checks unverified", () => {
+  const { result, run } = codexFixture("timeout");
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /time limit/);
+  assert.equal(run.steps[0].status, "done");
+  assert.equal(run.steps[1].verdict, "not_checked");
+  assert.equal(run.media, undefined);
+});
+
+test("a crashed MCP server leaves an environment failure even if Codex exits cleanly", () => {
+  const { result, folder, run } = codexFixture("mcp-crash");
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stderr, /MCP server "demo" exited with status 32/);
+  assert.equal(run.summary, 'MCP server "demo" exited with status 32.');
+  assert.deepEqual(run.tags.mcp_server_failures, [{ server: "demo", code: 32, cause: "environment" }]);
+  assert.equal(run.result, "not_fully_checked");
+  assert.equal(run.steps[1].verdict, "not_checked");
+  assert.match(readFileSync(join(folder, "demo.txt"), "utf8"), /client tools\/call status/);
+});
+
+test("a failed sandbox probe never sends the API key to login", () => {
+  const { result, run } = codexFixture("unsafe");
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /could not prove that its sandbox blocks the provider login/);
+  assert.equal(run.steps[1].verdict, "not_checked");
+});
+
+test("Codex imports failure causes and records rejected result lines", () => {
+  const { run } = codexFixture("failures");
+  assert.equal(run.result, "failed");
+  assert.equal(run.steps[0].status, "failed");
+  assert.equal(run.steps[0].cause, "product");
+  assert.equal(run.steps[1].verdict, "blocked");
+  assert.equal(run.steps[1].cause, "environment");
+  assert.match(run.tags.result_import_errors[0], /Result line 3: .*needs a cause/);
+});
+
+test("a nonzero agent exit cannot seal a passed run even with every line submitted", () => {
+  const { result, run } = codexFixture("complete");
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /No run was saved because a passing run needs a clean exit/);
+  assert.equal(run, undefined);
+  const clean = codexFixture("complete-clean");
+  assert.equal(clean.result.status, 0, clean.result.stderr);
+  assert.equal(clean.run.result, "passed");
+  assert.equal(clean.run.steps.at(-1).verdict, "passed");
+});
+
+test("the single-seat Codex launcher refuses a journey that names another seat", () => {
+  const { result, run } = codexFixture("multi-seat");
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /only plays the 'you' seat/);
+  assert.equal(run, undefined);
+});
+
+test("host-home denial must pass the probe unless the caller opts into host reads", () => {
+  const denied = codexFixture("leaky-home");
+  assert.equal(denied.result.status, 1);
+  assert.match(denied.result.stderr, /could not prove that its sandbox blocks your home directory/);
+  assert.equal(denied.run.steps[1].verdict, "not_checked");
+
+  const allowed = codexFixture("leaky-home", ["--allow-host-read"]);
+  assert.equal(allowed.result.status, 0, allowed.result.stderr);
+  assert.match(allowed.result.stderr, /Host files.*can be read/);
+  assert.equal(allowed.run.steps[1].verdict, "passed");
+  assert.equal(codexFixture("unsafe", ["--allow-host-read"]).result.status, 1);
 });
