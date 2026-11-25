@@ -409,25 +409,39 @@ function secretLeaks(run, secrets) {
  * Every text value and every data key, with its path.
  * @param {unknown} value
  * @param {string} path
- * @param {boolean} [data] keys are supplied by the caller, not the run format
+ * @param {string} [shape] the format path, stopped when entering free-form data
  * @returns {Generator<[string, string]>}
  */
-function* stringFields(value, path, data = false) {
+function* stringFields(value, path, shape = "") {
   if (typeof value === "string" || typeof value === "number") yield [path, String(value)];
-  else if (Array.isArray(value)) for (const [i, item] of value.entries()) yield* stringFields(item, `${path}[${i}]`, data);
+  else if (Array.isArray(value)) for (const [i, item] of value.entries()) yield* stringFields(item, `${path}[${i}]`, `${shape}[]`);
   else if (value && typeof value === "object") {
-    const map = data || path === "tags" || path === "users" || path === "played_by" || /^media\[\d+\]\.tags$/.test(path);
-    const evidence = /^steps\[\d+\]\.evidence\[\d+\]$/.test(path);
     for (const [key, item] of Object.entries(value)) {
       const field = path ? `${path}.${key}` : key;
-      const extraRunnerField = path === "ran_by" && key !== "agent" && key !== "model";
-      if (map || path === "values" || extraRunnerField || (evidence && !EVIDENCE_FIELDS.has(key))) yield [field, key];
-      yield* stringFields(item, field, map || evidence || extraRunnerField || (path.startsWith("values.") && key === "value"));
+      const defined = FORMAT_KEYS.get(shape)?.has(key);
+      if (!defined) yield [field, key];
+      const child = shape === "values" ? "values.*" : defined ? (shape ? `${shape}.${key}` : key) : "*";
+      yield* stringFields(item, field, child);
     }
   }
 }
 
-const EVIDENCE_FIELDS = new Set(["source", "login", "key", "got", "expected", ...Object.values(LOOKUP)]);
+const evidenceKeys = new Set(["source", "login", "key", ...Object.values(LOOKUP)]);
+const FORMAT_KEYS = new Map([
+  ["", new Set("format id journey result summary started_at finished_at ran_by journeysfirst tags repos users played_by repeat values media verified not_verified steps findings reviews".split(" "))],
+  ["journey", new Set(["name", "version", "case"])],
+  ["ran_by", new Set(["agent", "model"])],
+  ["repos[]", new Set(["repo", "branch", "commit"])],
+  ["repeat", new Set(["batch", "n", "of"])],
+  ["values.*", new Set(["value", "secret"])],
+  ["media[]", new Set(["file", "kind", "starts_at", "tags"])],
+  ["steps[]", new Set("says status check id by verdict claimed proof evidence at took screenshots cause reason added".split(" "))],
+  ["steps[].screenshots[]", new Set(["file", "url"])],
+  ["steps[].evidence[]", evidenceKeys],
+  ["findings[]", new Set(["id", "criterion", "says", "evidence", "step", "ask"])],
+  ["findings[].evidence[]", evidenceKeys],
+  ["reviews[]", new Set(["by", "at", "on", "says"])],
+]);
 
 /** A screenshot given as {image, url}, not bare bytes or a path. */
 /** @param {Shot} shot @returns {shot is {image: Image, url?: string}} */
