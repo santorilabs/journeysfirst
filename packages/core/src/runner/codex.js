@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { accessSync, closeSync, constants, copyFileSync, cpSync, fstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { accessSync, chmodSync, closeSync, constants, copyFileSync, cpSync, fstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -31,9 +31,15 @@ export async function runCodex({ journey, caseId, project, mcp, container, allow
   const work = join(base, "work"), home = join(base, "home"), auth = join(base, "codex");
   const state = join(work, ".journeysfirst");
   const captures = join(state, "captures");
-  const launcher = launcherFor({ base, work, home, auth, container });
+  const authFile = join(auth, "auth.json");
+  const interrupt = new AbortController();
+  const onInterrupt = () => interrupt.abort();
+  const launcher = launcherFor({ base, work, home, auth, container, signal: interrupt.signal });
   let problem;
   let probeDir;
+  /** @type {Buffer | undefined} */
+  let reusedLogin;
+  process.on("SIGINT", onInterrupt);
   try {
     if (project) {
       const source = realpathSync(project);
@@ -51,10 +57,9 @@ export async function runCodex({ journey, caseId, project, mcp, container, allow
     const hostHome = !container && !allowHostRead ? realpathSync(homedir()) : undefined;
     const permissions = profile({ work, home, auth, container, hostHome, loginFile });
     const sandbox = ["sandbox", "-P", PROFILE, ...permissions];
-    const probe = join(auth, "auth.json");
-    writeFileSync(probe, "Synthetic probe. No login is in this file.\n");
-    const checked = await launcher([...sandbox, "--", "node", "-e", probeCode(), work, probe, String(process.pid)], "", 15000);
-    rmSync(probe, { force: true });
+    writeFileSync(authFile, "Synthetic probe. No login is in this file.\n");
+    const checked = await launcher([...sandbox, "--", "node", "-e", probeCode(), work, authFile, String(process.pid)], "", 15000);
+    rmSync(authFile, { force: true });
     if (checked.code !== 0 || checked.stdout.trim() !== PROBE) {
       throw new Error("Codex could not prove that its sandbox blocks the provider login. Use a compatible container or install Codex and Node outside your home directory.");
     }
@@ -78,7 +83,8 @@ export async function runCodex({ journey, caseId, project, mcp, container, allow
       if (login.code !== 0) throw new Error("Codex could not sign in with OPENAI_API_KEY. Check that the provider key is valid.");
     } else if (loginFile) {
       try {
-        writeFileSync(probe, readFileSync(loginFile), { mode: 0o600, flag: "wx" });
+        reusedLogin = readFileSync(loginFile);
+        writeFileSync(authFile, reusedLogin, { mode: 0o600, flag: "wx" });
       } catch {
         throw new Error("Could not reuse the Codex login. Run `codex login`.");
       }
@@ -105,8 +111,16 @@ export async function runCodex({ journey, caseId, project, mcp, container, allow
   } catch (error) {
     problem = run.redact(error instanceof Error ? error.message : "Codex could not complete the journey.");
   } finally {
-    if (probeDir) rmSync(probeDir, { recursive: true, force: true });
-    rmSync(base, { recursive: true, force: true });
+    if (interrupt.signal.aborted) problem = "Codex was interrupted.";
+    try {
+      if (loginFile && reusedLogin) saveRefreshedLogin(loginFile, authFile, reusedLogin);
+    } catch {
+      problem = [problem, "Could not save the refreshed Codex login. Run `codex login`."].filter(Boolean).join(" ");
+    } finally {
+      process.removeListener("SIGINT", onInterrupt);
+      if (probeDir) rmSync(probeDir, { recursive: true, force: true });
+      rmSync(base, { recursive: true, force: true });
+    }
   }
   const { run: outcome, files } = run.result(problem ? { summary: problem } : undefined);
   if (problem && outcome.result === "passed") {
@@ -141,22 +155,22 @@ function agentPrompt(run) {
   ].filter((line) => line !== undefined).join("\n");
 }
 
-/** @param {{base: string, work: string, home: string, auth: string, container?: string}} options */
-function launcherFor({ base, work, home, auth, container }) {
+/** @param {{base: string, work: string, home: string, auth: string, container?: string, signal: AbortSignal}} options */
+function launcherFor({ base, work, home, auth, container, signal }) {
   const env = {
     PATH: container ? "/usr/local/bin:/usr/bin:/bin" : [dirname(process.execPath), ...(process.env.PATH ?? "").split(":")].join(":"),
     HOME: home, CODEX_HOME: auth, LANG: "C.UTF-8",
   };
   /** @param {string[]} args @param {string} stdin @param {number} timeout */
   return async (args, stdin, timeout) => {
-    if (!container) return processResult("codex", args, { cwd: work, env, stdin, timeout });
+    if (!container) return processResult("codex", args, { cwd: work, env, stdin, timeout, signal });
     if (!/^[\w][\w./:@-]*$/.test(container)) throw new Error("Give a local container image name.");
     const name = basename(base);
     try {
       return await processResult("docker", ["run", "--pull", "never", "--rm", "--init", "-i", "--name", name,
         "--user", `${process.getuid?.() ?? 1000}:${process.getgid?.() ?? 1000}`,
         "--mount", `type=bind,src=${base},dst=${base}`, "--workdir", work,
-        ...Object.entries(env).flatMap(([k, v]) => ["--env", `${k}=${v}`]), container, "codex", ...args], { cwd: work, stdin, timeout });
+        ...Object.entries(env).flatMap(([k, v]) => ["--env", `${k}=${v}`]), container, "codex", ...args], { cwd: work, stdin, timeout, signal });
     } finally {
       await processResult("docker", ["rm", "-f", name], { cwd: work, stdin: "", timeout: 10000 });
     }
@@ -196,6 +210,42 @@ function codexLoginFile() {
       return file;
     }
   } catch {}
+}
+
+/** @param {Buffer} content */
+function chatgptAccount(content) {
+  try {
+    const { auth_mode: mode, tokens } = JSON.parse(content.toString("utf8"));
+    if (mode !== undefined && mode !== "chatgpt") return undefined;
+    if (["account_id", "id_token", "access_token", "refresh_token"].every(name => typeof tokens?.[name] === "string" && tokens[name].trim())) {
+      return tokens.account_id;
+    }
+  } catch {}
+}
+
+/** @param {string} original @param {string} scratch @param {Buffer} before */
+function saveRefreshedLogin(original, scratch, before) {
+  const account = chatgptAccount(before);
+  if (!account) return;
+  /** @type {Buffer} */
+  let refreshed;
+  try {
+    refreshed = readFileSync(scratch, { flag: constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK });
+  } catch (error) {
+    if (/** @type {NodeJS.ErrnoException} */ (error).code === "ENOENT") return;
+    throw error;
+  }
+  if (before.equals(refreshed) || chatgptAccount(refreshed) !== account) return;
+  const staged = mkdtempSync(join(dirname(original), ".journeysfirst-login-"));
+  try {
+    const file = join(staged, "auth.json");
+    writeFileSync(file, refreshed, { mode: 0o600, flag: "wx" });
+    if (realpathSync(original) !== original || !before.equals(readFileSync(original))) return;
+    chmodSync(file, statSync(original).mode & 0o777);
+    renameSync(file, original);
+  } finally {
+    rmSync(staged, { recursive: true, force: true });
+  }
 }
 
 function codexDirectory() {
@@ -306,22 +356,31 @@ function finalMessage(text) {
 /**
  * @param {string} command
  * @param {string[]} args
- * @param {{cwd: string, env?: NodeJS.ProcessEnv, stdin: string, timeout: number}} options
+ * @param {{cwd: string, env?: NodeJS.ProcessEnv, stdin: string, timeout: number, signal?: AbortSignal}} options
  * @returns {Promise<{code: number | null, stdout: string, timedOut: boolean}>}
  */
-function processResult(command, args, { cwd, env, stdin, timeout }) {
+function processResult(command, args, { cwd, env, stdin, timeout, signal }) {
   return new Promise((done) => {
+    if (signal?.aborted) { done({ code: null, stdout: "", timedOut: false }); return; }
     const child = spawn(command, args, { cwd, env, detached: true, stdio: ["pipe", "pipe", "ignore"] });
     let stdout = "", timedOut = false;
+    const stop = () => { try { if (child.pid) process.kill(-child.pid, "SIGKILL"); } catch {} };
+    signal?.addEventListener("abort", stop, { once: true });
     const timer = setTimeout(() => {
       timedOut = true;
-      try { if (child.pid) process.kill(-child.pid, "SIGKILL"); } catch {}
+      stop();
     }, timeout);
     child.stdin.on("error", () => {});
     child.stdin.end(stdin);
     child.stdout.setEncoding("utf8");
     child.stdout.on("data", (chunk) => { stdout = (stdout + chunk).slice(-2 * 1024 * 1024); });
-    child.once("error", () => { clearTimeout(timer); done({ code: null, stdout, timedOut }); });
-    child.once("close", (code) => { clearTimeout(timer); done({ code, stdout, timedOut }); });
+    /** @param {number | null} code */
+    const finish = (code) => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", stop);
+      done({ code, stdout, timedOut });
+    };
+    child.once("error", () => finish(null));
+    child.once("close", finish);
   });
 }
