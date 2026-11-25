@@ -420,8 +420,9 @@ function* stringFields(value, path, data = false) {
     const evidence = /^steps\[\d+\]\.evidence\[\d+\]$/.test(path);
     for (const [key, item] of Object.entries(value)) {
       const field = path ? `${path}.${key}` : key;
-      if (map || path === "values" || (evidence && !EVIDENCE_FIELDS.has(key))) yield [field, key];
-      yield* stringFields(item, field, map || evidence || (path.startsWith("values.") && key === "value"));
+      const extraRunnerField = path === "ran_by" && key !== "agent" && key !== "model";
+      if (map || path === "values" || extraRunnerField || (evidence && !EVIDENCE_FIELDS.has(key))) yield [field, key];
+      yield* stringFields(item, field, map || evidence || extraRunnerField || (path.startsWith("values.") && key === "value"));
     }
   }
 }

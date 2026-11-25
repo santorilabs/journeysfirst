@@ -228,6 +228,19 @@ test("a declared secret may match a format key, but not a free-form data key", (
   assert.throws(() => run.result(), /\$\{first\} is in the run at tags\.user-\[redacted\]-data/);
 });
 
+test("a declared secret cannot be used as a runner metadata key", () => {
+  const run = recordAllPassed(recorder({ ranBy: { agent: "test", model: "fixture", "private-field": true } }));
+  run.value("first", "agent", { secret: true });
+  run.value("second", "model", { secret: true });
+  assert.equal(run.result().run.ran_by.agent, "test");
+  run.value("hidden", "private-field", { secret: true });
+  assert.throws(() => run.result(), (error) => {
+    assert.match(error.message, /\$\{hidden\} is in the run at ran_by\.\[redacted\]/);
+    assert.doesNotMatch(error.message, /private-field/);
+    return true;
+  });
+});
+
 test("an obvious secret in the run is covered, and an ordinary value is kept", () => {
   const run = recordAllPassed(recorder());
   run.check("link-on", {
