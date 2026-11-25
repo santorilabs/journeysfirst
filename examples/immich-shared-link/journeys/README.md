@@ -18,9 +18,7 @@
 
 ### Design system
 
-Measured in the running product: spacing 4, 8, 10, 12, 16, 20, 24, 28, 32, 40, 60, 62, 76, 96 px. Type 12, 13, 14, 16, 18, 20 px. Font GoogleSans, GoogleSansCode. Radius 8, 16, 33554400 px. (measured, first run)
-
-**Decided.** None yet.
+Not linked yet: link the files that hold Immich's spacing, type and radius here.
 
 ## Journeys
 

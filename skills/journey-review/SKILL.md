@@ -9,7 +9,7 @@ An existing product: judge it against its Foundation in `journeys/README.md` and
 
 The first thing you do is read what good means for this product. Then you judge each step of the journey and its run against that, as its user. You write findings with evidence, show them to the person, and stop.
 
-A passed run proves the checks. It does not say the walk was good for this product's users. Read the "What good means" lines, the UX principles and "Decided". A line marked "(guess)" waits for a person. No finding rests on one.
+A passed run proves the checks. It does not say the walk was good for this product's users. Read the "What good means" lines and the UX principles. A line marked "(guess)" waits for a person. No finding rests on one.
 
 A repo with no UI (a backend, an API, a worker) skips `foundation-values`, `foundation-loading` and `foundation-phone`, and says so in one line of the report. That is not a finding.
 
@@ -19,14 +19,13 @@ A repo with no UI (a backend, an API, a worker) skips `foundation-values`, `foun
 2. Triage. Say which you picked.
 3. Get the measured facts.
 4. Run the four passes in order. Finish one pass across every step before you start the next.
-5. Drop what is settled. Each line under "Decided" starts with a criterion id. Do not raise that criterion about the same thing again.
-6. Write the findings into the run.
-7. **Show them.** Give the findings in pass order, then the questions, and change nothing until the person answers. With nobody to answer, go straight to `journey-fix`.
+5. Write the findings into the run.
+6. **Show them.** Give the findings in pass order, then the questions, and change nothing until the person answers. With nobody to answer, go straight to `journey-fix`.
 
 ## Triage
 
 - **File only.** No run and no saved script (you came from `journey-write`). Do pass 1, list what you found in your reply, and stop.
-- **New build.** Nothing was built before this task. Read the request itself, not the README you wrote from it. Do pass 1. Once per build, not per journey, list each thing the request asks for, in its words, beside the screenshot that shows it done the way a user would expect. A part that is missing, or done with less, is a `file-request` finding, even when every check passed. Judge every screen against the bar in `journey-build`. Run `measured` for its `fact` lines. Skip the comparisons, the slow replay and the measured line.
+- **New build.** Nothing was built before this task. Read the request itself, not the README you wrote from it. Do pass 1. Once per build, not per journey, list each thing the request asks for, in its words, beside the screenshot that shows it done the way a user would expect. A part that is missing, or done with less, is a `file-request` finding, even when every check passed. Judge every screen against the bar in `journey-build`. Run `measured` for its `fact` lines. Skip the comparisons and the slow replay.
 - **Full.** The first review of this journey, or the journey changed. Every pass on every step. With a saved script and no run, replay it first (`journey-run`).
 - **Light.** `measured` compared with an earlier reviewed run, and `journey.version` is the same in both. Read only the screens it lists under "Screens that differ". For other steps, carry over the earlier run's findings with the same ids.
 
@@ -40,11 +39,11 @@ npx journeysfirst measured <run folder>
 
 ```text
 fact  intuitive-feedback  step 1  Nothing on the screen changes after "Copy link".  (measure-1.txt)
-ask   foundation-values  step 3  Not in the measured line: radius 4 px on button "Download".  (measure-3.txt)
+fact  foundation-values  step 3  New since the earlier run: radius 4 px on button "Download".  (measure-3.txt)
 ```
 
-- A `fact` line is a finding. Write it as printed. An `ask` line is a question.
-- **No measured line yet.** Write the line `measured` prints under Design system in `journeys/README.md`, and tell the person. What the product already uses is not a finding. A new build skips this.
+- A `fact` line is a finding. Write it as printed.
+- **No earlier reviewed run.** `measured` lists the values the run uses. Open the design system the Foundation links to and compare. A value it does not have is a question, quoting the file. No design system linked: say so in the report, and that is not a finding. Never copy the values into `journeys/README.md`. A new build skips this.
 - **No measure files** (a run driven by hand): every criterion that reads `measured` is "not measured". Never guess a pixel value from a screenshot.
 
 `foundation-loading` needs a slow replay, which holds each data request for 2 seconds and prints each click's time. With no saved script or a new build, it is "not measured".
@@ -71,7 +70,7 @@ JOURNEYS_DELAY_MS=2000 npx playwright test --grep "<journey title>"
 | | `simple-one-action` | No dialog or form has two buttons that stand out equally. `measured` is quiet. |
 | | `simple-fast` | Every click shows something within 1 second. `measured` is quiet. |
 | 4. Right foundation | `foundation-stated` | Each Product or UX principle line that names something on a walked screen agrees with the screen. If you cannot read or measure what it names, it is a question. |
-| | `foundation-values` | No spacing, type size, font or radius that is new since the earlier run or outside the measured line. `measured` is quiet. |
+| | `foundation-values` | No spacing, type size, font or radius that is new since the earlier run. With no earlier run, each value `measured` lists is in the linked design system. |
 | | `foundation-loading` | The slow replay prints no time of 1000 ms or more. |
 | | `foundation-phone` | At 375 px: no sideways scroll, nothing cut off, every control used is at least 24 px. `measured` is quiet. |
 | | `foundation-not-generic` | A top designer would ship each screen as it is. |
@@ -125,13 +124,13 @@ When nothing fails, write an empty list, say "The review found nothing." and sto
 
 ## When the person decides
 
-Record their call in the run and under "Decided", as `journey-fix` says. Fixing a finding is `journey-fix` too.
+Record their call in the run, as `journey-fix` says. Fixing a finding is `journey-fix` too.
 
 ## Do not
 
-- Change any file except `findings.json`, the run's `findings` and `reviews`, the measured line when there was none, and "Decided". A finding never turns a pass into a fail.
+- Change any file except `findings.json` and the run's `findings` and `reviews`. A finding never turns a pass into a fail.
 - Write a finding from how a screen feels. With no measured fact, quoted words or broken rule, it is a question or nothing.
-- Soften a fact `measured` printed, or add one it did not print. Leave out a `fact` or `ask` line only when "Decided" settles it.
+- Soften a fact `measured` printed, add one it did not print, or leave one out.
 - Give a score, or a pass for a criterion you could not measure.
 
 ## Report
