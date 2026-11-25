@@ -140,7 +140,8 @@ Files, in `src/shared/`. None of them imports another source file.
 
 ### The rest
 
-- `bin/journeysfirst.js`: the CLI (`validate`, `validate-run`, `merge-check`, `measured`, `add-findings`, `add-review`, `review`, `publish`, `dev-server`, `doctor`, `init`, `upgrade`, `--version`). It does not import the runner. Playwright runs the runner.
+- `bin/journeysfirst.js`: the CLI (`validate`, `validate-run`, `merge-check`, `measured`, `add-findings`, `add-review`, `review`, `report`, `summary`, `publish`, `dev-server`, `doctor`, `init`, `upgrade`, `--version`). It does not import the runner. Playwright runs the runner.
+- `prepack` copies `skills/`, `spec/` and `docs/` from the repo root into this package, and `postpack` removes the copies. An install then has them at `node_modules/journeysfirst/spec` and `node_modules/journeysfirst/docs`.
 - `src/doctor.js`: `doctor`. Checks Node, Playwright, Chromium, the Playwright config, whether `baseURL` answers, and each journey file. The CLI is the only caller.
 - `src/setup.js`: `init` and `upgrade`. They copy the skills into `.agents/skills` and `.claude/skills` (or the folder `--skills` names), add `playwright.config.js` when there is none, ignore `journey-runs/`, write a Journeys section in `AGENTS.md`, and add the upgrade workflow, `.github/workflows/journeysfirst-upgrade.yml`. With no app to start, `init` also adds an example page, journey and script that pass. It imports Node built-ins and `src/shared/target.js`.
 - `src/index.js`: the main entry. It re-exports `format.js`, `runfile.js`, `checkRun` and `stableJson`.

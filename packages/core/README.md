@@ -56,6 +56,8 @@ npx journeysfirst review journey-runs
 
 ## More
 
+After install, the specs and docs are in this package: `node_modules/journeysfirst/spec` and `node_modules/journeysfirst/docs`.
+
 - [Repo README](https://github.com/santorilabs/journeysfirst#readme): the full walkthrough, the Playwright script and the recorder.
 - [Journey format v1](https://github.com/santorilabs/journeysfirst/blob/main/spec/journey-format-v1.md)
 - [Run results v1](https://github.com/santorilabs/journeysfirst/blob/main/spec/run-results-v1.md)
