@@ -162,11 +162,19 @@ if (args[0] === "sandbox") {
     const cmd = spawnSync(process.execPath, [".journeysfirst/codex-capture.mjs", "capture", "command.txt", "--",
       process.execPath, "-e", "console.log('Sharing is on')"], { encoding: "utf8" });
     assert.equal(cmd.status, 0);
-    fs.writeFileSync(".journeysfirst/results.jsonl", [
+    const outcomes = [
       { line: 1, status: "done" },
       { id: "link-on", verdict: "passed", proof: "The command showed it.", refs: [{ file: "command.txt", line: 1 }] },
       { id: "viewer-blocked", verdict: "passed", proof: "No capture." },
-    ].map(JSON.stringify).join("\\n"));
+    ];
+    if (fs.existsSync("complete.txt")) {
+      const [, pass] = outcomes;
+      outcomes.pop();
+      outcomes.push(...[3, 5, 6].map(line => ({ line, status: "done" })),
+        ...["viewer-sees-it", "viewer-blocked"].map(id => ({ ...pass, id })));
+      process.exitCode = 7;
+    }
+    fs.writeFileSync(".journeysfirst/results.jsonl", outcomes.map(JSON.stringify).join("\\n"));
     console.log(JSON.stringify({ type: "item.completed", item: { type: "reasoning", text: "Private reasoning" } }));
     console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "Sharing worked. The rest was not checked." } }));
   }
@@ -228,4 +236,14 @@ test("Codex imports failure causes and records rejected result lines", () => {
   assert.equal(run.steps[1].verdict, "blocked");
   assert.equal(run.steps[1].cause, "environment");
   assert.match(run.tags.result_import_errors[0], /Result line 3: .*needs a cause/);
+});
+
+test("a nonzero agent exit cannot seal a passed run even with every line submitted", () => {
+  const { result, run } = codexFixture("complete");
+  assert.equal(result.status, 1);
+  assert.equal(run.result, "not_fully_checked");
+  assert.equal(run.steps[1].verdict, "passed");
+  assert.equal(run.steps.at(-1).verdict, "not_checked");
+  assert.equal(run.steps.at(-1).cause, "environment");
+  assert.equal(run.steps.at(-1).evidence[0].got, "Sharing is on");
 });

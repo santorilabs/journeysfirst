@@ -62,9 +62,10 @@ export async function runCodex({ journey, caseId, project, mcp, container, timeo
     const importErrors = readResults(seat, state);
     if (importErrors.length) run.tag("result_import_errors", importErrors.map((error) => maskText(run.redact(error))));
     const final = finalMessage(result.stdout);
-    if (final) run.attach({ name: "handoff.txt", body: maskText(run.redact(final)), kind: "transcript" });
     if (result.timedOut) problem = "Codex reached the time limit.";
     else if (result.code !== 0) problem = "Codex exited before completing the journey.";
+    if (problem) leaveIncomplete(run, problem);
+    if (final) run.attach({ name: "handoff.txt", body: maskText(run.redact(final)), kind: "transcript" });
   } catch (error) {
     problem = run.redact(error instanceof Error ? error.message : "Codex could not complete the journey.");
   } finally {
@@ -80,6 +81,16 @@ function pickArgs(args) {
     throw new Error("Pass only --model <name> after --. Journeys First sets the Codex prompt and sandbox.");
   }
   return args;
+}
+
+/** @param {RunRecorder} run @param {string} reason */
+function leaveIncomplete(run, reason) {
+  const last = run.plan.lines.filter((line) => line.kind === "check").at(-1);
+  if (!last || !run.plan.lines.every((line) => {
+    const entry = run.recorded.get(line.n);
+    return line.kind === "check" ? entry?.verdict === "passed" : entry?.status === "done";
+  })) return;
+  run.check(last.id, { ...run.recorded.get(last.n), verdict: "not_checked", cause: "environment", reason });
 }
 
 /** @param {RunRecorder} run */
