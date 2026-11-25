@@ -116,6 +116,11 @@ test("a newly declared secret in an attached capture prevents sealing the run", 
   assert.equal(existsSync(join(root, "share-by-link")), false);
 });
 
+const fixtureSession = {
+  auth_mode: "chatgpt",
+  tokens: { account_id: "synthetic-account", id_token: "synthetic-id", access_token: "synthetic-access", refresh_token: "synthetic-refresh" },
+};
+
 const fakeCodex = `#!/usr/bin/env node
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -135,6 +140,12 @@ if (args[0] === "sandbox") {
   if (probe === auth) {
     assert.match(fs.readFileSync(probe, "utf8"), /Synthetic probe/);
     if (fs.existsSync("unsafe.txt")) process.exit(1);
+  } else if (path.basename(probe) === "auth.json") {
+    assert.deepEqual(JSON.parse(fs.readFileSync(probe, "utf8")), ${JSON.stringify(fixtureSession)});
+    const denied = fs.existsSync("default-login.txt") ? path.dirname(path.dirname(probe)) : probe;
+    assert.ok(args.join(" ").includes(JSON.stringify(denied) + '="deny"'));
+    assert.ok(!fs.existsSync(path.join("custom-login", "auth.json")));
+    if (fs.existsSync("leaky-login.txt")) process.exit(1);
   } else {
     assert.match(fs.readFileSync(probe, "utf8"), /Synthetic host home probe/);
     assert.ok(args.join(" ").includes(JSON.stringify(path.dirname(path.dirname(probe))) + '="deny"'));
@@ -165,6 +176,23 @@ if (args[0] === "sandbox") {
   fs.writeFileSync(auth, "fake auth");
 } else {
   assert.ok(args.includes("exec") && args.includes("--json") && !args.some(a => a.includes("dangerously")));
+  const rotate = fs.readdirSync(".").find(name => name.startsWith("rotate-"));
+  const usesExistingLogin = (rotate && rotate !== "rotate-override.txt") || ["custom-login.txt", "default-login.txt"].some(name => fs.existsSync(name));
+  assert.equal(fs.readFileSync(auth, "utf8"), usesExistingLogin ? ${JSON.stringify(JSON.stringify(fixtureSession))} : "fake auth");
+  assert.deepEqual(fs.readdirSync(process.env.CODEX_HOME), ["auth.json"]);
+  if (usesExistingLogin) assert.equal(fs.statSync(auth).mode & 0o777, 0o600);
+  if (rotate) {
+    const changed = ${JSON.stringify(fixtureSession)};
+    changed.tokens.refresh_token = "synthetic-refreshed";
+    if (rotate === "rotate-other-account.txt") changed.tokens.account_id = "another-account";
+    fs.writeFileSync(auth, rotate === "rotate-invalid.txt" ? "not JSON" : JSON.stringify(changed));
+    if (rotate === "rotate-crash.txt") process.exit(7);
+    if (rotate === "rotate-int.txt") process.kill(process.ppid, "SIGINT");
+    if (rotate === "rotate-timeout.txt" || rotate === "rotate-int.txt") {
+      setInterval(() => {}, 500);
+      return;
+    }
+  }
   assert.match(input, /1\\. /);
   assert.match(input, /Check link-on/);
   assert.match(input, /cause: product, test, environment/);
@@ -186,7 +214,6 @@ if (args[0] === "sandbox") {
       { id: "viewer-blocked", verdict: "blocked", reason: "Missing cause." },
     ].map(JSON.stringify).join("\\n"));
   } else {
-    assert.equal(fs.readFileSync(auth, "utf8"), "fake auth");
     const proxy = JSON.parse(args.find(a => a.startsWith("mcp_servers.demo.args=")).split("=").slice(1).join("="));
     assert.deepEqual(proxy.slice(0, 3), ["sandbox", "-P", "journeysfirst"]);
     assert.ok(proxy.includes("mcp-proxy"));
@@ -229,8 +256,19 @@ function codexFixture(mode, flags = []) {
   if (mode) writeFileSync(join(project, mode + ".txt"), "");
   const server = mode === "mcp-crash" ? [node, "-e", "process.stdin.once('data', () => process.exit(32))"] : ["node", "server.js"];
   writeFileSync(join(root, "mcp.json"), JSON.stringify({ demo: server }));
-  const args = [cli, "run", "share-by-link.journey.yaml", "--agent", "codex", "--project", project, "--mcp", "mcp.json", "--timeout", mode === "timeout" ? "1" : "5", ...flags, "--"];
-  const env = { ...process.env, PATH: bin + ":" + process.env.PATH, OPENAI_API_KEY: "synthetic-fixture-key" };
+  const args = [cli, "run", "share-by-link.journey.yaml", "--agent", "codex", "--project", project, "--mcp", "mcp.json", "--timeout", ["timeout", "rotate-timeout"].includes(mode ?? "") ? "1" : "5", ...flags, "--"];
+  const hostHome = join(root, "host-home");
+  mkdirSync(hostHome);
+  const custom = ["custom-login", "override-login", "leaky-login"].includes(mode ?? "") || mode?.startsWith("rotate-");
+  const loginDir = custom ? join(project, "custom-login") : join(hostHome, ".codex");
+  if (custom || mode === "default-login") {
+    mkdirSync(loginDir);
+    writeFileSync(join(loginDir, "auth.json"), JSON.stringify(fixtureSession), { mode: 0o640 });
+    writeFileSync(join(loginDir, "config.toml"), "not part of the login");
+  }
+  const env = { ...process.env, HOME: hostHome, CODEX_HOME: custom ? loginDir : "", PATH: bin + ":" + process.env.PATH, OPENAI_API_KEY: "synthetic-fixture-key" };
+  if (["custom-login", "default-login", "no-login", "leaky-login"].includes(mode ?? "") ||
+      (mode?.startsWith("rotate-") && mode !== "rotate-override")) delete env.OPENAI_API_KEY;
   const resolver = mode === "resolver-chain" ? {
     links: [["/etc/resolv.conf", "/run/jf-resolver-link"], ["/run/jf-resolver-link", "jf-resolver.conf"]],
     file: "/run/jf-resolver.conf",
@@ -256,7 +294,7 @@ function codexFixture(mode, flags = []) {
   const runs = join(root, "journey-runs", "share-by-link");
   if (!existsSync(runs)) return { result };
   const folder = join(runs, readdirSync(runs)[0]);
-  return { result, folder, run: JSON.parse(readFileSync(join(folder, "run.json"), "utf8")) };
+  return { result, folder, login: join(loginDir, "auth.json"), run: JSON.parse(readFileSync(join(folder, "run.json"), "utf8")) };
 }
 
 test("Codex gets the journey without hints, safe auth setup, wrapped MCP config and an evidence-backed result", () => {
@@ -270,6 +308,58 @@ test("Codex gets the journey without hints, safe auth setup, wrapped MCP config 
   assert.equal(run.result, "not_fully_checked");
   assert.equal(readFileSync(join(folder, "handoff.txt"), "utf8"), "Sharing worked. The rest was not checked.");
   assert.doesNotMatch(JSON.stringify(run), /synthetic-fixture-key|Private reasoning/);
+});
+
+test("Codex reuses only the existing login from CODEX_HOME or the default home", () => {
+  for (const mode of ["custom-login", "default-login"]) {
+    const { result, run } = codexFixture(mode);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(run.steps[1].verdict, "passed");
+    assert.doesNotMatch(JSON.stringify(run), /synthetic-refresh/);
+  }
+});
+
+test("Codex prefers an explicit API key to an existing CLI login", () => {
+  const { result, run } = codexFixture("override-login");
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(run.steps[1].verdict, "passed");
+});
+
+test("Codex saves a reused login's refresh after a clean exit, crash, timeout, or interrupt", () => {
+  for (const [mode, status, message] of [
+    ["rotate-success", 0, null],
+    ["rotate-crash", 1, /exited before completing/],
+    ["rotate-timeout", 1, /reached the time limit/],
+    ["rotate-int", 1, /was interrupted/],
+  ]) {
+    const { result, login } = codexFixture(mode);
+    assert.equal(result.status, status, result.stderr);
+    if (message) assert.match(result.stderr, message);
+    assert.equal(JSON.parse(readFileSync(login, "utf8")).tokens.refresh_token, "synthetic-refreshed");
+    assert.equal(statSync(login).mode & 0o777, 0o640);
+  }
+});
+
+test("Codex does not replace the original login with invalid, different-account or override auth", () => {
+  for (const mode of ["rotate-invalid", "rotate-other-account", "rotate-override"]) {
+    const { result, login } = codexFixture(mode);
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(JSON.parse(readFileSync(login, "utf8")), fixtureSession);
+  }
+});
+
+test("Codex asks for login when neither a session nor an API key is available", () => {
+  const { result, run } = codexFixture("no-login");
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Run `codex login`/);
+  assert.equal(run, undefined);
+});
+
+test("Codex stops before using an existing login if the source file is readable in the sandbox", () => {
+  const { result, run } = codexFixture("leaky-login", ["--allow-host-read"]);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /sandbox blocks the existing login file/);
+  assert.equal(run.steps[1].verdict, "not_checked");
 });
 
 test("timeout saves completed steps and leaves missing checks unverified", () => {
