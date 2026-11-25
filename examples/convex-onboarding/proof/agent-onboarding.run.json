@@ -1,0 +1,148 @@
+{
+  "format": "journeysfirst-run/v1",
+  "id": "2026-11-25-2012-c6147288",
+  "journey": {
+    "name": "agent-onboarding",
+    "version": "201735e1",
+    "case": null
+  },
+  "result": "failed",
+  "summary": "Not Authorized: Run `npx convex dev` to login to your Convex project.",
+  "started_at": "2026-11-25T20:12:16.391Z",
+  "finished_at": "2026-11-25T20:12:21.662Z",
+  "ran_by": {
+    "agent": "Devin"
+  },
+  "journeysfirst": "0.0.6",
+  "tags": {
+    "environment": "fresh local sandbox",
+    "convex": "1.51.0",
+    "role": "agent"
+  },
+  "users": {
+    "you": null
+  },
+  "played_by": {
+    "you": "Devin"
+  },
+  "media": [
+    {
+      "file": "transcript.txt",
+      "kind": "transcript"
+    }
+  ],
+  "verified": [
+    "Your local deployment is ready without a Convex account."
+  ],
+  "not_verified": [
+    "Your MCP client finds the running local deployment and a selector it can use: not Authorized: Run `npx convex dev` to login to your Convex project.",
+    "Your MCP client returns \"hello from Convex\": the MCP status tool did not return the deployment selector required for the next tool call."
+  ],
+  "steps": [
+    {
+      "says": "Start local development in anonymous agent mode.",
+      "by": "you",
+      "status": "done",
+      "at": 0,
+      "took": 4.6
+    },
+    {
+      "check": "Your local deployment is ready without a Convex account.",
+      "id": "local-ready",
+      "by": "you",
+      "verdict": "passed",
+      "proof": "The live dev process says the functions are ready and no account is linked.",
+      "evidence": [
+        {
+          "source": "log",
+          "login": "you",
+          "query": "CONVEX_AGENT_MODE=anonymous npx convex dev",
+          "got": {
+            "ready": "Convex functions ready! (239.93ms)",
+            "noAccount": true
+          }
+        }
+      ],
+      "at": 4.6,
+      "took": 0
+    },
+    {
+      "says": "Connect your MCP client and ask for the project's deployments.",
+      "by": "you",
+      "status": "done",
+      "at": 4.6,
+      "took": 0.7
+    },
+    {
+      "check": "Your MCP client finds the running local deployment and a selector it can use.",
+      "id": "mcp-discovery",
+      "by": "you",
+      "verdict": "failed",
+      "proof": "Not Authorized: Run `npx convex dev` to login to your Convex project.",
+      "evidence": [
+        {
+          "source": "log",
+          "login": "you",
+          "query": "MCP initialize; tools/list; tools/call status",
+          "got": {
+            "tools": [
+              "status",
+              "data",
+              "tables",
+              "functionSpec",
+              "run",
+              "envList",
+              "envGet",
+              "envSet",
+              "envRemove",
+              "runOneoffQuery",
+              "logs",
+              "insights"
+            ],
+            "status": {
+              "error": "Not Authorized: Run `npx convex dev` to login to your Convex project."
+            }
+          }
+        }
+      ],
+      "at": 5.3,
+      "took": 0,
+      "cause": "product",
+      "reason": "Not Authorized: Run `npx convex dev` to login to your Convex project."
+    },
+    {
+      "says": "Ask your MCP client to run the sample query on that deployment.",
+      "by": "you",
+      "status": "blocked",
+      "at": 5.3,
+      "cause": "product",
+      "reason": "The MCP status tool did not return the deployment selector required for the next tool call."
+    },
+    {
+      "check": "Your MCP client returns \"hello from Convex\".",
+      "id": "first-mcp-query",
+      "by": "you",
+      "verdict": "blocked",
+      "evidence": [],
+      "at": 5.3,
+      "cause": "product",
+      "reason": "The MCP status tool did not return the deployment selector required for the next tool call."
+    }
+  ],
+  "findings": [
+    {
+      "id": "intuitive-refusal-4",
+      "criterion": "intuitive-refusal",
+      "step": 4,
+      "says": "MCP status asks you to run the same dev command that already started the local deployment.",
+      "evidence": [
+        {
+          "source": "log",
+          "login": "you",
+          "query": "CONVEX_AGENT_MODE=anonymous npx convex dev; MCP tools/call status",
+          "got": "The local dev process is ready; MCP status replies: Not Authorized: Run `npx convex dev` to login to your Convex project."
+        }
+      ]
+    }
+  ]
+}

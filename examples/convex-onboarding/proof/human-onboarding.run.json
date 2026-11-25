@@ -1,0 +1,176 @@
+{
+  "format": "journeysfirst-run/v1",
+  "id": "2026-11-25-2012-a5fa0f57",
+  "journey": {
+    "name": "human-onboarding",
+    "version": "4bdd924c",
+    "case": null
+  },
+  "result": "failed",
+  "summary": "Not Authorized: Run `npx convex dev` to login to your Convex project.",
+  "started_at": "2026-11-25T20:12:16.731Z",
+  "finished_at": "2026-11-25T20:13:28.333Z",
+  "ran_by": {
+    "agent": "Devin"
+  },
+  "journeysfirst": "0.0.6",
+  "tags": {
+    "environment": "fresh local sandbox",
+    "convex": "1.51.0",
+    "role": "human"
+  },
+  "users": {
+    "you": null
+  },
+  "played_by": {
+    "you": "Devin"
+  },
+  "media": [
+    {
+      "file": "transcript.txt",
+      "kind": "transcript"
+    }
+  ],
+  "verified": [
+    "Your local deployment is ready without a Convex account.",
+    "Your terminal returns \"hello from Convex\"."
+  ],
+  "not_verified": [
+    "Your editor's MCP client finds the running local deployment and a selector it can use: not Authorized: Run `npx convex dev` to login to your Convex project.",
+    "Your editor's MCP client lists the tables and returns \"hello from Convex\": the MCP status tool did not return the deployment selector required for the next tool call."
+  ],
+  "steps": [
+    {
+      "says": "Start local development and choose to start without an account.",
+      "by": "you",
+      "status": "done",
+      "at": 0,
+      "took": 70.2
+    },
+    {
+      "check": "Your local deployment is ready without a Convex account.",
+      "id": "local-ready",
+      "by": "you",
+      "verdict": "passed",
+      "proof": "The live dev process says the functions are ready and no account is linked.",
+      "evidence": [
+        {
+          "source": "log",
+          "login": "you",
+          "query": "npx convex dev",
+          "got": {
+            "ready": "Convex functions ready! (255.89ms)",
+            "noAccount": true
+          }
+        }
+      ],
+      "at": 70.2,
+      "took": 0
+    },
+    {
+      "says": "Run the sample query from your terminal.",
+      "by": "you",
+      "status": "done",
+      "at": 70.2,
+      "took": 0.8
+    },
+    {
+      "check": "Your terminal returns \"hello from Convex\".",
+      "id": "first-cli-query",
+      "by": "you",
+      "verdict": "passed",
+      "proof": "\"hello from Convex\"",
+      "evidence": [
+        {
+          "source": "log",
+          "login": "you",
+          "query": "npx convex run hello:first",
+          "got": {
+            "exitCode": 0,
+            "stdout": "\"hello from Convex\""
+          }
+        }
+      ],
+      "at": 71,
+      "took": 0
+    },
+    {
+      "says": "Connect your editor's MCP client over standard input and output and ask for the project's deployments.",
+      "by": "you",
+      "status": "done",
+      "at": 71,
+      "took": 0.6
+    },
+    {
+      "check": "Your editor's MCP client finds the running local deployment and a selector it can use.",
+      "id": "mcp-discovery",
+      "by": "you",
+      "verdict": "failed",
+      "proof": "Not Authorized: Run `npx convex dev` to login to your Convex project.",
+      "evidence": [
+        {
+          "source": "log",
+          "login": "you",
+          "query": "MCP initialize; tools/list; tools/call status",
+          "got": {
+            "tools": [
+              "status",
+              "data",
+              "tables",
+              "functionSpec",
+              "run",
+              "envList",
+              "envGet",
+              "envSet",
+              "envRemove",
+              "runOneoffQuery",
+              "logs",
+              "insights"
+            ],
+            "status": {
+              "error": "Not Authorized: Run `npx convex dev` to login to your Convex project."
+            }
+          }
+        }
+      ],
+      "at": 71.6,
+      "took": 0,
+      "cause": "product",
+      "reason": "Not Authorized: Run `npx convex dev` to login to your Convex project."
+    },
+    {
+      "says": "Ask your editor's MCP client to list tables and run the sample query.",
+      "by": "you",
+      "status": "blocked",
+      "at": 71.6,
+      "cause": "product",
+      "reason": "The MCP status tool did not return the deployment selector required for the next tool call."
+    },
+    {
+      "check": "Your editor's MCP client lists the tables and returns \"hello from Convex\".",
+      "id": "first-mcp-query",
+      "by": "you",
+      "verdict": "blocked",
+      "evidence": [],
+      "at": 71.6,
+      "cause": "product",
+      "reason": "The MCP status tool did not return the deployment selector required for the next tool call."
+    }
+  ],
+  "findings": [
+    {
+      "id": "intuitive-refusal-6",
+      "criterion": "intuitive-refusal",
+      "step": 6,
+      "says": "After offering account-free setup and returning a query result, MCP status asks you to run the dev command you already ran.",
+      "evidence": [
+        {
+          "source": "log",
+          "login": "you",
+          "query": "npx convex dev; npx convex run hello:first; MCP tools/call status",
+          "got": "The local CLI returned hello from Convex. MCP status replies: Not Authorized: Run `npx convex dev` to login to your Convex project."
+        }
+      ]
+    }
+  ]
+}

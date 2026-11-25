@@ -1,0 +1,186 @@
+{
+  "format": "journeysfirst-run/v1",
+  "id": "2026-11-25-2017-b26bcd1f",
+  "journey": {
+    "name": "owner-handoff",
+    "version": "a76aaa56",
+    "case": null
+  },
+  "result": "failed",
+  "summary": "2 of 4 checks failed.",
+  "started_at": "2026-11-25T20:17:46.073Z",
+  "finished_at": "2026-11-25T20:18:37.900Z",
+  "ran_by": {
+    "agent": "Devin"
+  },
+  "journeysfirst": "0.0.6",
+  "tags": {
+    "environment": "fresh local sandbox",
+    "convex": "1.51.0",
+    "role": "owner"
+  },
+  "users": {
+    "you": null,
+    "agent": null
+  },
+  "played_by": {
+    "you": "Devin",
+    "agent": "Devin"
+  },
+  "media": [
+    {
+      "file": "transcript.txt",
+      "kind": "transcript"
+    }
+  ],
+  "verified": [
+    "The agent gets \"hello from Convex\" and knows which path returned it.",
+    "You can tell which query path worked, that MCP is still blocked if it did not work, and whether the agent needs you to sign in."
+  ],
+  "not_verified": [
+    "The agent gets a usable local MCP deployment selector without asking you to log in: not Authorized: Run `npx convex dev` to login to your Convex project.",
+    "You get a usable dashboard address from the first local setup: setup printed no usable dashboard address. The agent can name a fallback command but cannot hand over a working URL from setup."
+  ],
+  "steps": [
+    {
+      "says": "Ask the agent \"Set up Convex for my app and connect the MCP.\"",
+      "by": "you",
+      "status": "done",
+      "at": 0,
+      "took": 5
+    },
+    {
+      "says": "The agent starts local development and asks MCP for the project's deployments.",
+      "by": "agent",
+      "status": "done",
+      "at": 5,
+      "took": 7.8
+    },
+    {
+      "check": "The agent gets a usable local MCP deployment selector without asking you to log in.",
+      "id": "agent-mcp-access",
+      "by": "agent",
+      "verdict": "failed",
+      "proof": "Not Authorized: Run `npx convex dev` to login to your Convex project.",
+      "evidence": [
+        {
+          "source": "log",
+          "login": "agent",
+          "query": "MCP tools/call status",
+          "got": "Not Authorized: Run `npx convex dev` to login to your Convex project."
+        }
+      ],
+      "at": 12.8,
+      "took": 0,
+      "cause": "product",
+      "reason": "Not Authorized: Run `npx convex dev` to login to your Convex project."
+    },
+    {
+      "says": "The agent tries to get the sample query result, using the terminal if MCP cannot address the deployment.",
+      "by": "agent",
+      "status": "done",
+      "at": 12.8,
+      "took": 1.1
+    },
+    {
+      "check": "The agent gets \"hello from Convex\" and knows which path returned it.",
+      "id": "agent-query-result",
+      "by": "agent",
+      "verdict": "passed",
+      "proof": "The CLI returned \"hello from Convex\".",
+      "evidence": [
+        {
+          "source": "log",
+          "login": "agent",
+          "query": "npx convex run hello:first",
+          "got": {
+            "path": "CLI",
+            "result": "hello from Convex",
+            "secondsFromRequest": 8.9
+          }
+        }
+      ],
+      "at": 13.9,
+      "took": 0
+    },
+    {
+      "says": "The agent reports back what works, what is blocked, and what you would need to do next.",
+      "by": "agent",
+      "status": "done",
+      "at": 13.9,
+      "took": 34.1
+    },
+    {
+      "check": "You can tell which query path worked, that MCP is still blocked if it did not work, and whether the agent needs you to sign in.",
+      "id": "owner-knows-state",
+      "by": "you",
+      "verdict": "passed",
+      "proof": "The human restates the working query path, MCP status, and whether login is needed.",
+      "evidence": [
+        {
+          "source": "log",
+          "login": "you",
+          "query": "Read the agent's setup handoff",
+          "got": {
+            "reply": "Convex is running locally without an account. I got \"hello from Convex\" through the CLI. MCP is not connected: its status tool refused access and told me to run dev, which is already running. You do not need to log in for local development or the CLI query. Setup printed a null dashboard address; you can try npx convex dashboard, but I did not open it or verify dashboard data. I have not verified a signed-in MCP path.",
+            "owner": "I can see the sample result was hello from Convex via the CLI. MCP is blocked, and I don't need to log in for the CLI result. Setup did not give me a dashboard link; npx convex dashboard is the unverified next step if I need the dashboard."
+          }
+        }
+      ],
+      "at": 51.8,
+      "took": 0
+    },
+    {
+      "check": "You get a usable dashboard address from the first local setup.",
+      "id": "owner-dashboard-address",
+      "by": "you",
+      "verdict": "failed",
+      "proof": "View the Convex dashboard at null",
+      "evidence": [
+        {
+          "source": "log",
+          "login": "you",
+          "query": "Read the dashboard handoff",
+          "got": {
+            "setupHint": "View the Convex dashboard at null",
+            "reply": "Convex is running locally without an account. I got \"hello from Convex\" through the CLI. MCP is not connected: its status tool refused access and told me to run dev, which is already running. You do not need to log in for local development or the CLI query. Setup printed a null dashboard address; you can try npx convex dashboard, but I did not open it or verify dashboard data. I have not verified a signed-in MCP path."
+          }
+        }
+      ],
+      "at": 51.8,
+      "took": 0,
+      "cause": "product",
+      "reason": "Setup printed no usable dashboard address. The agent can name a fallback command but cannot hand over a working URL from setup."
+    }
+  ],
+  "findings": [
+    {
+      "id": "intuitive-refusal-3",
+      "criterion": "intuitive-refusal",
+      "step": 3,
+      "says": "The agent is told to run the dev command it already ran, so the human does not get a clear Convex-supported path to account-free MCP.",
+      "evidence": [
+        {
+          "source": "log",
+          "login": "agent",
+          "query": "MCP tools/call status for the running anonymous project",
+          "got": "Not Authorized: Run `npx convex dev` to login to your Convex project."
+        }
+      ]
+    },
+    {
+      "id": "intuitive-words-8",
+      "criterion": "intuitive-words",
+      "step": 8,
+      "says": "The human gets a fallback command from the agent, not a dashboard address from first setup.",
+      "evidence": [
+        {
+          "source": "log",
+          "login": "you",
+          "query": "Read the agent's setup handoff",
+          "got": "Setup printed a null dashboard address."
+        }
+      ]
+    }
+  ]
+}

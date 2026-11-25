@@ -1,0 +1,15 @@
+format: journeysfirst/v1
+title: Run a first Convex query as an agent
+promise: I can start a local Convex deployment in anonymous agent mode, discover it through MCP, and run my first query.
+start: You are a new coding agent with an unsigned-in Convex project and a sample query. No deployment exists for the project.
+steps:
+  - Start local development in anonymous agent mode.
+  - check: Your local deployment is ready without a Convex account.
+    id: local-ready
+  - Connect your MCP client and ask for the project's deployments.
+  - check: Your MCP client finds the running local deployment and a selector it can use.
+    id: mcp-discovery
+  - Ask your MCP client to run the sample query on that deployment.
+  - check: Your MCP client returns "hello from Convex".
+    id: first-mcp-query
+notes: This run covers anonymous local development. A signed-in or cloud deployment tests a different onboarding path.

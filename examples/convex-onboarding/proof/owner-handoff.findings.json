@@ -1,0 +1,18 @@
+{
+  "findings": [
+    {
+      "id": "intuitive-refusal-3",
+      "criterion": "intuitive-refusal",
+      "step": 3,
+      "says": "The agent is told to run the dev command it already ran, so the human does not get a clear Convex-supported path to account-free MCP.",
+      "evidence": [{"source": "log", "login": "agent", "query": "MCP tools/call status for the running anonymous project", "got": "Not Authorized: Run `npx convex dev` to login to your Convex project."}]
+    },
+    {
+      "id": "intuitive-words-8",
+      "criterion": "intuitive-words",
+      "step": 8,
+      "says": "The human gets a fallback command from the agent, not a dashboard address from first setup.",
+      "evidence": [{"source": "log", "login": "you", "query": "Read the agent's setup handoff", "got": "Setup printed a null dashboard address."}]
+    }
+  ]
+}

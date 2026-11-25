@@ -1,0 +1,35 @@
+Convex 1.51.0 | human role | local sandbox
+$ npx --no-install convex dev
+? Welcome to Convex! Would you like to login to your account?
+❯ Start without an account (run Convex locally)
+  Login or create an account
+
+↑↓ navigate • ⏎ select✔ Welcome to Convex! Would you like to login to your account? Start without an
+account (run Convex locally)
+Setting up a new project...
+This command, `npx convex dev`, will run your Convex backend locally and update it with the function you write in the `convex/` directory.
+Use `npx convex dashboard` to view and interact with your project from a web UI.
+Use `npx convex docs` to read the docs and `npx convex help` to see other commands.
+? Continue? (Y/n)✔ Continue? Yes
+Downloading Convex backend binary [] 0% 0.0sDownloading Convex backend binary [] 0% 3.5sDownloading Convex backend binary [] 2% 1.3sDownloading Convex backend binary [] 4% 0.9sDownloading Convex backend binary [] 7% 0.7sDownloading Convex backend binary [] 8% 0.9sDownloading Convex backend binary [] 9% 0.9sDownloading Convex backend binary [] 13% 0.7sDownloading Convex backend binary [] 16% 0.7sDownloading Convex backend binary [] 18% 0.7sDownloading Convex backend binary [] 22% 0.6sDownloading Convex backend binary [] 29% 0.5sDownloading Convex backend binary [] 33% 0.4sDownloading Convex backend binary [] 40% 0.4sDownloading Convex backend binary [] 49% 0.3sDownloading Convex backend binary [] 58% 0.2sDownloading Convex backend binary [] 65% 0.1sDownloading Convex backend binary [] 71% 0.1sDownloading Convex backend binary [] 80% 0.1sDownloading Convex backend binary [] 90% 0.0sDownloading Convex backend binary [] 98% 0.0sDownloading Convex backend binary [] 100% 0.0s✔ Downloaded Convex backend binary
+✔ Configured a local deployment for http://127.0.0.1:3210 and saved its:
+    name as CONVEX_DEPLOYMENT
+    client URL as CONVEX_URL
+    HTTP actions URL as CONVEX_SITE_URL
+ to .env.local
+  Added ".env.local" to .gitignore
+
+Write your Convex functions in convex/
+Give us feedback at https://convex.dev/community or <EMAIL>
+View the Convex dashboard at null
+
+▌ Developing against deployment:
+▌  Local  Port 3210 • No Convex account (run npx convex login to link to a project)
+▌ └─ http://127.0.0.1:3210
+Convex AI files are not installed. Run npx convex ai-files install to get started or npx convex ai-files disable to hide this message.
+Downloading Convex dashboard [] 0% 0.0sDownloading Convex dashboard [] 21% 0.1sDownloading Convex dashboard [] 81% 0.0sDownloading Convex dashboard [] 88% 0.0sDownloading Convex dashboard [] 100% 0.0s✔ Downloaded Convex dashboard
+⠋ Preparing Convex functions...
+⠙ Bundling component definitions...
+⠹ Uploading functions to Convex...
+✔ 20:13:26 Convex functions ready! (255.89ms)
+Dashboard message evaluated at 70.2 seconds.

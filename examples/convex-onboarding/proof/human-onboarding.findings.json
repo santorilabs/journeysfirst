@@ -1,0 +1,11 @@
+{
+  "findings": [
+    {
+      "id": "intuitive-refusal-6",
+      "criterion": "intuitive-refusal",
+      "step": 6,
+      "says": "After offering account-free setup and returning a query result, MCP status asks you to run the dev command you already ran.",
+      "evidence": [{"source": "log", "login": "you", "query": "npx convex dev; npx convex run hello:first; MCP tools/call status", "got": "The local CLI returned hello from Convex. MCP status replies: Not Authorized: Run `npx convex dev` to login to your Convex project."}]
+    }
+  ]
+}

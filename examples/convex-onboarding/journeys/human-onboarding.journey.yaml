@@ -1,0 +1,18 @@
+format: journeysfirst/v1
+title: Run a first Convex query from a terminal and an editor
+promise: I can start without an account, run my first query in the terminal, and use the same deployment from my editor's MCP client.
+start: You are a new developer with an unsigned-in Convex project and a sample query. No deployment exists for the project.
+steps:
+  - Start local development and choose to start without an account.
+  - check: Your local deployment is ready without a Convex account.
+    id: local-ready
+  - Run the sample query from your terminal.
+  - check: Your terminal returns "hello from Convex".
+    id: first-cli-query
+  - Connect your editor's MCP client over standard input and output and ask for the project's deployments.
+  - check: Your editor's MCP client finds the running local deployment and a selector it can use.
+    id: mcp-discovery
+  - Ask your editor's MCP client to list tables and run the sample query.
+  - check: Your editor's MCP client lists the tables and returns "hello from Convex".
+    id: first-mcp-query
+notes: A standard input and output client stands in for an editor's MCP transport. This does not cover an editor's UI or cloud sign-in.

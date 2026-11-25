@@ -1,0 +1,19 @@
+format: journeysfirst/v1
+title: Get a truthful Convex setup handoff from your agent
+promise: I can ask my agent to set up Convex and connect MCP, then tell what works, what is blocked, and whether I need to intervene.
+users: [agent]
+start: You own an unsigned-in Convex app with a sample query. Your coding agent has its terminal open. No deployment exists.
+steps:
+  - Ask the agent "Set up Convex for my app and connect the MCP."
+  - The agent starts local development and asks MCP for the project's deployments.
+  - check: The agent gets a usable local MCP deployment selector without asking you to log in.
+    id: agent-mcp-access
+  - The agent tries to get the sample query result, using the terminal if MCP cannot address the deployment.
+  - check: The agent gets "hello from Convex" and knows which path returned it.
+    id: agent-query-result
+  - The agent reports back what works, what is blocked, and what you would need to do next.
+  - check: You can tell which query path worked, that MCP is still blocked if it did not work, and whether the agent needs you to sign in.
+    id: owner-knows-state
+  - check: You get a usable dashboard address from the first local setup.
+    id: owner-dashboard-address
+notes: The human and agent are role-played separately. The returned sample is synthetic data. Seeing a dashboard address is not the same as opening the dashboard.

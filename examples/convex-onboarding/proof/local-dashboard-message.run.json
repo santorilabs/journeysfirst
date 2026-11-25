@@ -1,0 +1,82 @@
+{
+  "format": "journeysfirst-run/v1",
+  "id": "2026-11-25-2012-b4070f2f",
+  "journey": {
+    "name": "local-dashboard-message",
+    "version": "fc4af457",
+    "case": null
+  },
+  "result": "failed",
+  "summary": "The first-run terminal told the developer to view the Convex dashboard at null.",
+  "started_at": "2026-11-25T20:12:16.733Z",
+  "finished_at": "2026-11-25T20:13:26.924Z",
+  "ran_by": {
+    "agent": "Devin"
+  },
+  "journeysfirst": "0.0.6",
+  "tags": {
+    "environment": "fresh local sandbox",
+    "convex": "1.51.0",
+    "role": "human"
+  },
+  "users": {
+    "you": null
+  },
+  "played_by": {
+    "you": "Devin"
+  },
+  "media": [
+    {
+      "file": "transcript.txt",
+      "kind": "transcript"
+    }
+  ],
+  "verified": [],
+  "not_verified": [
+    "If your terminal tells you where to view the Convex dashboard, it shows an address rather than \"null\": the first-run terminal told the developer to view the Convex dashboard at null."
+  ],
+  "steps": [
+    {
+      "says": "Start local development and choose to start without an account.",
+      "by": "you",
+      "status": "done",
+      "at": 0,
+      "took": 70.2
+    },
+    {
+      "check": "If your terminal tells you where to view the Convex dashboard, it shows an address rather than \"null\".",
+      "id": "dashboard-hint",
+      "by": "you",
+      "verdict": "failed",
+      "proof": "View the Convex dashboard at null",
+      "evidence": [
+        {
+          "source": "log",
+          "login": "you",
+          "query": "npx convex dev",
+          "got": "View the Convex dashboard at null"
+        }
+      ],
+      "at": 70.2,
+      "took": 0,
+      "cause": "product",
+      "reason": "The first-run terminal told the developer to view the Convex dashboard at null."
+    }
+  ],
+  "findings": [
+    {
+      "id": "intuitive-words-2",
+      "criterion": "intuitive-words",
+      "step": 2,
+      "says": "The Convex CLI labels null as the address to view the dashboard.",
+      "evidence": [
+        {
+          "source": "log",
+          "login": "you",
+          "query": "npx convex dev, Start without an account",
+          "got": "View the Convex dashboard at null"
+        }
+      ]
+    }
+  ]
+}

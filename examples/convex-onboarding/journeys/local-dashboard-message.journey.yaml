@@ -1,0 +1,9 @@
+format: journeysfirst/v1
+title: Get a usable dashboard hint after local setup
+promise: When I start Convex locally for the first time, the terminal does not give me a dashboard address I cannot use.
+start: You are a new developer with an unsigned-in Convex project. No local deployment or dashboard has been configured.
+steps:
+  - Start local development and choose to start without an account.
+  - check: If your terminal tells you where to view the Convex dashboard, it shows an address rather than "null".
+    id: dashboard-hint
+notes: This checks the first-run terminal message, not whether the browser dashboard opens.

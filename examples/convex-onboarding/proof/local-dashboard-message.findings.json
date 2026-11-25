@@ -1,0 +1,11 @@
+{
+  "findings": [
+    {
+      "id": "intuitive-words-2",
+      "criterion": "intuitive-words",
+      "step": 2,
+      "says": "The Convex CLI labels null as the address to view the dashboard.",
+      "evidence": [{"source": "log", "login": "you", "query": "npx convex dev, Start without an account", "got": "View the Convex dashboard at null"}]
+    }
+  ]
+}

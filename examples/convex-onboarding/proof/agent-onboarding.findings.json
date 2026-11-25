@@ -1,0 +1,11 @@
+{
+  "findings": [
+    {
+      "id": "intuitive-refusal-4",
+      "criterion": "intuitive-refusal",
+      "step": 4,
+      "says": "MCP status asks you to run the same dev command that already started the local deployment.",
+      "evidence": [{"source": "log", "login": "you", "query": "CONVEX_AGENT_MODE=anonymous npx convex dev; MCP tools/call status", "got": "The local dev process is ready; MCP status replies: Not Authorized: Run `npx convex dev` to login to your Convex project."}]
+    }
+  ]
+}
