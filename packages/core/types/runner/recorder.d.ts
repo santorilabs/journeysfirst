@@ -1,3 +1,4 @@
+export { recording } from "./recording.js";
 export type Run = import("../format/runfile.js").Run;
 export type Evidence = import("../format/runfile.js").Evidence;
 export type StepFields = Partial<import("../format/runfile.js").ActionStep & import("../format/runfile.js").CheckStep>;

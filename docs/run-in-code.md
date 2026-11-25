@@ -41,6 +41,32 @@ The full example is [examples/share-by-link/tests/share-by-link.spec.js](../exam
 
 ## Without Playwright
 
+### Record a terminal command or MCP exchange
+
+```sh
+npx journeysfirst capture --out terminal.txt -- npm test
+npx journeysfirst mcp-proxy --out mcp.txt --secret-env CONVEX_ADMIN_KEY -- npx convex mcp start
+```
+
+For MCP, configure the client to start the proxy in place of the server. Child input and output are unchanged. The capture file saves bounded terminal output or selected MCP request names and response summaries, not MCP arguments or successful payloads. Declare extra secrets by environment variable name. The wrapper hides common key and token patterns, but redaction cannot find every private value. Check each capture before attaching or sharing it. Use a new file for each command.
+
+In the script that owns the run, import `recording` from `journeysfirst/recorder`. Give it the run and the seat doing the work:
+
+```js
+const seat = recording(run, "you");
+const file = seat.attach("terminal.txt", "terminal.txt");
+seat.step(actionLine);
+seat.check(checkId, {
+  verdict: "passed",
+  proof: "The tests finished and reported success.",
+  refs: [{ file, line: 1 }],
+});
+```
+
+Pick a line that actually proves the check. References are one-based lines of output or responses from captures the runner attached to that seat. A request or a capture notice is not evidence. The helper checks that the line exists, not that the claim follows from it. Keep raw captures private and finish the run with `run.finish()`.
+
+### Record with your own tools
+
 An agent that drives the app with its own tools writes the same run folder:
 
 ```js

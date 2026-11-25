@@ -20,6 +20,8 @@ import { FILE_NAME, RUN_FORMAT, isCheck, settle, stepProblems } from "../format/
 import { maskRun } from "./mask.js";
 import { VERSION } from "../shared/version.js";
 
+export { recording } from "./recording.js";
+
 /**
  * @typedef {import("../format/runfile.js").Run} Run
  * @typedef {import("../format/runfile.js").Evidence} Evidence
