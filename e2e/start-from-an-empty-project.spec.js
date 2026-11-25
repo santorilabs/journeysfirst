@@ -22,13 +22,13 @@ test.journey("journeys/start-from-an-empty-project.journey.yaml", { video: true,
     await journey.check("what-it-is", { by: "you", caption: "Checking that you see what it is." }, async () => {
       const passed = seen.what;
       await show(you, "What it is", seen.whatText);
-      return { passed, proof: "Read the README, the package page, and the overview.", evidence: [{ source: "page", url: "http://127.0.0.1:9/", login: "you", saw: passed ? "what Journeys First is" : "no plain description" }], reason: "The page a newcomer sees does not say what Journeys First is.", caption: passed ? "you see what it is." : "you do not see what it is." };
+      return { passed, proof: "Read the opening a newcomer sees.", evidence: [{ source: "page", url: "http://127.0.0.1:9/", login: "you", saw: passed ? "what Journeys First is" : "no plain description" }], reason: "The page a newcomer sees does not say what Journeys First is.", caption: passed ? "you see what it is." : "you do not see what it is." };
     });
 
     await journey.check("who-it-is-for", { by: "you", caption: "Checking that you see who it is for." }, async () => {
       const passed = seen.who;
       await show(you, "Who it is for", seen.whoText);
-      return { passed, proof: "Read who the page says it is for.", evidence: [{ source: "page", url: "http://127.0.0.1:9/", login: "you", saw: passed ? "who it is for" : "no one named" }], reason: "The page a newcomer sees does not say who it is for.", caption: passed ? "you see who it is for." : "you do not see who it is for." };
+      return { passed, proof: "Read who the opening says it is for.", evidence: [{ source: "page", url: "http://127.0.0.1:9/", login: "you", saw: passed ? "who it is for" : "no one named" }], reason: "The page a newcomer sees does not say who it is for.", caption: passed ? "you see who it is for." : "you do not see who it is for." };
     });
 
     await journey.check("how-to-start", { by: "you", caption: "Checking that you see how to get started." }, async () => {
@@ -128,13 +128,36 @@ function newcomerPages() {
   const readme = readFileSync(join(REPO, "README.md"), "utf8");
   const pack = readFileSync(join(REPO, "packages/core/README.md"), "utf8");
   const overview = readFileSync(join(REPO, "docs/overview.md"), "utf8");
-  const what = /Journeys First/.test(readme) && /journeys in plain sentences/.test(readme) && /what each user, person or agent, must be able to do/.test(readme) && /Journeys First/.test(overview);
-  const who = /Agents build your product/.test(readme) && /person or agent/.test(readme) && /several kinds of users/.test(readme);
+  const opening = section(readme, "# Journeys First", "## The problem");
   const how = /## Install/.test(readme) && /npm install --save-dev journeysfirst/.test(readme) && /npx journeysfirst init/.test(readme) && /## Install/.test(pack) && /npx journeysfirst init/.test(pack);
-  const whatText = section(readme, "# Journeys First", "## The problem");
-  const whoText = section(readme, "## When to use", "## Example");
-  const howText = `${section(readme, "## Install", "## Try it")}\n\nPackage page:\n${section(pack, "## Install", "## The smallest example")}`;
-  return { what, who, how, sameProduct: /Journeys First/.test(readme) && /Journeys First/.test(pack), whatText, whoText, howText, text: `${whatText}\n\n${whoText}\n\n${howText}` };
+  const howText = `${section(readme, "## Install", "## Use it")}\n\nPackage page:\n${section(pack, "## Install", "## The smallest example")}`;
+  return {
+    what: saysWhatThisIs(opening),
+    who: saysWhoItIsFor(opening),
+    how,
+    sameProduct: /Journeys First/.test(readme) && /Journeys First/.test(pack) && /Journeys First/.test(overview),
+    whatText: opening,
+    whoText: opening,
+    howText,
+    text: `${opening}\n\n${howText}`,
+  };
+}
+
+/**
+ * The opening names the product and says it is a format for journeys written in plain sentences.
+ * @param {string} opening
+ */
+function saysWhatThisIs(opening) {
+  return /Journeys First/.test(opening) && /\bformat\b/i.test(opening) && /\bjourneys\b/i.test(opening) && /plain sentences/i.test(opening);
+}
+
+/**
+ * The opening names your agent and the people it checks as. "user journeys" is the product, not the audience.
+ * @param {string} opening
+ */
+function saysWhoItIsFor(opening) {
+  const audience = opening.replace(/user journeys/gi, "journeys");
+  return /\bagents?\b/i.test(audience) && /\b(human|person|people|users?)\b/i.test(audience);
 }
 
 /** @param {string} text @param {string} from @param {string} to */
