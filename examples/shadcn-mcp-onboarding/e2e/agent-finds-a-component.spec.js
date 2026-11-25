@@ -40,13 +40,14 @@ test.journey("journeys/agent-finds-a-component.journey.yaml", { measure: "wide" 
     const said = answer(session);
     const searches = mcpCalls(session).filter((c) => c.tool === "search_items_in_registries");
     return {
-      passed: /@shadcn\/date-picker/.test(said) || /add @shadcn\/date-picker/.test(searches.map(textOf).join("\n")),
-      proof: "Read the searches Codex made and its answer.",
+      // The person only sees Codex's answer, so the add command must be in it.
+      passed: /@shadcn\/date-picker/.test(said) && /shadcn(@\S+)? add @shadcn\/date-picker/.test(said),
+      proof: "Read Codex's answer for a date picker and the command to add it, and the searches it made.",
       evidence: [
         { source: "log", login: "agent", query: "codex-session.jsonl: mcp_tool_call search_items_in_registries", got: searches.map((c) => ({ arguments: c.arguments, reply: textOf(c).slice(0, 250) })) },
-        { source: "page", login: "agent", url: agent.url(), saw: "the date picker items in Codex's answer" },
+        { source: "page", login: "agent", url: agent.url(), saw: said.slice(0, 400) },
       ],
-      reason: "Codex found no shadcn date picker.",
+      reason: /@shadcn\/date-picker/.test(said) ? "Codex named shadcn date pickers but did not give you the command to add one." : "Codex found no shadcn date picker.",
     };
   });
 

@@ -1,15 +1,15 @@
 {
   "format": "journeysfirst-run/v1",
-  "id": "2026-11-25-2017-29e1e172",
+  "id": "2026-11-25-2031-8c625346",
   "journey": {
     "name": "agent-finds-a-component",
     "version": "c14db12e",
     "case": null
   },
   "result": "failed",
-  "summary": "The server lists @shadcn as set up, but the search said: \"No registries are configured. Add registries to components.json (use get_project_registries to inspect) or pass them explicitly.\"",
-  "started_at": "2026-11-25T20:17:43.138Z",
-  "finished_at": "2026-11-25T20:18:10.454Z",
+  "summary": "2 of 3 checks failed.",
+  "started_at": "2026-11-25T20:31:40.092Z",
+  "finished_at": "2026-11-25T20:32:05.943Z",
   "ran_by": {
     "agent": "playwright"
   },
@@ -39,7 +39,7 @@
     {
       "file": "agent.webm",
       "kind": "video",
-      "starts_at": 17.1,
+      "starts_at": 15.8,
       "tags": {
         "user": "agent"
       }
@@ -78,10 +78,10 @@
     }
   ],
   "verified": [
-    "The agent says the project has the shadcn registry.",
-    "The agent finds a shadcn date picker and gives you the command to add it."
+    "The agent says the project has the shadcn registry."
   ],
   "not_verified": [
+    "The agent finds a shadcn date picker and gives you the command to add it: codex named shadcn date pickers but did not give you the command to add one.",
     "That search covers the registries the server said are set up: the server lists @shadcn as set up, but the search said: \"No registries are configured. Add registries to components.json (use get_project_registries to inspect) or pass them explicitly.\""
   ],
   "steps": [
@@ -89,8 +89,8 @@
       "says": "You ask your agent which shadcn registries the project has set up, and to search them for a date picker.",
       "by": "you",
       "status": "done",
-      "at": 2.6,
-      "took": 13.9
+      "at": 1.2,
+      "took": 14.1
     },
     {
       "check": "The agent says the project has the shadcn registry.",
@@ -103,7 +103,7 @@
           "source": "page",
           "login": "agent",
           "url": "http://localhost:5301/codex-session.html",
-          "saw": "The project uses the built-in **`@shadcn`** registry. The `registries` field in [components.json](~/work/jf-work/agent-finds-a-component-1795637863169/app/components.json) is empty, so there are no custom registries configured.\n\nSearching `@shadcn` for “date picker” returned three examples:\n\n| Registry item | Use |\n|---|---|\n| `@shadcn/date-picker-demo` | Pick a single date |\n| `@shadcn"
+          "saw": "The project uses the built-in `@shadcn` registry. The `registries` field in [components.json](~/work/jf-work/agent-finds-a-component-1795638700107/app/components.json) is empty, so there are no custom registries configured.\n\nI found three date picker examples in `@shadcn`:\n\n| Registry item | Use |\n| --- | --- |\n| `@shadcn/date-picker-demo` | Select a single date |\n| `@shadcn/date-picker"
         },
         {
           "source": "log",
@@ -112,8 +112,8 @@
           "got": "The following registries are configured in the current project:\n\n- @shadcn\n\nYou can view the items in a registry by running:\n`npx shadcn@latest view @name-of-registry`\n\nFor example: `npx shadcn@latest view @shadcn` or `npx shadcn@latest view @shadcn @acme` to view multiple registries."
         }
       ],
-      "at": 17.2,
-      "took": 0,
+      "at": 15.9,
+      "took": 0.1,
       "screenshots": [
         {
           "file": "step-2.png",
@@ -125,8 +125,8 @@
       "check": "The agent finds a shadcn date picker and gives you the command to add it.",
       "id": "finds-date-picker",
       "by": "agent",
-      "verdict": "passed",
-      "proof": "Read the searches Codex made and its answer.",
+      "verdict": "failed",
+      "proof": "Read Codex's answer for a date picker and the command to add it, and the searches it made.",
       "evidence": [
         {
           "source": "log",
@@ -135,13 +135,20 @@
           "got": [
             {
               "arguments": {
+                "query": "date-picker",
+                "limit": 12
+              },
+              "reply": "No registries are configured. Add registries to components.json (use get_project_registries to inspect) or pass them explicitly."
+            },
+            {
+              "arguments": {
+                "query": "date-picker",
                 "registries": [
                   "@shadcn"
                 ],
-                "query": "date picker",
                 "limit": 12
               },
-              "reply": "Found 3 items matching \"date picker\" in registries @shadcn:\n\nShowing items 1-3 of 3:\n\n- date-picker-demo (registry:example) [@shadcn] \n  Add command: `npx shadcn@latest add @shadcn/date-picker-demo`\n\n- date-picker-with-range (registry:example) [@shad"
+              "reply": "Found 3 items matching \"date-picker\" in registries @shadcn:\n\nShowing items 1-3 of 3:\n\n- date-picker-demo (registry:example) [@shadcn] \n  Add command: `npx shadcn@latest add @shadcn/date-picker-demo`\n\n- date-picker-with-range (registry:example) [@shad"
             }
           ]
         },
@@ -149,24 +156,26 @@
           "source": "page",
           "login": "agent",
           "url": "http://localhost:5301/codex-session.html",
-          "saw": "the date picker items in Codex's answer"
+          "saw": "The project uses the built-in `@shadcn` registry. The `registries` field in [components.json](~/work/jf-work/agent-finds-a-component-1795638700107/app/components.json) is empty, so there are no custom registries configured.\n\nI found three date picker examples in `@shadcn`:\n\n| Registry item | Use |\n| --- | --- |\n| `@shadcn/date-picker-demo` | Select a single date |\n| `@shadcn/date-picker"
         }
       ],
-      "at": 19.9,
+      "at": 18.6,
       "took": 0,
       "screenshots": [
         {
           "file": "step-3.png",
           "url": "http://localhost:5301/codex-session.html"
         }
-      ]
+      ],
+      "cause": "product",
+      "reason": "Codex named shadcn date pickers but did not give you the command to add one."
     },
     {
       "says": "The agent asks the same MCP server to search the project's registries for a date picker without naming a registry.",
       "by": "agent",
       "status": "done",
-      "at": 22.6,
-      "took": 1.4,
+      "at": 21.2,
+      "took": 1.3,
       "screenshots": [
         {
           "file": "step-4.png",
@@ -197,7 +206,7 @@
           }
         }
       ],
-      "at": 24.5,
+      "at": 23.1,
       "took": 0,
       "screenshots": [
         {
@@ -215,13 +224,19 @@
       "id": "foundation-stated-5",
       "criterion": "foundation-stated",
       "step": 5,
-      "says": "The server lists @shadcn as configured, then a search that names no registry says \"No registries are configured\". This breaks \"The registries get_project_registries lists are the ones a search covers when no registry is named.\"",
+      "says": "The server lists @shadcn as configured, then a search that names no registry says \"No registries are configured\". Codex hit this in its own first search and had to retry with @shadcn. This breaks \"The registries get_project_registries lists are the ones a search covers when no registry is named.\"",
       "evidence": [
         {
           "source": "page",
           "login": "agent",
           "url": "http://localhost:5301/server-search.html",
           "saw": "get_project_registries: \"- @shadcn\"; search_items_in_registries {query: date picker}: \"No registries are configured. Add registries to components.json\""
+        },
+        {
+          "source": "log",
+          "login": "agent",
+          "query": "codex-session.jsonl: mcp_tool_call search_items_in_registries",
+          "got": "Codex's own first search, {query: date-picker} with no registry, got \"No registries are configured\". It searched again with registries: [\"@shadcn\"]."
         }
       ]
     },
