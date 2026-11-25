@@ -7,6 +7,7 @@
 // journeysfirst review [dir] [--port n] [--host h]               browse run folders in a local review UI
 // journeysfirst publish <run folder> [--to url] [--journey file]   publish a run (token from JOURNEYSFIRST_TOKEN)
 // journeysfirst dev-server [--port n] [--host h]                 a local in-memory service to publish to
+// journeysfirst affected <path...>                               which journeys cover these changed paths
 // journeysfirst merge-check [runs folder] [--main <runs folder>]   may this change merge, from the runs of every journey
 // journeysfirst report <run folder>                              write report.html into the run folder
 // journeysfirst summary <run folder>                             print a markdown summary for a pull request
@@ -22,6 +23,7 @@ import { addFindings, addReview, findJourney, newestRunFolder, readRunFolder, re
 import { measuredReport } from "../src/review/measured.js";
 import { summaryMarkdown, writeReport } from "../src/review/report.js";
 import { serveReview } from "../src/review/review.js";
+import { affectedLines } from "../src/format/affected.js";
 import { mergeCheck } from "../src/format/merge-check.js";
 import { doctor } from "../src/doctor.js";
 import { init, nextSteps, upgrade } from "../src/setup.js";
@@ -45,6 +47,9 @@ const USAGE = `Usage:
   journeysfirst review [runs folder] [--port <n>] [--host <address>]   (default port 4400, or PORT; host 127.0.0.1)
   journeysfirst publish <run folder> [--to <url>] [--journey <file>]   (default JOURNEYSFIRST_URL; token from JOURNEYSFIRST_TOKEN)
   journeysfirst dev-server [--port <n>] [--host <address>]   (default port 4500; host 127.0.0.1)
+  journeysfirst affected <path...>
+      Prints run or skip for each journey in journeys/, from journeys/covered-by.yaml.
+      A journey runs when a path matches one it covers. A journey with no entry is skipped.
   journeysfirst merge-check [runs folder] [--main <runs folder>]   (default journey-runs)
       Ok only when every journey in journeys/ has a valid run in which every check passed.
       A blocked check is ok only if the same check was blocked in main's newest run, in --main.
@@ -155,6 +160,17 @@ if (command === "--version" || command === "version") {
     if (result.url) console.log(`  Give this link to the person: ${result.url}`);
     if (result.unverified) console.log(`  ${compared}`);
     console.log(`  uploaded ${result.uploaded.length} file(s), already there ${result.skipped.length}; digest ${result.digest.slice(0, 12)}`);
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
+} else if (command === "affected") {
+  if (!positional.length) {
+    console.error("Name the files that changed: journeysfirst affected <path>...");
+    process.exit(1);
+  }
+  try {
+    for (const line of affectedLines(process.cwd(), positional)) console.log(line);
   } catch (error) {
     console.error(error.message);
     process.exit(1);

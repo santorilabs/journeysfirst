@@ -522,6 +522,8 @@ test("the reporter redacts a trace and does not leave the secret list on disk", 
   const text = saved[0].data.toString("utf8");
   assert.doesNotMatch(text, /hunter2|s3cr3t-value/);
   assert.match(text, /password=/);
+  const original = readZip(readFileSync(trace));
+  assert.doesNotMatch(original[0].data.toString("utf8"), /hunter2|s3cr3t-value/);
   assert.equal(existsSync(secrets), false, "the secret list is removed from the test output");
   assert.ok(!readdirSync(join(dir, "share-by-link", "2026-11-17-1300-mask")).includes("secrets.json"));
 });

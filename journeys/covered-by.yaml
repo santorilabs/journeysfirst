@@ -1,0 +1,25 @@
+# Paths each journey covers, from the repo root.
+# A journey is run again when a change matches one of its paths.
+# A trailing /** covers that folder. A journey with no entry is not selected.
+# This file is for the tool. The journey sentences do not list paths.
+
+start-from-an-empty-project:
+  - packages/core/src/setup.js
+  - packages/core/src/doctor.js
+  - packages/core/templates/**
+  - packages/core/bin/journeysfirst.js
+
+let-an-agent-write-a-journey:
+  - skills/**
+  - packages/core/src/setup.js
+
+hand-a-project-to-a-new-agent:
+  - skills/**
+  - docs/**
+  - spec/**
+  - packages/core/src/setup.js
+
+run-the-journeys-a-change-covers:
+  - packages/core/src/format/affected.js
+  - packages/core/bin/journeysfirst.js
+  - journeys/covered-by.yaml

@@ -1,5 +1,6 @@
 node_modules
 journey-runs
+journey-runs-broken
 test-results
 playwright-report
 packages/core/skills

@@ -24,9 +24,9 @@ test("a password field and a secret in the text are covered, then put back", () 
   const script = { nodeValue: "s3cr3t-value", parentElement: { tagName: "SCRIPT" } };
   globalThis.document = fakeDoc([password, empty, note, apiKey], [sentence, script]);
   try {
-    applyMask({ secrets: ["s3cr3t-value"], mask: MASK });
+    assert.equal(applyMask({ secrets: ["s3cr3t-value"], mask: MASK }), true);
     assert.equal(password.value, MASK);
-    assert.equal(password.getAttribute("data-jf-mask"), "hunter2");
+    assert.equal(password.getAttribute("data-jf-mask"), "1");
     assert.equal(empty.value, "");
     assert.equal(note.value, "hello");
     assert.equal(apiKey.value, MASK);
@@ -43,10 +43,13 @@ test("a password field and a secret in the text are covered, then put back", () 
 
 test("a trace zip loses password values and declared secrets, and keeps images", () => {
   const trace = [
-    JSON.stringify({ method: "setContent", params: { html: '<input type="password" name="password" value="hunter2"><p>token=abcdefghijkl</p>' } }),
-    JSON.stringify({ snapshot: ["INPUT", { __playwright_value_: "hunter2", type: "password", name: "password", value: "hunter2" }] }),
-    JSON.stringify({ method: "fill", params: { selector: "#pw", value: "s3cr3t-value" } }),
-    JSON.stringify({ message: '  fill("s3cr3t-value")' }),
+    JSON.stringify({ method: "setContent", params: { html: '<input type="password" name="password" value="hunter2"><input name="api_key" value="abcd1234efgh5678"><input name="note" value="hello-there"><p>token=abcdefghijkl</p><p>s3cr3t-value</p>' } }),
+    JSON.stringify({ snapshot: ["INPUT", { __playwright_value_: "hunter2", type: "password", name: "password", value: "hunter2", "data-jf-mask": "hunter2" }] }),
+    JSON.stringify({ snapshot: ["INPUT", { __playwright_value_: "abcd1234efgh5678", type: "text", name: "api_key", value: "abcd1234efgh5678" }] }),
+    JSON.stringify({ snapshot: ["INPUT", { __playwright_value_: "hello-there", type: "text", name: "note", value: "hello-there" }] }),
+    JSON.stringify({ title: 'Fill "hunter2"', params: { selector: "#password", value: "hunter2" } }),
+    'await page.fill("#password", "hunter2");',
+    JSON.stringify({ method: "inputValue", result: { value: "hunter2" } }),
     "network only-in-the-trace",
   ].join("\n");
   const image = Buffer.from([0xff, 0xd8, 0xff, 0, ...Buffer.from("s3cr3t-value")]);
@@ -54,13 +57,25 @@ test("a trace zip loses password values and declared secrets, and keeps images",
     { name: "trace.trace", data: trace },
     { name: "shot.jpeg", data: image },
   ]);
-  const redacted = redactZip(zip, ["only-in-the-trace"]);
+  const redacted = redactZip(zip, ["only-in-the-trace", "s3cr3t-value"]);
   const entries = readZip(redacted);
   const text = entries.find((entry) => entry.name === "trace.trace").data.toString("utf8");
-  assert.doesNotMatch(text, /hunter2|s3cr3t-value|abcdefghijkl/);
+  assert.doesNotMatch(text, /hunter2|s3cr3t-value|abcdefghijkl|abcd1234efgh5678/);
+  assert.match(text, /hello-there/);
   assert.match(text, /token=/);
   assert.deepEqual(entries.find((entry) => entry.name === "shot.jpeg").data, image);
   assert.equal(redactZip(Buffer.from("zip bytes")).toString(), "zip bytes");
+});
+
+test("a password value found in one trace entry is covered in the others", () => {
+  const zip = playwrightZip([
+    { name: "trace.trace", data: JSON.stringify({ snapshot: ["INPUT", { __playwright_value_: "hunter2", type: "password", name: "password" }] }) },
+    { name: "attachments/error.md", data: "textbox: hunter2\ntextbox: abcd1234efgh5678\n" + JSON.stringify({ name: "api_key", value: "abcd1234efgh5678" }) },
+  ]);
+  const entries = readZip(redactZip(zip, []));
+  const note = entries.find((entry) => entry.name.endsWith("error.md")).data.toString("utf8");
+  assert.doesNotMatch(note, /hunter2|abcd1234efgh5678/);
+  assert.match(note, /textbox/);
 });
 
 /** @param {Record<string, string>} attrs @param {string} value */

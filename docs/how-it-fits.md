@@ -72,6 +72,7 @@ Files, in `src/format/`:
 - `run-check.js`: `checkRun`, the one way every reader takes in a run file.
 - `run-folder.js`: a run folder on disk. `addFindings` writes a review's findings into it, and `addReview` a person's call. Neither changes anything else in `run.json`.
 - `merge-check.js`: whether a change may merge, from the runs of every journey in the repo. Each journey needs a valid run where every check passed. A check may stay blocked only if it was blocked in main's latest run too.
+- `affected.js`: which journeys to run again after a change. It reads `journeys/covered-by.yaml`, a list of paths each journey covers. `journeysfirst affected <path...>` prints `run` or `skip` for each journey. A journey with no entry is not selected. The paths are not part of the journey file, so the sentences stay plain.
 - `stable-json.js`: JSON with sorted keys, for the journey version and the digest.
 - `draft0/format-v0.js`: reads draft 0 journeys (`journeysfirst/v0`). Only `format.js` imports it.
 

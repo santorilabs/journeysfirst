@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/santorilabs/journeysfirst/main/spec/journey-v1.schema.json
+format: journeysfirst/v1
+title: Start from an empty project
+promise: |
+  I just found Journeys First. I want to install it in an empty project, set it up, and see a first run pass.
+  If the setup has no address for the app, tell me plainly what to fix.
+users: [teammate]
+start: You have an empty project. Nothing is installed yet. The teammate has not seen a run.
+steps:
+  - Install it and set the project up.
+  - Run the first journey.
+  - check: You see the first run pass.
+    id: first-run-passes
+  - check: The teammate sees that the first run passed.
+    id: teammate-sees-the-pass
+    added: true
+  - check: The teammate does not see an error from that run.
+    id: teammate-sees-no-error
+    added: true
+  - Leave the app address out of the setup.
+  - Ask what is wrong.
+  - check: You see that the app address is missing, and you see what to put there.
+    id: missing-address
+  - check: The teammate does not see the broken setup listed as a pass.
+    id: teammate-no-false-pass
+    added: true
+notes: The first run is the sample the setup adds when the project has no app of its own. The app address is the address a run opens.

@@ -114,8 +114,6 @@ npx playwright install --only-shell chromium
 npx journeysfirst init
 ```
 
-On a repo with no dev or start script, init adds an example page, a journey and a script. `npx playwright test` then passes. Point `webServer` at your app when you replace the example. `npx journeysfirst init --demo` adds that example even when the repo has a dev script.
-
 Or only the skills: `npx skills add santorilabs/journeysfirst --skill '*' --agent claude-code codex -y`
 
 ## Try it
@@ -144,7 +142,7 @@ Just ask your agent. It picks the right skill:
 | "Review the last run." | [journey-review](skills/journey-review/SKILL.md) |
 | "That run failed. Fix it." | [journey-fix](skills/journey-fix/SKILL.md) |
 
-After the first run, a replay is a plain Playwright test: `npx playwright test`. It needs no model, unless one of the users is an agent. `npx journeysfirst doctor` checks Node, Playwright, Chromium, the config, the app's address and each journey file. `npx journeysfirst report <run folder>` writes `report.html` beside `run.json`. `npx journeysfirst summary <run folder>` prints a markdown summary for a pull request. For every command, run `npx journeysfirst --help`.
+After the first run, a replay is a plain Playwright test: `npx playwright test`. It needs no model, unless one of the users is an agent. For every command, run `npx journeysfirst --help`.
 
 ## Limitations
 

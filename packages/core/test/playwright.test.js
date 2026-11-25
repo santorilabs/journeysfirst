@@ -470,10 +470,22 @@ test("a screenshot covers the page, then puts it back", async () => {
   const names = [];
   you.evaluate = async (fn) => {
     names.push(fn.name);
-    return {};
+    return fn.name === "applyMask" ? true : undefined;
   };
   await run.step(1, { by: "you" }, async () => {});
   assert.deepEqual(names, ["applyMask", "restoreMask"]);
+});
+
+test("a screenshot does not restore the page when nothing was covered", async () => {
+  const { run } = journeyRun({ measure: false });
+  const you = await run.page("you");
+  const names = [];
+  you.evaluate = async (fn) => {
+    names.push(fn.name);
+    return false;
+  };
+  await run.step(1, { by: "you" }, async () => {});
+  assert.deepEqual(names, ["applyMask"]);
 });
 
 test("finish gives the reporter the secret values, and the run file does not contain them", async () => {

@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/santorilabs/journeysfirst/main/spec/journey-v1.schema.json
+format: journeysfirst/v1
+title: Let an agent write a journey and run it
+promise: |
+  I want my coding agent to find the instructions, write a journey, run it, and show the proof.
+  I do not want to step in.
+users: [agent, reviewer]
+start: The project is set up. The instructions are in the project. No journey for this task is written yet. You are not watching.
+steps:
+  - The agent finds the instructions.
+  - The agent writes a journey for one thing the page does.
+  - The agent runs that journey.
+  - check: The agent sees a result on every line.
+    id: result-on-every-line
+  - check: The agent is not asked to wait for a person.
+    id: agent-not-waiting
+    added: true
+  - check: You see the proof, and you did none of the steps.
+    id: you-see-the-proof
+  - check: The reviewer sees a result on every line.
+    id: reviewer-sees-every-line
+    added: true
+  - check: The reviewer does not see a secret in the proof.
+    id: reviewer-sees-no-secret
+    added: true
+notes: The instructions are the skill files the setup copies into the project. The proof is the run of the journey the agent wrote. You do not type, click, or answer.

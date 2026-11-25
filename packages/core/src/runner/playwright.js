@@ -359,9 +359,11 @@ export class JourneyRun {
   async #screenshot(user) {
     const opened = this.pages.get(user);
     if (!opened) return [];
-    // Cover the field before the shot, and put the value back so the test can keep going.
+    // Cover the field before the shot. Put the value back only when something
+    // changed, so a page with no secret pays for one call, not two.
+    let covered = false;
     try {
-      await opened.page.evaluate(applyMask, { secrets: this.recorder.secretValues(), mask: MASK });
+      covered = (await opened.page.evaluate(applyMask, { secrets: this.recorder.secretValues(), mask: MASK })) === true;
     } catch {
       // A page that cannot run the mask still gets a screenshot.
     }
@@ -370,10 +372,12 @@ export class JourneyRun {
     } catch {
       return []; // A closed page can't be captured; the step still records what happened.
     } finally {
-      try {
-        await opened.page.evaluate(restoreMask);
-      } catch {
-        // A closed page has nothing to put back.
+      if (covered) {
+        try {
+          await opened.page.evaluate(restoreMask);
+        } catch {
+          // A closed page has nothing to put back.
+        }
       }
     }
   }

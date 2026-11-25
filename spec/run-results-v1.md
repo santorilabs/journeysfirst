@@ -30,7 +30,8 @@ journey-runs/share-by-link/2026-11-08-1802-7d2e91fa/
 
 - A secret value is written as `{secret: true}`, with no value.
 - The recorder keeps a secret's value in memory. It refuses to write the run if that value shows up anywhere else in the file. It is not rewritten in place.
-- A screenshot covers a password field, a field whose name looks like a secret, and text that contains a secret value. The page is restored after the shot. A trace in the run folder has those values, and obvious patterns such as a bearer token or `password=...`, replaced. Video is not changed. A password field the browser draws as dots stays dots.
+- A screenshot covers a password field, a field whose name looks like a secret, and text that contains a secret value. The page is restored after the shot only when something was covered. The field is marked `data-jf-mask="1"`. The real value stays in memory for that shot and is not written into the page. Video is not changed. A password field the browser draws as dots stays dots.
+- A trace is rewritten after the run. A value seen on a password or secret field, a declared secret, and obvious patterns such as a bearer token or `password=...` are replaced everywhere in the text of the zip, including action names and the copied script. The original trace file is rewritten too, so the raw zip does not remain. Image entries are left as they are.
 - Obvious patterns in the run file are replaced the same way. A value shorter than 4 characters is not searched for.
 - The Playwright plugin writes page addresses without the query string or fragment, since those can hold a sign-in code or token. An address you write yourself is kept as written.
 - A trace holds everything the page and network saw. It stays on the machine that ran the journey. Open it with `npx playwright show-trace <file>`.

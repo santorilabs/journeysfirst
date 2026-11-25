@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/santorilabs/journeysfirst/main/spec/journey-v1.schema.json
+format: journeysfirst/v1
+title: Run the journeys a change covers
+promise: |
+  When I change one part of the product, I want every journey that covers that part to run again.
+  I do not want the other journeys to run.
+  The person reviewing my change should see which journeys ran and which did not.
+users: [reviewer, reader]
+start: Two journeys cover different parts of the product. One covers the page a visitor opens. The other covers the notes a maintainer reads. Neither has been run for this change.
+steps:
+  - Change the page a visitor opens. Leave the notes alone.
+  - Run every journey that covers that page.
+  - check: The journey that covers the page runs again.
+    id: covered-journey-runs
+  - check: The journey that covers the notes does not run.
+    id: other-journey-stays
+  - check: You see which journeys ran and which did not.
+    id: you-see-which-ran
+  - check: The reviewer sees which journey ran and which did not.
+    id: reviewer-sees-the-choice
+  - check: The reader sees the same choice in the report.
+    id: reader-sees-the-report
+    added: true
+  - check: The reader does not see the notes journey listed as run.
+    id: reader-does-not-see-a-false-run
+    added: true
+notes: Which part a journey covers is listed beside the journeys, in journeys/covered-by.yaml, not in these sentences. A change is a file path. The run lists one line per journey, run or skip.

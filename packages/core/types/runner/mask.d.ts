@@ -23,7 +23,7 @@ export declare function maskRun(value: unknown, key?: string): unknown;
 export declare function applyMask(arg: {
     secrets?: string[];
     mask?: string;
-}): void;
+}): boolean;
 /** Put back what applyMask covered. Playwright runs this in the page. */
 export declare function restoreMask(): void;
 /**
@@ -34,6 +34,25 @@ export declare function restoreMask(): void;
  * @returns {Buffer}
  */
 export declare function redactZip(buffer: Buffer, secrets?: string[]): Buffer;
+/**
+ * The rewritten zip, plus every value that was covered. A value seen in one
+ * text entry is covered in the others too: the page snapshot and the copied
+ * error text do not share a shape, but they share the typed value.
+ * @param {Buffer} buffer
+ * @param {string[]} [secrets]
+ * @returns {{zip: Buffer, hidden: string[]} | null}
+ */
+export declare function rewriteTrace(buffer: Buffer, secrets?: string[]): {
+    zip: Buffer;
+    hidden: string[];
+} | null;
+/**
+ * Cover secret text in a plain file, such as Playwright's error snapshot.
+ * @param {string} text
+ * @param {string[]} [hidden] declared secrets and values already seen in the trace
+ * @returns {string}
+ */
+export declare function scrubText(text: string, hidden?: string[]): string;
 /**
  * Entries of a zip Playwright can write: sizes live in the central directory.
  * Returns null when the bytes are not a zip this reader understands.

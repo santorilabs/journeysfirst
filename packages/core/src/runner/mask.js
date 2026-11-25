@@ -1,9 +1,12 @@
 // Cover passwords and other obvious secrets before they are saved.
-// A screenshot runs applyMask in the page, then restoreMask, so the test
-// still sees the real value. A trace is a zip: read it from the central
-// directory (Playwright leaves the local sizes at zero) and rewrite the text
-// entries. The run file is masked only after the declared-secret check, so a
-// value marked secret is still refused rather than quietly rewritten.
+// A screenshot runs applyMask in the page. The real value stays in a map on
+// the page, and the attribute is only a marker, because a trace records
+// attributes. restoreMask runs only when something was covered.
+// A trace is a zip: read it from the central directory (Playwright leaves the
+// local sizes at zero) and rewrite the text entries. Values seen on a password
+// or secret field are replaced everywhere in that text, including action names
+// and the copied script. The run file is masked only after the declared-secret
+// check, so a value marked secret is still refused rather than quietly rewritten.
 import { crc32, deflateRawSync, inflateRawSync } from "node:zlib";
 
 /** What a covered value is replaced with. The same text in a field, a trace and a run. */
@@ -65,47 +68,61 @@ export function maskRun(value, key = "") {
  * @param {{secrets?: string[], mask?: string}} arg
  */
 export function applyMask(arg) {
-  const doc = /** @type {any} */ (globalThis).document;
-  if (!doc?.querySelectorAll) return;
+  const root = /** @type {any} */ (globalThis);
+  const doc = root.document;
+  if (!doc?.querySelectorAll) return false;
   const secrets = (arg?.secrets ?? []).filter((secret) => typeof secret === "string" && secret.length >= 4);
   const mask = arg?.mask || "••••••••";
   const named = /password|passwd|secret|token|api[-_]?key|authorization|one-time-code/i;
+  /** @type {Map<any, string>} */
+  const hidden = new Map();
+  let changed = false;
   for (const el of doc.querySelectorAll("input, textarea")) {
     if (el.getAttribute("data-jf-mask") !== null) continue;
     const hint = `${el.getAttribute("type") || ""} ${el.getAttribute("name") || ""} ${el.getAttribute("id") || ""} ${el.getAttribute("autocomplete") || ""}`;
     const value = String(el.value ?? "");
     const hit = secrets.some((secret) => value.includes(secret));
     if (!value || (!hit && !named.test(hint))) continue;
-    el.setAttribute("data-jf-mask", value);
+    hidden.set(el, value);
+    // A marker only. The trace copies attributes, so the value cannot live here.
+    el.setAttribute("data-jf-mask", "1");
     el.value = mask;
+    changed = true;
   }
-  if (!secrets.length || typeof doc.createTreeWalker !== "function" || !doc.body) return;
-  const walker = doc.createTreeWalker(doc.body, 4);
-  /** @type {any[]} */
-  const nodes = [];
-  for (let node = walker.nextNode(); node; node = walker.nextNode()) nodes.push(node);
-  const saved = [];
-  for (const node of nodes) {
-    const parent = node.parentElement?.tagName;
-    if (parent === "SCRIPT" || parent === "STYLE" || parent === "NOSCRIPT") continue;
-    let next = String(node.nodeValue ?? "");
-    for (const secret of secrets) next = next.split(secret).join(mask);
-    if (next !== node.nodeValue) {
-      saved.push({ node, value: node.nodeValue });
-      node.nodeValue = next;
+  root.__jfMaskValues = hidden;
+  if (secrets.length && typeof doc.createTreeWalker === "function" && doc.body) {
+    const walker = doc.createTreeWalker(doc.body, 4);
+    /** @type {any[]} */
+    const nodes = [];
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) nodes.push(node);
+    const saved = [];
+    for (const node of nodes) {
+      const parent = node.parentElement?.tagName;
+      if (parent === "SCRIPT" || parent === "STYLE" || parent === "NOSCRIPT") continue;
+      let next = String(node.nodeValue ?? "");
+      for (const secret of secrets) next = next.split(secret).join(mask);
+      if (next !== node.nodeValue) {
+        saved.push({ node, value: node.nodeValue });
+        node.nodeValue = next;
+        changed = true;
+      }
     }
+    if (saved.length) doc.__jfMask = saved;
   }
-  if (saved.length) doc.__jfMask = saved;
+  return changed;
 }
 
 /** Put back what applyMask covered. Playwright runs this in the page. */
 export function restoreMask() {
-  const doc = /** @type {any} */ (globalThis).document;
+  const root = /** @type {any} */ (globalThis);
+  const doc = root.document;
   if (!doc?.querySelectorAll) return;
+  const hidden = root.__jfMaskValues;
   for (const el of doc.querySelectorAll("[data-jf-mask]")) {
-    el.value = el.getAttribute("data-jf-mask") ?? "";
+    if (hidden instanceof Map && hidden.has(el)) el.value = hidden.get(el);
     el.removeAttribute("data-jf-mask");
   }
+  root.__jfMaskValues = undefined;
   const saved = doc.__jfMask;
   if (Array.isArray(saved)) {
     for (const item of saved) item.node.nodeValue = item.value;
@@ -122,18 +139,57 @@ export function restoreMask() {
  */
 export function redactZip(buffer, secrets = []) {
   const source = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
+  try {
+    return rewriteTrace(source, secrets)?.zip ?? source;
+  } catch {
+    return source;
+  }
+}
+
+/**
+ * The rewritten zip, plus every value that was covered. A value seen in one
+ * text entry is covered in the others too: the page snapshot and the copied
+ * error text do not share a shape, but they share the typed value.
+ * @param {Buffer} buffer
+ * @param {string[]} [secrets]
+ * @returns {{zip: Buffer, hidden: string[]} | null}
+ */
+export function rewriteTrace(buffer, secrets = []) {
+  const source = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
   let entries;
   try {
     entries = readZip(source);
   } catch {
-    return source;
+    return null;
   }
-  if (!entries) return source;
-  try {
-    return writeZip(entries.map((entry) => ({ name: entry.name, data: redactEntry(entry.name, entry.data, secrets) })));
-  } catch {
-    return source;
+  if (!entries) return null;
+  const texts = entries.map((entry) => (BINARY.test(entry.name) || entry.data.includes(0) ? null : entry.data.toString("utf8")));
+  /** @type {Set<string>} */
+  const hidden = new Set(secrets.filter((secret) => typeof secret === "string" && secret.length >= 4));
+  for (const text of texts) {
+    if (text == null) continue;
+    for (const value of collectSensitiveValues(text)) hidden.add(value);
   }
+  const list = [...hidden];
+  const zip = writeZip(entries.map((entry, i) => ({
+    name: entry.name,
+    data: texts[i] == null ? entry.data : Buffer.from(scrubText(texts[i], list)),
+  })));
+  return { zip, hidden: list };
+}
+
+/**
+ * Cover secret text in a plain file, such as Playwright's error snapshot.
+ * @param {string} text
+ * @param {string[]} [hidden] declared secrets and values already seen in the trace
+ * @returns {string}
+ */
+export function scrubText(text, hidden = []) {
+  if (!text) return text;
+  return text
+    .split("\n")
+    .map((line) => maskKnownSecrets(maskText(maskPasswordObjects(line)), hidden))
+    .join("\n");
 }
 
 /**
@@ -174,39 +230,55 @@ export function readZip(buffer) {
   return entries;
 }
 
-/**
- * @param {string} name
- * @param {Buffer} data
- * @param {string[]} secrets
- */
-function redactEntry(name, data, secrets) {
-  if (BINARY.test(name) || data.includes(0)) return data;
-  return Buffer.from(maskTraceText(data.toString("utf8"), secrets));
-}
+const SENSITIVE_NAME = /password|passwd|secret|token|api[-_]?key|authorization|one-time-code/i;
 
 /**
+ * Values typed into a password or secret field. They are replaced everywhere
+ * in the trace text, because the same string also shows up in action names,
+ * inputValue results and the copied script.
  * @param {string} text
- * @param {string[]} secrets
+ * @returns {string[]}
  */
-function maskTraceText(text, secrets) {
-  let waitingForFill = false;
-  let sincePassword = 0;
-  const lines = text.split("\n").map((line) => {
-    let next = line;
-    if (/"type"\s*:\s*"password"|type=\\?"password\\?"/i.test(next)) {
-      waitingForFill = true;
-      sincePassword = 0;
-    }
-    // The fill that follows a password field often names the field only as a
-    // selector, so cover fills for a few lines after the field is seen.
-    if (waitingForFill && /"method"\s*:\s*"fill"/.test(next)) next = next.replace(/("value"\s*:\s*")([^"\\]*)(")/, `$1${MASK}$3`);
-    else if (waitingForFill && /fill\(\\"/.test(next)) next = next.replace(/(fill\(\\")([^"\\]*)(\\")/, `$1${MASK}$3`);
-    else if (waitingForFill && ++sincePassword > 40) waitingForFill = false;
-    next = maskPasswordObjects(next);
-    next = maskText(next);
-    return maskKnownSecrets(next, secrets);
-  });
-  return lines.join("\n");
+function collectSensitiveValues(text) {
+  /** @type {Set<string>} */
+  const found = new Set();
+  for (const object of text.match(/\{[^{}]{0,8000}\}/g) ?? []) {
+    if (!objectIsSensitive(object)) continue;
+    for (const match of object.matchAll(/"(?:__playwright_value_|value)"\s*:\s*"((?:\\.|[^"\\])*)"/g)) addFound(found, jsonUnescape(match[1]));
+    for (const match of object.matchAll(/Fill \\+"((?:\\.|[^"\\])*)\\+"/g)) addFound(found, jsonUnescape(match[1]));
+  }
+  for (const tag of text.match(/<input\b[^>]*>/gi) ?? []) {
+    if (!SENSITIVE_NAME.test(tag) && !/type\s*=\s*\\?"password\\?"/i.test(tag)) continue;
+    const value = tag.match(/\bvalue\s*=\s*\\?"([^"\\]*)\\?"/i);
+    if (value) addFound(found, value[1]);
+  }
+  // Old traces stored the real value on this attribute. A current run stores "1".
+  for (const match of text.matchAll(/"data-jf-mask"\s*:\s*"((?:\\.|[^"\\])*)"/g)) addFound(found, jsonUnescape(match[1]));
+  return [...found];
+}
+
+/** @param {string} object */
+function objectIsSensitive(object) {
+  if (/"type"\s*:\s*"password"/i.test(object) || /type=\\?"password\\?"/i.test(object)) return true;
+  for (const match of object.matchAll(/"(?:name|id|autocomplete|role|subtitle|locator|selector)"\s*:\s*"((?:\\.|[^"\\])*)"/g)) {
+    if (SENSITIVE_NAME.test(jsonUnescape(match[1]))) return true;
+  }
+  return false;
+}
+
+/** @param {Set<string>} found @param {string} value */
+function addFound(found, value) {
+  if (value.length < 4 || value === MASK || value === "1") return;
+  found.add(value);
+}
+
+/** @param {string} value */
+function jsonUnescape(value) {
+  try {
+    return JSON.parse(`"${value}"`);
+  } catch {
+    return value;
+  }
 }
 
 /** Snapshot nodes and HTML attributes that name a password field. @param {string} line */
