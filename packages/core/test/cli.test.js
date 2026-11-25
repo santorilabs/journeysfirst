@@ -304,6 +304,34 @@ test("run --agent saves an aborted attempt when the agent exits with an error, s
   assert.equal(run.result, "not_fully_checked");
 });
 
+test("interrupting a custom agent stops its process and saves an aborted attempt", async () => {
+  for (const [signal, code] of [["SIGINT", 130], ["SIGTERM", 143]]) {
+    const dir = mkdtempSync(join(tmpdir(), "jf-agent-interrupt-"));
+    const journey = join(dir, "share.journey.yaml");
+    const runs = join(dir, "journey-runs");
+    writeFileSync(journey, JOURNEY.replace("users: [viewer]\n", ""));
+    const agent = join(dir, "agent.mjs");
+    writeFileSync(agent, `import fs from "node:fs";
+      fs.readFileSync(0);
+      fs.writeFileSync(${JSON.stringify(join(dir, "pid"))}, String(process.pid));
+      process.kill(process.ppid, ${JSON.stringify(signal)});
+      setTimeout(() => {}, 3000);`);
+    recordAllPassed(recorder({ outputDir: runs, id: "2026-11-08-1802-older000" })).finish();
+    const child = spawn(process.execPath, [BIN, "run", journey, "--agent", `exec "${process.execPath}" "${agent}"`], { cwd: dir });
+    assert.deepEqual(await once(child, "exit"), [code, null]);
+    const pid = Number(readFileSync(join(dir, "pid"), "utf8"));
+    assert.throws(() => process.kill(pid, 0), { code: "ESRCH" });
+    const folders = readdirSync(join(runs, "share")).filter((name) => !name.endsWith("older000"));
+    assert.equal(folders.length, 1);
+    const run = JSON.parse(readFileSync(join(runs, "share", folders[0], "run.json"), "utf8"));
+    assert.equal(run.attempt.status, "aborted");
+    assert.match(run.attempt.reason, new RegExp(signal));
+    const merged = cli(["merge-check", runs], dir);
+    assert.equal(merged.status, 1);
+    assert.match(merged.stdout, /aborted/i);
+  }
+});
+
 test("run --agent refuses options it does not use", () => {
   for (const extra of [["--container", "image"], ["--allow-host-read"], ["--", "--model", "x"]]) {
     const { result, run } = agentRun(extra);

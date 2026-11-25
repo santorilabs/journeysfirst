@@ -30,6 +30,7 @@ export async function runAgent({ command, mcp = {}, timeoutMs = 1800000, ...opti
       writeFileSync(join(work, ".mcp.json"), JSON.stringify({ mcpServers }), { mode: 0o600 });
     }
     const result = await processResult(command, [], { cwd: work, stdin: prompt, timeout: timeoutMs, shell: true, signal });
+    if (signal.aborted) return {};
     const problem = result.timedOut ? "The agent reached the time limit." : result.code !== 0
       ? `The agent command exited with status ${result.code ?? "unknown"}. Check that it runs in a terminal in the project folder.` : undefined;
     return { problem, handoff: result.stdout.trim() ? result.stdout : undefined };
