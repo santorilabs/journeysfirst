@@ -56,7 +56,7 @@ A file may always import a file in its own folder. Past that, it may import only
 | `src/runner` | `src/format`, `src/shared` |
 | `src/review` | `src/format`, `src/shared` |
 | `src/publish` | `src/format`, `src/review`, `src/shared` |
-| `src` | `src/format` |
+| `src` | `src/format`, `src/shared` |
 | `bin` | `src`, `src/format`, `src/publish`, `src/review`, `src/shared` |
 
 Any folder may also import Node built-ins. The only packages the source may import are `yaml` and `@playwright/test`. `npm run check:names` checks that.
@@ -134,11 +134,12 @@ Files, in `src/shared/`. None of them imports another source file.
 - `display.js`: small helpers a page needs to show a run (`isCheck`, `stepState`, `runTitle`, the verdict labels, and `reviewCounts` and `reviewLine` for a run's findings). It imports nothing, so a browser can load it (a test checks this). `runfile.js` uses it too, which is why it sits here and not in `review/`.
 - `local-host.js`: what counts as this machine (`localhost`, `127.0.0.1`, `::1`). The review page and the dev server use `hostAllowed` to answer only requests addressed to this machine when they listen on it. `publish.js` uses `isLoopback` to allow plain `http://` only to this machine.
 - `version.js`: the package version, read from `package.json`.
+- `target.js`: the message when a run has no `baseURL` and no `webServer`. `init` prints it, and the Playwright fixture throws it.
 
 ### The rest
 
 - `bin/journeysfirst.js`: the CLI (`validate`, `validate-run`, `merge-check`, `measured`, `add-findings`, `add-review`, `review`, `publish`, `dev-server`, `init`, `upgrade`, `--version`). It does not import the runner. Playwright runs the runner.
-- `src/setup.js`: `init` and `upgrade`. They copy the skills, add `playwright.config.js` when there is none, ignore `journey-runs/`, write a Journeys section in `AGENTS.md`, and add the upgrade workflow, `.github/workflows/journeysfirst-upgrade.yml`. It imports only Node built-ins.
+- `src/setup.js`: `init` and `upgrade`. They copy the skills, add `playwright.config.js` when there is none, ignore `journey-runs/`, write a Journeys section in `AGENTS.md`, and add the upgrade workflow, `.github/workflows/journeysfirst-upgrade.yml`. With no app to start, `init` also adds an example page, journey and script that pass. It imports Node built-ins and `src/shared/target.js`.
 - `src/index.js`: the main entry. It re-exports `format.js`, `runfile.js`, `checkRun` and `stableJson`.
 
 ## One run, from recorder to a sealed run on a service

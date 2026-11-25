@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Example page</title>
+</head>
+<body>
+  <h1>Example page</h1>
+  <p>This page is a journeysfirst example. It is not your product. Delete the demo folder when you point Playwright at your app.</p>
+  <button type="button" id="in">I am in</button>
+  <p id="status" hidden>You are in.</p>
+  <script>
+    document.getElementById("in").addEventListener("click", () => {
+      document.getElementById("status").hidden = false;
+    });
+  </script>
+</body>
+</html>

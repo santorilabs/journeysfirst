@@ -1,18 +1,29 @@
 // Set up a product repo for Journeys First: copy the package's skills into the
 // agent's skills folder, add a Playwright config if there is none, keep run
 // folders out of git, add the workflow that upgrades Journeys First, and add
-// the Journeys section to the repo's agent instructions. init does it once;
+// the Journeys section to the repo's agent instructions. With no app to start,
+// init also adds an example page, journey and script that pass. init does it once;
 // upgrade refreshes the skills, the workflow and the Journeys section.
 // Each returns one line per skill and per change, for the CLI to print.
 import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { MISSING_TARGET } from "./shared/target.js";
 
 // The published package has skills/ next to src/ (prepack copies it in). A
 // checkout of the repo has them at the repo root.
 const PACKAGED_SKILLS = fileURLToPath(new URL("../skills", import.meta.url));
 const SKILLS = existsSync(PACKAGED_SKILLS) ? PACKAGED_SKILLS : fileURLToPath(new URL("../../../skills", import.meta.url));
 const CONFIG_TEMPLATE = fileURLToPath(new URL("../templates/playwright.config.js", import.meta.url));
+const DEMO = fileURLToPath(new URL("../templates/demo", import.meta.url));
+/** Text in every example file, so a repo that only has the example still counts as a first install. */
+const EXAMPLE_MARK = "journeysfirst example";
+const EXAMPLE_FILES = [
+  ["index.html", "demo/index.html"],
+  ["serve.mjs", "demo/serve.mjs"],
+  ["see-the-example.journey.yaml", "journeys/see-the-example.journey.yaml"],
+  ["see-the-example.spec.js", "e2e/see-the-example.spec.js"],
+];
 const WORKFLOW_TEMPLATE = fileURLToPath(new URL("../templates/journeysfirst-upgrade.yml", import.meta.url));
 export const UPGRADE_WORKFLOW = ".github/workflows/journeysfirst-upgrade.yml";
 const CONFIGS = ["js", "ts", "mjs", "cjs", "mts", "cts"].map((ext) => `playwright.config.${ext}`);
@@ -53,13 +64,23 @@ function resolveUpgradeSkillsDir(root, skillsDir) {
 
 /**
  * Set up a repo that has no Journeys First skills yet.
- * @param {{root?: string, skillsDir?: string}} [options]
+ * @param {{root?: string, skillsDir?: string, demo?: boolean}} [options]
+ *   demo: add the example page, journey and script even when the repo has a dev or start script.
  * @returns {string[]} one line per change
  */
-export function init({ root = process.cwd(), skillsDir = DEFAULT_SKILLS_DIR } = {}) {
+export function init({ root = process.cwd(), skillsDir = DEFAULT_SKILLS_DIR, demo = false } = {}) {
   const there = packageSkills().filter((name) => existsSync(join(root, skillsDir, name)));
   if (there.length) throw new Error(`${skillsDir} already has ${there.join(", ")}. Run npx journeysfirst upgrade to refresh the skills.`);
-  return [...copySkills(root, skillsDir), ...addConfig(root), ...ignoreRuns(root), ...writeWorkflow(root, skillsDir), ...addSection(root, skillsDir)];
+  const example = exampleMode(root, demo);
+  return [
+    ...copySkills(root, skillsDir),
+    ...addConfig(root, { example: example.add }),
+    ...(example.add ? addExample(root) : []),
+    ...example.notes,
+    ...ignoreRuns(root),
+    ...writeWorkflow(root, skillsDir),
+    ...addSection(root, skillsDir),
+  ];
 }
 
 /**
@@ -99,33 +120,100 @@ function copySkills(root, skillsDir) {
   });
 }
 
-/** @param {string} root */
-function addConfig(root) {
+/**
+ * Whether this init should add the example, and any note when it should not.
+ * The example is skipped when a Playwright config is already here: its script
+ * opens whatever that config opens.
+ * @param {string} root
+ * @param {boolean} demo
+ * @returns {{add: boolean, notes: string[]}}
+ */
+function exampleMode(root, demo) {
+  const config = CONFIGS.find((name) => existsSync(join(root, name)));
+  if (config) {
+    return {
+      add: false,
+      notes: demo ? [`kept ${config}. --demo did not add the example, because this repo already has a Playwright config. The example would open whatever that config opens.`] : [],
+    };
+  }
+  if (demo) return { add: true, notes: [] };
+  const scripts = readPackage(root)?.scripts ?? {};
+  if (scripts.dev || scripts.start || hasOwnWork(root)) return { add: false, notes: [] };
+  return { add: true, notes: [] };
+}
+
+/**
+ * Copy the example page, its server, the starter journey and the script.
+ * Files already there are left as they are.
+ * @param {string} root
+ */
+function addExample(root) {
+  return EXAMPLE_FILES.map(([from, to]) => {
+    const dest = join(root, to);
+    if (existsSync(dest)) return `kept ${to}`;
+    mkdirSync(dirname(dest), { recursive: true });
+    cpSync(join(DEMO, from), dest);
+    return `added ${to}`;
+  });
+}
+
+/** @param {string} root @param {{example?: boolean}} [options] */
+function addConfig(root, { example = false } = {}) {
   const config = CONFIGS.find((name) => existsSync(join(root, name)));
   if (!config) {
-    const { command, says } = startCommand(root);
-    writeFileSync(join(root, CONFIGS[0]), readFileSync(CONFIG_TEMPLATE, "utf8").replace(`command: "npm run dev",`, `command: ${JSON.stringify(command)},`));
+    const { command, says, omitTarget } = startCommand(root, example);
+    let text = readFileSync(CONFIG_TEMPLATE, "utf8").replace(`command: "npm run dev",`, `command: ${JSON.stringify(command)},`);
+    if (omitTarget) text = configWithoutTarget(text);
+    writeFileSync(join(root, CONFIGS[0]), text);
     return [`added ${CONFIGS[0]}: ${says}`];
   }
   const text = readFileSync(join(root, config), "utf8");
   return [
     ...(text.includes("journeysfirst/reporter") ? [] : [`kept ${config}. It has no Journeys First reporter: add ${REPORTER}`]),
     ...keepTraceOnFailure(root, config, text),
+    ...targetGap(config, text),
   ];
 }
 
 /**
- * How the new Playwright config starts the app: the dev script, else the start
- * script. With neither, a command that fails and says what to set.
- * @param {string} root
+ * A config with neither address nor server cannot open a page. Say what to set.
+ * @param {string} config
+ * @param {string} text
  */
-function startCommand(root) {
+function targetGap(config, text) {
+  if (/\bbaseURL\s*:/.test(text) || /\bwebServer\s*:/.test(text)) return [];
+  return [`kept ${config}. ${MISSING_TARGET}`];
+}
+
+/**
+ * Drop baseURL and webServer from a new config. Leaving a command that exits
+ * makes Playwright report "was not able to start" and hides what to do.
+ * The port constant stays, so the comment above it still matches the file.
+ * @param {string} text
+ */
+function configWithoutTarget(text) {
+  return text
+    .replace("use: { baseURL: `http://localhost:${port}`, trace: \"retain-on-failure\" },", "use: { trace: \"retain-on-failure\" },")
+    .replace(/\n  webServer: \{[\s\S]*?\n  \},/, "\n  // No baseURL or webServer yet. Set both when this app has a start command. To see a passing run first: npx journeysfirst init --demo");
+}
+
+/**
+ * How the new Playwright config starts the app: the example page, the dev
+ * script, else the start script. With none of those, baseURL and webServer
+ * are left unset and the line says what to set.
+ * @param {string} root
+ * @param {boolean} example serve the bundled example page instead of the app
+ * @returns {{command: string, says: string, omitTarget?: boolean}}
+ */
+function startCommand(root, example) {
+  if (example) return { command: "node demo/serve.mjs", says: "webServer serves the example page in demo/, on the port in JOURNEYS_PORT (4321 if unset). npx playwright test runs journeys/see-the-example.journey.yaml. Point webServer at your app when you replace the example" };
   const scripts = readPackage(root)?.scripts ?? {};
   if (scripts.dev) return { command: "npm run dev", says: "webServer starts the app with npm run dev, on the port in JOURNEYS_PORT (4321 if unset). Check that the app listens on PORT" };
   if (scripts.start) return { command: "npm start", says: "webServer starts the app with npm start, on the port in JOURNEYS_PORT (4321 if unset). Check that the app listens on PORT" };
   return {
-    command: `echo "Set webServer.command in ${CONFIGS[0]} to the command that starts this app." >&2 && exit 1`,
-    says: "package.json has no dev or start script. Set webServer's command to the command that starts this app",
+    command: "npm run dev",
+    says: MISSING_TARGET,
+    omitTarget: true,
   };
 }
 
@@ -252,7 +340,7 @@ export function nextSteps(command, { root = process.cwd(), skillsDir } = {}) {
   const steps = [];
   const pkg = readPackage(root);
   const readme = join(root, "journeys/README.md");
-  const firstInstall = !hasFiles(join(root, "journeys"), ".journey.yaml") && !hasFiles(join(root, "e2e"), "");
+  const firstInstall = !hasOwnWork(root);
   if (command === "upgrade" && !firstInstall) {
     steps.push(`Check each saved script in e2e/ against the evidence rules in ${skill("journey-run")}. A read made with a service or admin key must say key, with the env var name the product's own code reads for that key (like SUPABASE_SERVICE_ROLE_KEY), not login.`);
     if (existsSync(readme) && !/^## Foundation\b/m.test(readFileSync(readme, "utf8"))) {
@@ -269,8 +357,29 @@ export function nextSteps(command, { root = process.cwd(), skillsDir } = {}) {
   return steps;
 }
 
-/** @param {string} dir @param {string} ending @returns {boolean} whether dir has a file ending so, at any depth */
-function hasFiles(dir, ending) {
-  if (!existsSync(dir)) return false;
-  return readdirSync(dir, { recursive: true, withFileTypes: true }).some((entry) => entry.isFile() && entry.name.endsWith(ending));
+/**
+ * A journey or an e2e script that is not the example init may have added.
+ * The example is marked, so it does not count as the product's own work.
+ * @param {string} root
+ */
+function hasOwnWork(root) {
+  const journeys = filesUnder(join(root, "journeys")).filter((file) => file.endsWith(".journey.yaml"));
+  const scripts = filesUnder(join(root, "e2e"));
+  return [...journeys, ...scripts].some((file) => !readFileSync(file, "utf8").includes(EXAMPLE_MARK));
+}
+
+/** @param {string} dir @returns {string[]} files at any depth */
+function filesUnder(dir) {
+  if (!existsSync(dir)) return [];
+  /** @type {string[]} */
+  const found = [];
+  const walk = (/** @type {string} */ current) => {
+    for (const entry of readdirSync(current, { withFileTypes: true })) {
+      const file = join(current, entry.name);
+      if (entry.isDirectory()) walk(file);
+      else if (entry.isFile()) found.push(file);
+    }
+  };
+  walk(dir);
+  return found;
 }

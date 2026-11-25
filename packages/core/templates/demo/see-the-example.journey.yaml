@@ -1,0 +1,9 @@
+# journeysfirst example. Replace this with a journey for your product.
+format: journeysfirst/v1
+title: See the example page
+promise: You can open the example page and see that you are in.
+start: The example page from journeysfirst init is what the browser will open. This is a journeysfirst example, not your product.
+steps:
+  - Open the example page and choose I am in.
+  - check: The page says you are in.
+    id: you-are-in

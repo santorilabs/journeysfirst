@@ -9,6 +9,7 @@ import { loadJourney } from "../format/format.js";
 import { delayData, measureScreen, slowReport, watchActions } from "./measure.js";
 import { RunRecorder } from "./recorder.js";
 import { isFullUrl, settleCheck } from "../format/runfile.js";
+import { missingTarget } from "../shared/target.js";
 
 export { expect } from "@playwright/test";
 
@@ -436,6 +437,8 @@ function declareJourney(file, options, body) {
   const journey = loadJourney(file);
   const caseName = options.case ? journey.cases?.find((c) => c.id === options.case)?.name : null;
   atCaller(journeyTest)(caseName ? `${journey.title}: ${caseName}` : journey.title, async ({ browser, request, _journeyRun, journeyCaptions, journeyVideo }, testInfo) => {
+    const problem = missingTarget({ baseURL: testInfo.project.use?.baseURL, webServer: testInfo.config?.webServer });
+    if (problem) throw new Error(problem);
     const captions = captionSettings(options.captions, journeyCaptions) ?? false;
     const delay = Number(process.env.JOURNEYS_DELAY_MS) || 0;
     const run = new JourneyRun({ file, caseId: options.case ?? null, browser, testInfo, video: options.video ?? journeyVideo ?? true, captions, pause: options.pause, measure: options.measure, delay, repos: options.repos, tags: options.tags });

@@ -114,6 +114,8 @@ npx playwright install --only-shell chromium
 npx journeysfirst init
 ```
 
+On a repo with no dev or start script, init adds an example page, a journey and a script. `npx playwright test` then passes. Point `webServer` at your app when you replace the example. `npx journeysfirst init --demo` adds that example even when the repo has a dev script.
+
 Or only the skills: `npx skills add santorilabs/journeysfirst --skill '*' --agent claude-code codex -y`
 
 ## Try it

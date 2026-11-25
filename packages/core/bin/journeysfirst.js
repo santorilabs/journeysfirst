@@ -8,7 +8,7 @@
 // journeysfirst publish <run folder> [--to url] [--journey file]   publish a run (token from JOURNEYSFIRST_TOKEN)
 // journeysfirst dev-server [--port n] [--host h]                 a local in-memory service to publish to
 // journeysfirst merge-check [runs folder] [--main <runs folder>]   may this change merge, from the runs of every journey
-// journeysfirst init [--skills dir]                              set up this repo: skills, Playwright config, .gitignore
+// journeysfirst init [--skills dir] [--demo]                     set up this repo: skills, Playwright config, .gitignore, and an example that passes when there is no app
 // journeysfirst upgrade [--skills dir]                           refresh the skills after installing a new version
 import { FORMAT_V0, caseIds, journeyVersion, journeyWarnings, loadJourney, validateJourney } from "../src/format/format.js";
 import { startDevServer } from "../src/publish/dev-server.js";
@@ -43,7 +43,10 @@ const USAGE = `Usage:
   journeysfirst merge-check [runs folder] [--main <runs folder>]   (default journey-runs)
       Ok only when every journey in journeys/ has a valid run in which every check passed.
       A blocked check is ok only if the same check was blocked in main's newest run, in --main.
-  journeysfirst init [--skills <folder>]      set up this repo: copy the skills, add playwright.config.js if there is none, ignore journey-runs/, write a Journeys section in AGENTS.md, add the upgrade workflow
+  journeysfirst init [--skills <folder>] [--demo]
+      Set up this repo: copy the skills, add playwright.config.js if there is none, ignore journey-runs/, write a Journeys section in AGENTS.md, add the upgrade workflow.
+      With no dev or start script, also add an example page, journey and script that pass. --demo adds that example even when a dev or start script exists.
+      When baseURL and webServer are both missing, init says what to set.
   journeysfirst upgrade [--skills <folder>]   after installing a new version: refresh the copied skills and delete retired ones
       --skills defaults to .claude/skills. The app's own skill is never touched.`;
 
@@ -156,7 +159,8 @@ if (command === "--version" || command === "version") {
   }
 } else if (command === "init" || command === "upgrade") {
   try {
-    const changes = (command === "init" ? init : upgrade)({ skillsDir: flags.skills });
+    const demo = flags.demo === true || flags.demo === "true";
+    const changes = command === "init" ? init({ skillsDir: flags.skills, demo }) : upgrade({ skillsDir: flags.skills });
     console.log(`journeysfirst ${VERSION} ${command}`);
     console.log(changes.map((line) => `  ${line}`).join("\n"));
     if (changes.every((line) => line.startsWith("unchanged "))) console.log("  Nothing changed.");
@@ -202,6 +206,7 @@ function parseArgs(args) {
     if (args[i].startsWith("--")) {
       const eq = args[i].indexOf("=");
       if (eq !== -1) flags[args[i].slice(2, eq)] = args[i].slice(eq + 1);
+      else if (args[i + 1] === undefined || args[i + 1].startsWith("--")) flags[args[i].slice(2)] = true;
       else flags[args[i].slice(2)] = args[++i];
     } else positional.push(args[i]);
   }

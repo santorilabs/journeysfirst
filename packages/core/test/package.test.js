@@ -70,6 +70,9 @@ test("the package ships every skill from the repo's skills/, and only skills the
   for (const file of underSkills) assert.match(file, /^skills\/[a-z-]+\/SKILL\.md$/, file);
   assert.ok(!existsSync(join(core, "skills")), "postpack removes the copy prepack made");
   assert.ok(files.includes("templates/app-skill.md"), "the app skill template ships outside skills/");
+  for (const name of ["index.html", "serve.mjs", "see-the-example.journey.yaml", "see-the-example.spec.js"]) {
+    assert.ok(files.includes(`templates/demo/${name}`), `templates/demo/${name} ships so init can copy the example`);
+  }
 });
 
 test("each skill's name matches its folder, so a copied skill is found by the name the docs use", () => {
