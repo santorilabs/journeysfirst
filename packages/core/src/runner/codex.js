@@ -11,7 +11,7 @@ import { maskText } from "./mask.js";
 
 const PROFILE = "journeysfirst";
 const PROBE = "journeysfirst: workspace readable, auth directory denied";
-const OMIT = new Set([".git", ".codex", ".convex", ".env", ".env.local", ".npmrc", ".netrc", "node_modules", "journey-runs", ".journeysfirst"]);
+const OMIT = new Set([".git", ".claude", ".codex", ".convex", ".env", ".env.local", ".npmrc", ".netrc", "node_modules", "journey-runs", ".journeysfirst"]);
 
 /**
  * Launch Codex with a fresh project and a separately protected provider login.
@@ -28,24 +28,13 @@ export async function runCodex({ journey, caseId, project, mcp, container, allow
   const base = realpathSync(mkdtempSync(join(tmpdir(), "journeysfirst-codex-")));
   const work = join(base, "work"), home = join(base, "home"), auth = join(base, "codex");
   const state = join(work, ".journeysfirst");
-  const captures = join(state, "captures");
   const launcher = launcherFor({ base, work, home, auth, container });
   let problem;
   let probeDir;
   try {
-    if (project) {
-      const source = realpathSync(project);
-      const inside = relative(source, base);
-      if (!inside || (!inside.startsWith("..") && !isAbsolute(inside))) throw new Error("Choose a project that does not contain the scratch directory.");
-      cpSync(source, work, { recursive: true, filter: (path) => !OMIT.has(basename(path)) && !basename(path).startsWith(".env.") });
-    } else mkdirSync(work);
+    prepareWork({ project, base, work });
     mkdirSync(home);
     mkdirSync(auth);
-    mkdirSync(captures, { recursive: true });
-    for (const name of ["capture.js", "mask.js", "codex-capture.mjs"]) {
-      copyFileSync(fileURLToPath(new URL(name, import.meta.url)), join(state, name));
-    }
-    writeFileSync(join(state, "package.json"), '{"type":"module"}\n');
     const hostHome = !container && !allowHostRead ? realpathSync(homedir()) : undefined;
     const permissions = profile({ work, home, auth, container, hostHome });
     const sandbox = ["sandbox", "-P", PROFILE, ...permissions];
@@ -73,9 +62,7 @@ export async function runCodex({ journey, caseId, project, mcp, container, allow
     const prompt = agentPrompt(run);
     const result = await launcher(["-a", "never", ...permissions, ...servers.args, "exec", "--json", "--ephemeral",
       "--skip-git-repo-check", ...selected, "-"], prompt, timeoutMs);
-    const seat = recording(run, "you");
-    const importErrors = readResults(seat, state);
-    if (importErrors.length) run.tag("result_import_errors", importErrors.map((error) => maskText(run.redact(error))));
+    importResults(run, state);
     const final = finalMessage(result.stdout);
     if (result.timedOut) problem = "Codex reached the time limit.";
     else if (result.code !== 0) problem = "Codex exited before completing the journey.";
@@ -94,6 +81,42 @@ export async function runCodex({ journey, caseId, project, mcp, container, allow
     if (probeDir) rmSync(probeDir, { recursive: true, force: true });
     rmSync(base, { recursive: true, force: true });
   }
+  return saveRun(run, problem);
+}
+
+/**
+ * Copy a trusted signed-out project, or start an empty one, and add the capture helper an agent runs.
+ * @param {{project?: string, base: string, work: string}} folders
+ */
+export function prepareWork({ project, base, work }) {
+  const state = join(work, ".journeysfirst");
+  if (project) {
+    const source = realpathSync(project);
+    const inside = relative(source, base);
+    if (!inside || (!inside.startsWith("..") && !isAbsolute(inside))) throw new Error("Choose a project that does not contain the scratch directory.");
+    cpSync(source, work, { recursive: true, filter: (path) => !OMIT.has(basename(path)) && !basename(path).startsWith(".env.") });
+  } else mkdirSync(work);
+  mkdirSync(join(state, "captures"), { recursive: true });
+  for (const name of ["capture.js", "mask.js", "codex-capture.mjs"]) {
+    copyFileSync(fileURLToPath(new URL(name, import.meta.url)), join(state, name));
+  }
+  writeFileSync(join(state, "package.json"), '{"type":"module"}\n');
+}
+
+/**
+ * Record what the agent submitted for the "you" seat, and tag lines that could not be read.
+ * @param {RunRecorder} run @param {string} state
+ */
+export function importResults(run, state) {
+  const importErrors = readResults(recording(run, "you"), state);
+  if (importErrors.length) run.tag("result_import_errors", importErrors.map((error) => maskText(run.redact(error))));
+}
+
+/**
+ * Seal and save the run. A run that would pass after a problem is not saved.
+ * @param {RunRecorder} run @param {string | undefined} problem
+ */
+export function saveRun(run, problem) {
   const { run: outcome, files } = run.result(problem ? { summary: problem } : undefined);
   if (problem && outcome.result === "passed") {
     throw new Error(`${problem} No run was saved because a passing run needs a clean exit.`);
@@ -110,8 +133,11 @@ function pickArgs(args) {
   return args;
 }
 
-/** @param {RunRecorder} run */
-function agentPrompt(run) {
+/**
+ * The journey as the agent sees it, without notes or setup hints.
+ * @param {RunRecorder} run
+ */
+export function agentPrompt(run) {
   const start = run.journey.cases?.find((item) => item.id === run.plan.case)?.start ?? run.journey.start;
   return [
     run.journey.promise, start, "",
@@ -154,7 +180,7 @@ function profile({ work, home, auth, container, hostHome }) {
   /** @type {Record<string, string>} */
   const paths = { [hostHome ? ":minimal" : ":root"]: "read", "/proc": "deny", [work]: "write", [home]: "write", [auth]: "deny" };
   if (hostHome) {
-    for (const dir of [dirname(process.execPath), codexDirectory()]) {
+    for (const dir of [dirname(process.execPath), installDirectory("codex")]) {
       if (dir && relative(hostHome, dir).startsWith(".." + "/")) paths[dir] = "read";
     }
     paths[hostHome] = "deny";
@@ -169,11 +195,15 @@ function profile({ work, home, auth, container, hostHome }) {
     "-c", `shell_environment_policy.set={HOME=${JSON.stringify(home)},PATH=${JSON.stringify(container ? "/usr/local/bin:/usr/bin:/bin" : dirname(process.execPath) + ":/usr/local/bin:/usr/bin:/bin")}}`];
 }
 
-function codexDirectory() {
+/**
+ * The real folder of an executable on PATH, so a sandbox that hides the home directory can still run it.
+ * @param {string} name
+ */
+export function installDirectory(name) {
   for (const path of (process.env.PATH ?? "").split(":")) {
     if (!isAbsolute(path)) continue;
     try {
-      const executable = realpathSync(join(path, "codex"));
+      const executable = realpathSync(join(path, name));
       accessSync(executable, constants.X_OK);
       return dirname(executable);
     } catch {}
@@ -241,8 +271,11 @@ function readResults(seat, state) {
   return errors;
 }
 
-/** @param {string} path */
-function readSmall(path) {
+/**
+ * Read a regular file up to the capture limit, without following links. Missing or unsafe files read as "".
+ * @param {string} path
+ */
+export function readSmall(path) {
   try {
     const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
     try {
@@ -278,20 +311,28 @@ function finalMessage(text) {
  * @param {string} command
  * @param {string[]} args
  * @param {{cwd: string, env?: NodeJS.ProcessEnv, stdin: string, timeout: number}} options
+ * @param {string} [secretInput] written to file descriptor 3, so it never sits in the child's environment or arguments
  * @returns {Promise<{code: number | null, stdout: string, timedOut: boolean}>}
  */
-function processResult(command, args, { cwd, env, stdin, timeout }) {
+export function processResult(command, args, { cwd, env, stdin, timeout }, secretInput) {
   return new Promise((done) => {
-    const child = spawn(command, args, { cwd, env, detached: true, stdio: ["pipe", "pipe", "ignore"] });
+    const child = spawn(command, args, { cwd, env, detached: true, stdio: ["pipe", "pipe", "ignore", secretInput === undefined ? "ignore" : "pipe"] });
+    const input = /** @type {import("node:stream").Writable} */ (child.stdin);
+    const output = /** @type {import("node:stream").Readable} */ (child.stdout);
+    const secret = /** @type {import("node:stream").Writable | null} */ (child.stdio[3]);
+    if (secret) {
+      secret.on("error", () => {});
+      secret.end(secretInput);
+    }
     let stdout = "", timedOut = false;
     const timer = setTimeout(() => {
       timedOut = true;
       try { if (child.pid) process.kill(-child.pid, "SIGKILL"); } catch {}
     }, timeout);
-    child.stdin.on("error", () => {});
-    child.stdin.end(stdin);
-    child.stdout.setEncoding("utf8");
-    child.stdout.on("data", (chunk) => { stdout = (stdout + chunk).slice(-2 * 1024 * 1024); });
+    input.on("error", () => {});
+    input.end(stdin);
+    output.setEncoding("utf8");
+    output.on("data", (chunk) => { stdout = (stdout + chunk).slice(-2 * 1024 * 1024); });
     child.once("error", () => { clearTimeout(timer); done({ code: null, stdout, timedOut }); });
     child.once("close", (code) => { clearTimeout(timer); done({ code, stdout, timedOut }); });
   });

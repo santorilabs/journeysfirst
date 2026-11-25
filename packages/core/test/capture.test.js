@@ -298,3 +298,142 @@ test("host-home denial must pass the probe unless the caller opts into host read
   assert.equal(allowed.run.steps[1].verdict, "passed");
   assert.equal(codexFixture("unsafe", ["--allow-host-read"]).result.status, 1);
 });
+
+const fakeClaude = `#!/usr/bin/env node
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const { spawnSync } = require("node:child_process");
+const args = process.argv.slice(2);
+const input = fs.readFileSync(0, "utf8");
+const say = (event) => console.log(JSON.stringify(event));
+const tool = (id, name, input, content, is_error = false) => {
+  say({ type: "assistant", message: { content: [{ type: "tool_use", id, name, input }] } });
+  say({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: id, content, is_error }] } });
+};
+for (const name of ["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"]) assert.equal(process.env[name], undefined);
+assert.equal(process.env.CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR, "3");
+assert.equal(process.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB, "1");
+assert.equal(fs.readFileSync(3, "utf8"), "sk-ant-oat01-synthetic-fixture");
+assert.ok(!fs.existsSync(".env.local") && !fs.existsSync(".claude"));
+assert.ok(args.includes("-p") && args.includes("stream-json") && !args.some(a => a.includes("dangerously") || a === "bypassPermissions"));
+assert.equal(args[args.indexOf("--permission-prompts") + 1], "none");
+assert.ok(!args.includes("--permission-mode"));
+assert.equal(args[args.indexOf("--setting-sources") + 1], "user");
+const allowedTools = args[args.indexOf("--allowedTools") + 1].split(",");
+assert.ok(allowedTools.includes("Bash") && !allowedTools.some(t => /^(WebFetch|Task|Agent)$/.test(t)));
+const settings = JSON.parse(args[args.indexOf("--settings") + 1]);
+assert.equal(settings.sandbox.enabled, true);
+assert.equal(settings.sandbox.failIfUnavailable, true);
+assert.equal(settings.sandbox.allowUnsandboxedCommands, false);
+assert.ok(settings.sandbox.filesystem.denyRead.includes(process.env.CLAUDE_CONFIG_DIR));
+assert.equal(settings.permissions.blockFileToolReadsOutsideWorkingDirectories, true);
+const mode = ["unsafe", "read-leak", "complete", "error", "bad-login"].find(name => fs.existsSync(name + ".txt"));
+if (mode === "bad-login") {
+  say({ type: "system", subtype: "api_retry", error_status: 401, error: "authentication_failed" });
+  say({ type: "result", subtype: "success", is_error: true, result: "Invalid API key" });
+} else if (input.includes("setup check")) {
+  const configProbe = input.match(/Read tool on (.*)/)[1];
+  assert.ok(configProbe.startsWith(process.env.CLAUDE_CONFIG_DIR));
+  assert.match(fs.readFileSync(".journeysfirst/probe.cjs", "utf8"), /Synthetic|probe\\.txt/);
+  // Without a real sandbox the probe can read the login folder, so it must refuse to print its marker.
+  const probe = mode === "unsafe" ? spawnSync("node", [".journeysfirst/probe.cjs"], { encoding: "utf8" })
+    : { stdout: "journeysfirst: workspace readable, provider login hidden\\n" };
+  tool("t1", "Bash", { command: "node .journeysfirst/probe.cjs" }, probe.stdout);
+  tool("t2", "Read", { file_path: configProbe }, mode === "read-leak" ? fs.readFileSync(configProbe, "utf8") : "Read denied", mode !== "read-leak");
+  say({ type: "result", subtype: "success", is_error: false, result: "done" });
+} else {
+  assert.match(input, /Check link-on/);
+  assert.doesNotMatch(input, /private setup hint/);
+  assert.deepEqual(settings.sandbox.network.allowedDomains, ["registry.npmjs.org"]);
+  assert.ok(settings.permissions.allow.includes("mcp__demo") && allowedTools.includes("mcp__demo"));
+  const server = JSON.parse(args[args.indexOf("--mcp-config") + 1]).mcpServers.demo;
+  assert.equal(server.command, "env");
+  assert.equal(server.args[0], "-i");
+  assert.ok(server.args.includes("mcp-proxy") && server.args.at(-1) === "server.js");
+  assert.ok(!fs.existsSync(".journeysfirst/probe.cjs"));
+  const cmd = spawnSync(process.execPath, [".journeysfirst/codex-capture.mjs", "capture", "command.txt", "--",
+    process.execPath, "-e", "console.log('Sharing is on')"], { encoding: "utf8" });
+  assert.equal(cmd.status, 0);
+  const pass = { verdict: "passed", proof: "The command showed it.", refs: [{ file: "command.txt", line: 1 }] };
+  const outcomes = [{ line: 1, status: "done" }, { id: "link-on", ...pass }];
+  if (mode) outcomes.push(...[3, 5, 6].map(line => ({ line, status: "done" })), ...["viewer-sees-it", "viewer-blocked"].map(id => ({ id, ...pass })));
+  fs.writeFileSync(".journeysfirst/results.jsonl", outcomes.map(JSON.stringify).join("\\n"));
+  say({ type: "assistant", message: { content: [{ type: "thinking", thinking: "Private reasoning" }, { type: "text", text: "Working." }] } });
+  say({ type: "result", subtype: mode === "error" ? "error_during_execution" : "success", is_error: mode === "error", result: "Sharing worked. The rest was not checked." });
+}
+`;
+
+function claudeFixture(mode, { flags = [], token = "sk-ant-oat01-synthetic-fixture" } = {}) {
+  const root = dir();
+  const bin = join(root, "bin");
+  const project = join(root, "project");
+  mkdirSync(bin);
+  mkdirSync(join(project, ".claude"), { recursive: true });
+  writeFileSync(join(bin, "claude"), fakeClaude, { mode: 0o700 });
+  writeFileSync(join(root, "share-by-link.journey.yaml"), JOURNEY.replace("users: [viewer]\n", "") + "\nnotes: private setup hint\n");
+  writeFileSync(join(project, ".env.local"), "Private product login");
+  writeFileSync(join(project, ".claude", "settings.local.json"), "{}");
+  if (mode) writeFileSync(join(project, mode + ".txt"), "");
+  writeFileSync(join(root, "mcp.json"), JSON.stringify({ demo: ["node", "server.js"] }));
+  const args = [cli, "run", "share-by-link.journey.yaml", "--agent", "claude", "--project", project, "--mcp", "mcp.json",
+    "--allow-domains", "registry.npmjs.org", "--timeout", "5", ...flags, "--"];
+  const env = { ...process.env, PATH: bin + ":" + process.env.PATH, CLAUDE_CODE_OAUTH_TOKEN: token, ANTHROPIC_API_KEY: "sk-ant-api03-org-key" };
+  const result = spawnSync(process.execPath, args, { cwd: root, env, encoding: "utf8", timeout: 10000 });
+  const runs = join(root, "journey-runs", "share-by-link");
+  if (!existsSync(runs)) return { result };
+  const folder = join(runs, readdirSync(runs)[0]);
+  return { result, folder, run: JSON.parse(readFileSync(join(folder, "run.json"), "utf8")) };
+}
+
+test("Claude gets the journey after a sandbox probe, with its subscription login on a pipe and wrapped MCP servers", () => {
+  const { result, folder, run } = claudeFixture();
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stderr, /Claude's sandbox/);
+  assert.equal(run.ran_by.agent, "claude");
+  assert.equal(run.steps[1].verdict, "passed");
+  assert.equal(run.steps[1].evidence[0].login, "you");
+  assert.equal(run.result, "not_fully_checked");
+  assert.equal(readFileSync(join(folder, "handoff.txt"), "utf8"), "Sharing worked. The rest was not checked.");
+  assert.doesNotMatch(JSON.stringify(run), /synthetic-fixture|org-key|Private reasoning/);
+});
+
+test("the Claude launcher refuses an API key in place of a subscription token", () => {
+  const { result, run } = claudeFixture(undefined, { token: "sk-ant-api03-org-key" });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /claude setup-token.*does not use API keys/);
+  assert.equal(run, undefined);
+});
+
+test("Claude never gets the journey when its sandbox probe can read the login folder", () => {
+  for (const mode of ["unsafe", "read-leak"]) {
+    const { result, run } = claudeFixture(mode);
+    assert.equal(result.status, 1, mode);
+    assert.match(result.stderr, /could not prove that its sandbox hides the provider login/);
+    assert.equal(run.steps[0].status, "not_run");
+    assert.equal(run.steps[1].verdict, "not_checked");
+  }
+});
+
+test("a rejected subscription token stops the Claude launcher before the journey", () => {
+  const { result, run } = claudeFixture("bad-login");
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /could not sign in with CLAUDE_CODE_OAUTH_TOKEN/);
+  assert.equal(run.steps[1].verdict, "not_checked");
+});
+
+test("an error result from Claude cannot seal a passed run", () => {
+  const { result, run } = claudeFixture("error");
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /No run was saved because a passing run needs a clean exit/);
+  assert.equal(run, undefined);
+  const clean = claudeFixture("complete");
+  assert.equal(clean.result.status, 0, clean.result.stderr);
+  assert.equal(clean.run.result, "passed");
+});
+
+test("the Claude launcher refuses Codex-only options and extra agent flags", () => {
+  assert.match(claudeFixture(undefined, { flags: ["--container", "image"] }).result.stderr, /--agent codex\|claude/);
+  const extra = claudeFixture(undefined, { flags: ["--", "--dangerously-skip-permissions"] });
+  assert.equal(extra.result.status, 1);
+  assert.match(extra.result.stderr, /Pass only --model/);
+});

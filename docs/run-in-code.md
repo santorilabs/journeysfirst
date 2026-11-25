@@ -55,6 +55,21 @@ For MCP, pass `--mcp <file.json>` with server names and command arrays, such as 
 
 `--timeout <seconds>` sets a limit for Codex. If Codex times out or exits with an error, the launcher saves partial results. If the submitted results would count as a pass, it does not save a run and exits with an error. It keeps only the last delivered agent message as `handoff.txt`, not the model's reasoning. Review the transcript for private data before sharing. The handoff is evidence of what Codex said, not what a human understood.
 
+### Let Claude Code run a journey
+
+```sh
+claude setup-token   # once, signed in with your Claude subscription
+CLAUDE_CODE_OAUTH_TOKEN=<token> npx journeysfirst run journeys/onboarding.journey.yaml --agent claude --project ./signed-out-project --allow-domains registry.npmjs.org -- --model sonnet
+```
+
+Put a recent Claude Code on PATH. On Linux, also install `bubblewrap` and `socat`, which Claude's command sandbox needs. The launcher uses only `CLAUDE_CODE_OAUTH_TOKEN`, a subscription token from `claude setup-token`. It refuses an API key, and it never passes `ANTHROPIC_API_KEY` to Claude. It hands the token to Claude Code on a pipe, so it is not in Claude's environment or in any command's environment.
+
+The project is copied the same way as for Codex, and `.claude` is left out. Claude Code gets a clean home, no user or project settings, and only the Bash, Read, Edit, Write, Glob and Grep tools. Anything else is refused without a prompt. Commands run in Claude's sandbox, or not at all. The sandbox hides the login folder and your home directory, and lets commands write only to the project and the clean home. File tools can read only the project. Commands reach no network host unless you list it with `--allow-domains`, such as `registry.npmjs.org,*.convex.cloud`. `--allow-host-read` lets commands read your home directory.
+
+Before the journey, the launcher runs a short setup check with Claude. It asks Claude to run a probe command and to read a file in the login folder. It stops unless Claude Code itself reports that the probe ran in the sandbox, found no login, and could not read your home directory, and that the read was refused. This check uses a little of your subscription.
+
+`--mcp` takes the same file as for Codex. Each server runs through the MCP proxy with only `PATH` and `HOME` set. MCP servers run outside Claude's command sandbox, so list only servers you trust. `--timeout`, the saved partial results, `handoff.txt` and the rule that a run cannot pass after an unclean exit work as for Codex. `--container` is for Codex only.
+
 ### Record a terminal command or MCP exchange
 
 ```sh

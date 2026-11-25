@@ -32,6 +32,7 @@ import { reviewLine } from "../src/shared/display.js";
 import { VERSION } from "../src/shared/version.js";
 import { captureCommand } from "../src/runner/capture.js";
 import { runCodex } from "../src/runner/codex.js";
+import { runClaude } from "../src/runner/claude.js";
 
 const USAGE = `Usage:
   journeysfirst --version
@@ -57,6 +58,8 @@ const USAGE = `Usage:
       Relay an MCP server's stdio and save request labels and response summaries.
   journeysfirst run <journey.yaml> --agent codex [--project <folder>] [--case <id>] [--mcp <json>] [--container <image> | --allow-host-read] [--timeout <seconds>] -- [--model <name>]
       Give Codex a signed-out scratch project and save a run. Requires Codex with a working permission sandbox.
+  journeysfirst run <journey.yaml> --agent claude [--project <folder>] [--case <id>] [--mcp <json>] [--allow-domains <host,host>] [--allow-host-read] [--timeout <seconds>] -- [--model <name>]
+      Give Claude Code a signed-out scratch project and save a run. Uses CLAUDE_CODE_OAUTH_TOKEN from claude setup-token (your Claude subscription).
   journeysfirst publish <run folder> [--to <url>] [--journey <file>]   (default JOURNEYSFIRST_URL; token from JOURNEYSFIRST_TOKEN)
   journeysfirst dev-server [--port <n>] [--host <address>]   (default port 4500; host 127.0.0.1)
   journeysfirst affected <path...>
@@ -88,20 +91,26 @@ if (command === "run") {
   try {
     const end = rest.indexOf("--");
     const { positional, flags } = parseArgs(end === -1 ? rest : rest.slice(0, end));
-    if (positional.length !== 1 || flags.agent !== "codex" ||
+    const claude = flags.agent === "claude";
+    const allowed = claude ? ["agent", "project", "case", "mcp", "allow-domains", "timeout"] : ["agent", "project", "case", "mcp", "container", "timeout"];
+    if (positional.length !== 1 || !["codex", "claude"].includes(String(flags.agent)) ||
         Object.entries(flags).some(([name, value]) => name === "allow-host-read" ? value !== true
-          : !["agent", "project", "case", "mcp", "container", "timeout"].includes(name) || typeof value !== "string") ||
+          : !allowed.includes(name) || typeof value !== "string") ||
         (flags.container && flags["allow-host-read"])) {
-      throw new Error("Use journeysfirst run <journey.yaml> --agent codex. See --help for options.");
+      throw new Error("Use journeysfirst run <journey.yaml> --agent codex|claude. See --help for options.");
     }
     const timeoutMs = flags.timeout === undefined ? undefined : Number(flags.timeout) * 1000;
     if (timeoutMs !== undefined && (!Number.isFinite(timeoutMs) || timeoutMs < 1000 || timeoutMs > 3600000)) {
       throw new Error("Give --timeout a number of seconds between 1 and 3600.");
     }
-    if (!flags.container) console.error("Running without a container. Codex commands use its permission sandbox; the agent process runs on this machine.");
+    if (claude) console.error("Claude Code runs on this machine. Its commands run in Claude's sandbox.");
+    else if (!flags.container) console.error("Running without a container. Codex commands use its permission sandbox; the agent process runs on this machine.");
     if (flags["allow-host-read"]) console.error("Host files, including files in your home directory, can be read by agent commands.");
-    const saved = await runCodex({ journey: positional[0], caseId: flags.case, project: flags.project,
-      mcp: flags.mcp, container: flags.container, allowHostRead: flags["allow-host-read"], timeoutMs, agentArgs: end === -1 ? [] : rest.slice(end + 1) });
+    const options = { journey: positional[0], caseId: flags.case, project: flags.project, mcp: flags.mcp,
+      allowHostRead: flags["allow-host-read"], timeoutMs, agentArgs: end === -1 ? [] : rest.slice(end + 1) };
+    const saved = claude
+      ? await runClaude({ ...options, allowDomains: flags["allow-domains"] ? String(flags["allow-domains"]).split(",") : [] })
+      : await runCodex({ ...options, container: flags.container });
     console.log(`Saved ${saved.run.result} run to ${saved.folder}.`);
     if (saved.problem) { console.error(saved.problem); process.exitCode = 1; }
   } catch (error) {
