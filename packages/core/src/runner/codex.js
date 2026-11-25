@@ -161,7 +161,7 @@ function profile({ work, home, auth, container, hostHome }) {
     for (const dir of [dirname(process.execPath), codexDirectory()]) {
       if (dir && relative(hostHome, dir).startsWith(".." + "/")) paths[dir] = "read";
     }
-    for (const resolver of resolverFiles(hostHome)) paths[resolver] = "read";
+    for (const resolver of resolverFiles([hostHome, auth, "/proc"])) paths[resolver] ??= "read";
     paths[hostHome] = "deny";
   } else if (!container) {
     for (const name of [".aws", ".codex", ".config", ".docker", ".gitconfig", ".kube", ".netrc", ".npmrc", ".ssh"]) {
@@ -174,19 +174,33 @@ function profile({ work, home, auth, container, hostHome }) {
     "-c", `shell_environment_policy.set={HOME=${JSON.stringify(home)},PATH=${JSON.stringify(container ? "/usr/local/bin:/usr/bin:/bin" : dirname(process.execPath) + ":/usr/local/bin:/usr/bin:/bin")}}`];
 }
 
-/** @param {string} hostHome */
-function resolverFiles(hostHome) {
+/** @param {string[]} denied */
+function resolverFiles(denied) {
+  const seen = new Set(["/etc/resolv.conf"]);
   const files = new Set();
   try {
     let path = "/etc/resolv.conf";
-    for (;;) {
-      const file = lstatSync(path);
-      if (file.isFile()) return [...files];
-      if (!file.isSymbolicLink()) break;
-      path = resolve(dirname(path), readlinkSync(path));
-      if (!path.startsWith("/run/") || !relative(hostHome, path).startsWith("../") || files.has(path)
-          || realpathSync(dirname(path)) !== dirname(path)) break;
-      files.add(path);
+    for (let hops = 0; hops < 40; hops++) {
+      if (denied.some(root => path === root || path.startsWith(root + "/"))) break;
+      const parts = path.slice(1).split("/");
+      let prefix = "";
+      for (const [i, part] of parts.entries()) {
+        prefix += "/" + part;
+        const entry = lstatSync(prefix);
+        const leaf = i === parts.length - 1;
+        if (entry.isSymbolicLink()) {
+          if (leaf && path !== "/etc/resolv.conf") files.add(path);
+          path = resolve(dirname(prefix), readlinkSync(prefix), ...parts.slice(i + 1));
+          break;
+        }
+        if (leaf) {
+          if (!entry.isFile()) return [];
+          if (path !== "/etc/resolv.conf") files.add(path);
+          return [...files];
+        }
+      }
+      if (seen.has(path)) break;
+      seen.add(path);
     }
   } catch {}
   return [];

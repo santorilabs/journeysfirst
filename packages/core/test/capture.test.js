@@ -139,9 +139,16 @@ if (args[0] === "sandbox") {
     assert.match(fs.readFileSync(probe, "utf8"), /Synthetic host home probe/);
     assert.ok(args.join(" ").includes(JSON.stringify(path.dirname(path.dirname(probe))) + '="deny"'));
     assert.match(args.join(" "), /":minimal"="read"/);
-    if (fs.existsSync("resolver-chain.txt")) {
+    if (fs.existsSync("resolver-chain.txt") || fs.existsSync("resolver-alias.txt")) {
       const profile = args.find(arg => arg.startsWith("permissions.journeysfirst.filesystem="));
-      assert.deepEqual(profile.slice(profile.indexOf("{") + 1, -1).split(",").filter(entry => entry.startsWith('"/run/')), ['"/run/jf-resolver-link"="read"', '"/run/jf-resolver.conf"="read"']);
+      const grants = profile.slice(profile.indexOf("{") + 1, -1).split(",");
+      const underRun = grants.filter(entry => entry.startsWith('"/run/') || entry.startsWith('"/run"'));
+      if (fs.existsSync("resolver-alias.txt")) {
+        assert.ok(!grants.includes('"/etc/resolvconf/run"="read"'));
+        assert.deepEqual(underRun, ['"/run/resolvconf/resolv.conf"="read"']);
+      } else {
+        assert.deepEqual(underRun, ['"/run/jf-resolver-link"="read"', '"/run/jf-resolver.conf"="read"']);
+      }
     } else if (fs.existsSync("/etc/resolv.conf")) {
       const resolver = fs.realpathSync("/etc/resolv.conf");
       if (resolver.startsWith("/run/") && fs.statSync(resolver).isFile()) {
@@ -224,13 +231,23 @@ function codexFixture(mode, flags = []) {
   writeFileSync(join(root, "mcp.json"), JSON.stringify({ demo: server }));
   const args = [cli, "run", "share-by-link.journey.yaml", "--agent", "codex", "--project", project, "--mcp", "mcp.json", "--timeout", mode === "timeout" ? "1" : "5", ...flags, "--"];
   const env = { ...process.env, PATH: bin + ":" + process.env.PATH, OPENAI_API_KEY: "synthetic-fixture-key" };
-  const preload = mode === "resolver-chain" ? ["--import", `data:text/javascript,${encodeURIComponent(`
+  const resolver = mode === "resolver-chain" ? {
+    links: [["/etc/resolv.conf", "/run/jf-resolver-link"], ["/run/jf-resolver-link", "jf-resolver.conf"]],
+    file: "/run/jf-resolver.conf",
+    dirs: [],
+  } : mode === "resolver-alias" ? {
+    links: [["/etc/resolv.conf", "/etc/resolvconf/run/resolv.conf"], ["/etc/resolvconf/run", "../../run/resolvconf"]],
+    file: "/run/resolvconf/resolv.conf",
+    dirs: ["/etc/resolvconf", "/run/resolvconf"],
+  } : null;
+  const preload = resolver ? ["--import", `data:text/javascript,${encodeURIComponent(`
     import fs from "node:fs";
     import { syncBuiltinESMExports } from "node:module";
-    const links = new Map([["/etc/resolv.conf", "/run/jf-resolver-link"], ["/run/jf-resolver-link", "jf-resolver.conf"]]);
+    const fixture = ${JSON.stringify(resolver)};
+    const links = new Map(fixture.links);
     const { lstatSync, readlinkSync } = fs;
-    fs.lstatSync = (path, ...args) => links.has(path) || path === "/run/jf-resolver.conf"
-      ? { isSymbolicLink: () => links.has(path), isFile: () => !links.has(path) }
+    fs.lstatSync = (path, ...args) => links.has(path) || path === fixture.file || fixture.dirs.includes(path)
+      ? { isSymbolicLink: () => links.has(path), isFile: () => path === fixture.file }
       : lstatSync(path, ...args);
     fs.readlinkSync = (path, ...args) => links.get(path) ?? readlinkSync(path, ...args);
     syncBuiltinESMExports();
@@ -306,6 +323,12 @@ test("a nonzero agent exit cannot seal a passed run even with every line submitt
 
 test("Codex can read exactly the resolver links and file under /run", () => {
   const { result, run } = codexFixture("resolver-chain");
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(run.steps[1].verdict, "passed");
+});
+
+test("Codex can read the resolver through the /etc/resolvconf/run directory alias", () => {
+  const { result, run } = codexFixture("resolver-alias");
   assert.equal(result.status, 0, result.stderr);
   assert.equal(run.steps[1].verdict, "passed");
 });
