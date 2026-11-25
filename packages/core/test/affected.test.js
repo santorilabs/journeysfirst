@@ -26,9 +26,9 @@ test("a path selects the journeys that list it, and leaves the others", () => {
   const setup = affectedJourneys(REPO, ["packages/core/src/setup.js"]);
   assert.equal(setup.selected.length, 3);
   assert.deepEqual(setup.skipped, ["journeys/run-the-journeys-a-change-covers.journey.yaml"]);
-  const none = affectedLines(REPO, ["README.md"]);
-  assert.equal(none.some((line) => line.startsWith("run ")), false);
-  assert.equal(none.filter((line) => line.startsWith("skip ")).length, 4);
+  const readme = affectedLines(REPO, ["README.md"]);
+  assert.deepEqual(readme.filter((line) => line.startsWith("run ")), ["run journeys/start-from-an-empty-project.journey.yaml"]);
+  assert.equal(readme.filter((line) => line.startsWith("skip ")).length, 3);
 });
 
 test("the four self journeys are valid and each one is in the path map", () => {

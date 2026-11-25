@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "journeysfirst/playwright";
-import { binOf, freePort, install, markTime, newestRun, packs, playwrightOf, run, show } from "./support.js";
+import { REPO, binOf, freePort, install, markTime, newestRun, packs, playwrightOf, run, show } from "./support.js";
 
 const broken = process.env.JF_BROKEN === "main";
 
@@ -11,7 +11,43 @@ test.journey("journeys/start-from-an-empty-project.journey.yaml", { video: true,
   try {
     const you = await journey.page("you");
     const teammate = await journey.page("teammate");
+    const seen = newcomerPages();
     const tarball = broken ? packs().mainTgz : packs().branchTgz;
+
+    await journey.step("Read the page a newcomer sees.", { by: "you", caption: "You read the page a newcomer sees." }, async () => {
+      await show(you, "The page a newcomer sees", seen.text);
+      await show(teammate, "The page a newcomer sees", seen.text);
+    });
+
+    await journey.check("what-it-is", { by: "you", caption: "Checking that you see what it is." }, async () => {
+      const passed = seen.what;
+      await show(you, "What it is", seen.whatText);
+      return { passed, proof: "Read the README, the package page, and the overview.", evidence: [{ source: "page", url: "http://127.0.0.1:9/", login: "you", saw: passed ? "what Journeys First is" : "no plain description" }], reason: "The page a newcomer sees does not say what Journeys First is.", caption: passed ? "you see what it is." : "you do not see what it is." };
+    });
+
+    await journey.check("who-it-is-for", { by: "you", caption: "Checking that you see who it is for." }, async () => {
+      const passed = seen.who;
+      await show(you, "Who it is for", seen.whoText);
+      return { passed, proof: "Read who the page says it is for.", evidence: [{ source: "page", url: "http://127.0.0.1:9/", login: "you", saw: passed ? "who it is for" : "no one named" }], reason: "The page a newcomer sees does not say who it is for.", caption: passed ? "you see who it is for." : "you do not see who it is for." };
+    });
+
+    await journey.check("how-to-start", { by: "you", caption: "Checking that you see how to get started." }, async () => {
+      const passed = seen.how;
+      await show(you, "How to get started", seen.howText);
+      return { passed, proof: "Read the install steps on the README and the package page.", evidence: [{ source: "page", url: "http://127.0.0.1:9/", login: "you", saw: passed ? "how to get started" : "no way to get started" }], reason: "The page a newcomer sees does not show how to get started.", caption: passed ? "you see how to get started." : "you do not see how to get started." };
+    });
+
+    await journey.check("teammate-sees-how-to-start", { by: "teammate", caption: "Checking that the teammate sees how to get started." }, async () => {
+      const passed = seen.how;
+      await show(teammate, "How to get started", seen.howText);
+      return { passed, proof: "Showed the teammate the same install steps.", evidence: [{ source: "page", url: "http://127.0.0.1:9/", login: "teammate", saw: passed ? "the same way to get started" : "no way to get started" }], reason: "The teammate did not see how to get started.", caption: passed ? "the teammate sees how to get started." : "the teammate does not see how to get started." };
+    });
+
+    await journey.check("teammate-sees-the-same-product", { by: "teammate", caption: "Checking that the teammate sees the same product." }, async () => {
+      const passed = seen.sameProduct;
+      await show(teammate, "The same product", seen.whatText);
+      return { passed, proof: "Showed the teammate the same page.", evidence: [{ source: "page", url: "http://127.0.0.1:9/", login: "teammate", saw: passed ? "Journeys First" : "a different product" }], reason: "The teammate did not see Journeys First.", caption: passed ? "the teammate sees Journeys First." : "the teammate does not see Journeys First." };
+    });
     let dir = "";
     let setupLog = "";
 
@@ -86,3 +122,25 @@ test.journey("journeys/start-from-an-empty-project.journey.yaml", { video: true,
     markTime(`start-from-an-empty-project ${broken ? "fail" : "pass"}`, Date.now() - started);
   }
 });
+
+/** What a newcomer can read before installing: the README, the package page, and the overview. */
+function newcomerPages() {
+  const readme = readFileSync(join(REPO, "README.md"), "utf8");
+  const pack = readFileSync(join(REPO, "packages/core/README.md"), "utf8");
+  const overview = readFileSync(join(REPO, "docs/overview.md"), "utf8");
+  const what = /Journeys First/.test(readme) && /journeys in plain sentences/.test(readme) && /what each user, person or agent, must be able to do/.test(readme) && /Journeys First/.test(overview);
+  const who = /Agents build your product/.test(readme) && /person or agent/.test(readme) && /several kinds of users/.test(readme);
+  const how = /## Install/.test(readme) && /npm install --save-dev journeysfirst/.test(readme) && /npx journeysfirst init/.test(readme) && /## Install/.test(pack) && /npx journeysfirst init/.test(pack);
+  const whatText = section(readme, "# Journeys First", "## The problem");
+  const whoText = section(readme, "## When to use", "## Example");
+  const howText = `${section(readme, "## Install", "## Try it")}\n\nPackage page:\n${section(pack, "## Install", "## The smallest example")}`;
+  return { what, who, how, sameProduct: /Journeys First/.test(readme) && /Journeys First/.test(pack), whatText, whoText, howText, text: `${whatText}\n\n${whoText}\n\n${howText}` };
+}
+
+/** @param {string} text @param {string} from @param {string} to */
+function section(text, from, to) {
+  const start = text.indexOf(from);
+  const end = text.indexOf(to, start + from.length);
+  if (start < 0) return "";
+  return text.slice(start, end < 0 ? start + 500 : end).trim();
+}

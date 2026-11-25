@@ -4,6 +4,9 @@
 # This file is for the tool. The journey sentences do not list paths.
 
 start-from-an-empty-project:
+  - README.md
+  - packages/core/README.md
+  - docs/overview.md
   - packages/core/src/setup.js
   - packages/core/src/doctor.js
   - packages/core/templates/**

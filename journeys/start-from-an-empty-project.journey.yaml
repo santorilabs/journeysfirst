@@ -1,12 +1,23 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/santorilabs/journeysfirst/main/spec/journey-v1.schema.json
 format: journeysfirst/v1
-title: Start from an empty project
-promise: |
-  I just found Journeys First. I want to install it in an empty project, set it up, and see a first run pass.
-  If the setup has no address for the app, tell me plainly what to fix.
+title: See what it is before you install
+promise: I just found Journeys First. I wanna see what it is about and if I wanna install it
 users: [teammate]
-start: You have an empty project. Nothing is installed yet. The teammate has not seen a run.
+start: You have not installed it. You and the teammate are both looking at the page a newcomer sees.
 steps:
+  - Read the page a newcomer sees.
+  - check: You see what Journeys First is.
+    id: what-it-is
+  - check: You see who it is for.
+    id: who-it-is-for
+  - check: You see how to get started.
+    id: how-to-start
+  - check: The teammate sees the same way to get started.
+    id: teammate-sees-how-to-start
+    added: true
+  - check: The teammate sees "Journeys First", the same product you see.
+    id: teammate-sees-the-same-product
+    added: true
   - Install it and set the project up.
   - Run the first journey.
   - check: You see the first run pass.
@@ -21,7 +32,8 @@ steps:
   - Ask what is wrong.
   - check: You see that the app address is missing, and you see what to put there.
     id: missing-address
+    added: true
   - check: The teammate does not see the broken setup listed as a pass.
     id: teammate-no-false-pass
     added: true
-notes: The first run is the sample the setup adds when the project has no app of its own. The app address is the address a run opens.
+notes: The page a newcomer sees is the README, the package page, and the overview shipped with the repo. The first run is the sample the setup adds when the project has no app of its own. The app address is the address a run opens.
