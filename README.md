@@ -4,7 +4,7 @@
 
 An open format for user journeys, with skills and a CLI. Your agent verifies each journey in the real product before it says done, as every user, human or agent.
 
-[MIT](LICENSE), by [Santori Labs](https://github.com/santorilabs) (@santorilabs).
+[MIT](LICENSE), by [Santori Labs](https://github.com/santorilabs/journeysfirst).
 
 <p align="center">
   <img src="assets/docmost-every-user.png" alt="Docmost, as every user. The same journey fails on the breaking commit and passes on the fix." />
