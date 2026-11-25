@@ -20,7 +20,7 @@ export function exportReview(dir, out) {
     const assets = join(dest, "assets");
     mkdirSync(assets, { recursive: true });
     const files = new Set();
-    const tracks = new Set();
+    const tracks = new Map();
     /** @param {string | undefined} name @param {RegExp} extension */
     const copy = (name, extension) => {
       if (!name || !FILE_NAME.test(name) || !extension.test(name)) return false;
@@ -35,12 +35,11 @@ export function exportReview(dir, out) {
     }
     for (const video of run.media ?? []) {
       if (video.kind !== "video" || typeof video.tags?.user !== "string" || !copy(video.file, /\.(webm|mp4|ogg|ogv)$/i)) continue;
-      writeFileSync(join(assets, video.file + ".vtt"), captionTrack(run.steps, video));
-      tracks.add(video.file);
+      tracks.set(video.file, "data:text/vtt;charset=utf-8," + encodeURIComponent(captionTrack(run.steps, video)));
     }
     writeFileSync(join(dest, "index.html"), runPage(run, journey, id, source, {
       file: (name) => name && files.has(name) ? "assets/" + name : undefined,
-      captions: (name) => tracks.has(name) ? "assets/" + name + ".vtt" : undefined,
+      captions: (name) => tracks.get(name),
     }));
   }
   writeFileSync(join(target, "index.html"), indexPage(runs, (journey, id) =>
