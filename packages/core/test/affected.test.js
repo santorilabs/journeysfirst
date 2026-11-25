@@ -15,6 +15,7 @@ const JOURNEYS = [
   "hand-a-project-to-a-new-agent",
   "run-the-journeys-a-change-covers",
   "see-why-a-run-failed",
+  "let-an-agent-run-a-journey",
 ];
 
 test("a path selects the journeys that list it, and leaves the others", () => {
@@ -26,10 +27,12 @@ test("a path selects the journeys that list it, and leaves the others", () => {
   assert.ok(doctor.skipped.includes("journeys/run-the-journeys-a-change-covers.journey.yaml"));
   const setup = affectedJourneys(REPO, ["packages/core/src/setup.js"]);
   assert.equal(setup.selected.length, 3);
-  assert.deepEqual(setup.skipped, ["journeys/run-the-journeys-a-change-covers.journey.yaml", "journeys/see-why-a-run-failed.journey.yaml"]);
+  assert.deepEqual(setup.skipped, ["journeys/let-an-agent-run-a-journey.journey.yaml", "journeys/run-the-journeys-a-change-covers.journey.yaml", "journeys/see-why-a-run-failed.journey.yaml"]);
   const readme = affectedLines(REPO, ["README.md"]);
   assert.deepEqual(readme.filter((line) => line.startsWith("run ")), ["run journeys/start-from-an-empty-project.journey.yaml"]);
-  assert.equal(readme.filter((line) => line.startsWith("skip ")).length, 4);
+  assert.equal(readme.filter((line) => line.startsWith("skip ")).length, 5);
+  const merge = affectedJourneys(REPO, ["packages/core/src/format/merge-check.js"]);
+  assert.deepEqual(merge.selected, ["journeys/let-an-agent-run-a-journey.journey.yaml"]);
 });
 
 test("the self journeys are valid and each one is in the path map", () => {

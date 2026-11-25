@@ -31,3 +31,11 @@ see-why-a-run-failed:
   - packages/core/src/runner/**
   - packages/core/src/review/review.js
   - skills/journey-fix/**
+
+let-an-agent-run-a-journey:
+  - packages/core/bin/journeysfirst.js
+  - packages/core/src/runner/**
+  - packages/core/src/format/merge-check.js
+  - packages/core/src/format/run-folder.js
+  - packages/core/src/format/runfile.js
+  - packages/core/src/review/**
