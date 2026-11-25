@@ -1,0 +1,334 @@
+{
+  "format": "journeysfirst-run/v1",
+  "id": "2026-11-25-2017-aca75273",
+  "journey": {
+    "name": "you-connect-your-agent",
+    "version": "7e6091de",
+    "case": null
+  },
+  "result": "failed",
+  "summary": "The server says \"The following registries are configured in the current project:\" and lists nothing.",
+  "started_at": "2026-11-25T20:17:43.023Z",
+  "finished_at": "2026-11-25T20:18:48.145Z",
+  "ran_by": {
+    "agent": "playwright"
+  },
+  "journeysfirst": "0.0.6",
+  "tags": {
+    "browser": "chromium 159.0.8154.6"
+  },
+  "repos": [
+    {
+      "repo": "shadcn-app",
+      "commit": "776ec83cf8e053a7b750a715a519c398f2989033",
+      "branch": "master"
+    }
+  ],
+  "users": {
+    "you": "your own terminal and browser, no login",
+    "agent": "Codex with the shadcn MCP server"
+  },
+  "media": [
+    {
+      "file": "codex-session.jsonl",
+      "kind": "capture",
+      "tags": {
+        "user": "agent"
+      }
+    },
+    {
+      "file": "you.webm",
+      "kind": "video",
+      "starts_at": 2.1,
+      "tags": {
+        "user": "you"
+      }
+    },
+    {
+      "file": "agent.webm",
+      "kind": "video",
+      "starts_at": 54.3,
+      "tags": {
+        "user": "agent"
+      }
+    },
+    {
+      "file": "measure-1.txt",
+      "kind": "capture",
+      "tags": {
+        "user": "you"
+      }
+    },
+    {
+      "file": "measure-2.txt",
+      "kind": "capture",
+      "tags": {
+        "user": "you"
+      }
+    },
+    {
+      "file": "measure-3.txt",
+      "kind": "capture",
+      "tags": {
+        "user": "you"
+      }
+    },
+    {
+      "file": "measure-4.txt",
+      "kind": "capture",
+      "tags": {
+        "user": "agent"
+      }
+    },
+    {
+      "file": "measure-5.txt",
+      "kind": "capture",
+      "tags": {
+        "user": "you"
+      }
+    },
+    {
+      "file": "measure-6.txt",
+      "kind": "capture",
+      "tags": {
+        "user": "agent"
+      }
+    },
+    {
+      "file": "measure-7.txt",
+      "kind": "capture",
+      "tags": {
+        "user": "agent"
+      }
+    },
+    {
+      "file": "trace.zip",
+      "kind": "trace"
+    }
+  ],
+  "verified": [
+    "You see what to add to Codex's settings.",
+    "The agent calls the shadcn MCP server.",
+    "You see a shadcn button on the home page."
+  ],
+  "not_verified": [
+    "The agent is told shadcn is not set up yet, instead of getting an empty list: the server says \"The following registries are configured in the current project:\" and lists nothing."
+  ],
+  "steps": [
+    {
+      "says": "You run shadcn's MCP setup for Codex and follow what it prints.",
+      "by": "you",
+      "status": "done",
+      "at": 2.2,
+      "took": 11.8,
+      "screenshots": [
+        {
+          "file": "step-1.png",
+          "url": "http://localhost:5303/setup.html"
+        }
+      ]
+    },
+    {
+      "check": "You see what to add to Codex's settings.",
+      "id": "setup-says-what-to-add",
+      "by": "you",
+      "verdict": "passed",
+      "proof": "Read what the setup printed and copied its block into Codex's settings file.",
+      "evidence": [
+        {
+          "source": "page",
+          "login": "you",
+          "url": "http://localhost:5303/setup.html",
+          "saw": "To configure the shadcn MCP server in Codex:\n\n1. Open or create the file ~/.codex/config.toml\n2. Add the following configuration:\n\n[mcp_servers.shadcn]\ncommand = \"npx\"\nargs = [\"shadcn@latest\", \"mcp\"]\n\n3. Restart Codex to load the MCP server"
+        },
+        {
+          "source": "log",
+          "login": "you",
+          "query": "npx -y shadcn@4.23.1 mcp init --client codex",
+          "got": {
+            "block": "[mcp_servers.shadcn]\ncommand = \"npx\"\nargs = [\"shadcn@latest\", \"mcp\"]\n"
+          }
+        }
+      ],
+      "at": 14.6,
+      "took": 0,
+      "screenshots": [
+        {
+          "file": "step-2.png",
+          "url": "http://localhost:5303/setup.html"
+        }
+      ]
+    },
+    {
+      "says": "You ask your agent to use the shadcn MCP server to add a button to the app.",
+      "by": "you",
+      "status": "done",
+      "at": 17.2,
+      "took": 36.5,
+      "screenshots": [
+        {
+          "file": "step-3.png",
+          "url": "http://localhost:5303/setup.html"
+        }
+      ]
+    },
+    {
+      "check": "The agent calls the shadcn MCP server.",
+      "id": "agent-uses-server",
+      "by": "agent",
+      "verdict": "passed",
+      "proof": "Read the MCP tool calls in Codex's session.",
+      "evidence": [
+        {
+          "source": "log",
+          "login": "agent",
+          "query": "codex-session.jsonl: mcp_tool_call",
+          "got": [
+            {
+              "server": "shadcn",
+              "tool": "get_add_command_for_items",
+              "arguments": {
+                "items": [
+                  "@shadcn/button"
+                ]
+              }
+            },
+            {
+              "server": "shadcn",
+              "tool": "get_audit_checklist",
+              "arguments": {}
+            }
+          ]
+        },
+        {
+          "source": "page",
+          "login": "agent",
+          "url": "http://localhost:5303/codex-session.html",
+          "saw": "Codex's MCP calls to shadcn"
+        }
+      ],
+      "at": 54.4,
+      "took": 0,
+      "screenshots": [
+        {
+          "file": "step-4.png",
+          "url": "http://localhost:5303/codex-session.html"
+        }
+      ]
+    },
+    {
+      "check": "You see a shadcn button on the home page.",
+      "id": "button-on-page",
+      "by": "you",
+      "verdict": "passed",
+      "proof": "Opened the home page and looked for a shadcn button (data-slot=button).",
+      "evidence": [
+        {
+          "source": "page",
+          "login": "you",
+          "url": "http://localhost:5303/",
+          "saw": "a shadcn button labeled \"Count is 0\""
+        }
+      ],
+      "at": 57,
+      "took": 0.5,
+      "screenshots": [
+        {
+          "file": "step-5.png",
+          "url": "http://localhost:5303/"
+        }
+      ]
+    },
+    {
+      "says": "Before shadcn is set up in a second copy of the app, the agent asks the MCP server which registries are set up.",
+      "by": "agent",
+      "status": "done",
+      "at": 60,
+      "took": 1.7,
+      "screenshots": [
+        {
+          "file": "step-6.png",
+          "url": "http://localhost:5303/server-before-init.html"
+        }
+      ]
+    },
+    {
+      "check": "The agent is told shadcn is not set up yet, instead of getting an empty list.",
+      "id": "says-not-set-up",
+      "by": "agent",
+      "verdict": "failed",
+      "proof": "Called get_project_registries from an app folder with no components.json.",
+      "evidence": [
+        {
+          "source": "page",
+          "login": "agent",
+          "url": "http://localhost:5303/server-before-init.html",
+          "saw": "The following registries are configured in the current project:\n\n\n\nYou can view the items in a registry by running:\n`npx shadcn@latest view @name-of-registry`\n\nFor example: `npx shadcn@latest view @shadcn` or `npx shadcn@latest view @shadcn @acme` to view multiple registries."
+        },
+        {
+          "source": "log",
+          "login": "agent",
+          "query": "MCP get_project_registries in an app without components.json",
+          "got": "The following registries are configured in the current project:\n\n\n\nYou can view the items in a registry by running:\n`npx shadcn@latest view @name-of-registry`\n\nFor example: `npx shadcn@latest view @shadcn` or `npx shadcn@latest view @shadcn @acme` to view multiple registries."
+        }
+      ],
+      "at": 62.2,
+      "took": 0,
+      "screenshots": [
+        {
+          "file": "step-7.png",
+          "url": "http://localhost:5303/server-before-init.html"
+        }
+      ],
+      "cause": "product",
+      "reason": "The server says \"The following registries are configured in the current project:\" and lists nothing.",
+      "added": true
+    }
+  ],
+  "findings": [
+    {
+      "id": "intuitive-refusal-7",
+      "criterion": "intuitive-refusal",
+      "step": 7,
+      "says": "In an app with no components.json, the server says \"The following registries are configured in the current project:\" and lists nothing, with no next step. The tool descriptions point to init_project, a tool the server does not have.",
+      "evidence": [
+        {
+          "source": "page",
+          "login": "agent",
+          "url": "http://localhost:5303/server-before-init.html",
+          "saw": "\"The following registries are configured in the current project:\" followed by an empty list"
+        }
+      ]
+    },
+    {
+      "id": "foundation-stated-1",
+      "criterion": "foundation-stated",
+      "step": 1,
+      "says": "For Codex, shadcn mcp init writes nothing. It prints three manual steps for ~/.codex/config.toml and pins shadcn@latest. For Claude, Cursor, VS Code and OpenCode it writes the config file itself.",
+      "ask": "Should shadcn mcp init write Codex's config, as it does for the other four clients?",
+      "evidence": [
+        {
+          "source": "page",
+          "login": "you",
+          "url": "http://localhost:5303/setup.html",
+          "saw": "\"1. Open or create the file ~/.codex/config.toml 2. Add the following configuration ... args = [\\\"shadcn@latest\\\", \\\"mcp\\\"] 3. Restart Codex\""
+        }
+      ]
+    },
+    {
+      "id": "foundation-stated-3",
+      "criterion": "foundation-stated",
+      "step": 3,
+      "says": "Asked to add a button, Codex ran shadcn init with Radix and the Nova preset, installed Tailwind and edited tsconfig without asking you, then said it \"Used the shadcn MCP server to add the Button\". The server only returned an add command. It never said shadcn was not set up.",
+      "ask": "Should the agent ask the person before it picks a base and preset and sets up shadcn in their app?",
+      "evidence": [
+        {
+          "source": "page",
+          "login": "agent",
+          "url": "http://localhost:5303/codex-session.html",
+          "saw": "MCP get_add_command_for_items -> \"npx shadcn@latest add @shadcn/button\", then $ shadcn init --template vite --base radix --preset nova --yes"
+        }
+      ]
+    }
+  ]
+}

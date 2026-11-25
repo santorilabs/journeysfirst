@@ -1,0 +1,13 @@
+{
+  "name": "example-shadcn-mcp-onboarding",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "@playwright/test": "^1.49.0",
+    "journeysfirst": "0.0.6"
+  }
+}

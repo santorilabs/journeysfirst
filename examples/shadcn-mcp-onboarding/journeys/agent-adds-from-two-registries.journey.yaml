@@ -1,0 +1,17 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/santorilabs/journeysfirst/main/spec/journey-v1.schema.json
+format: journeysfirst/v1
+title: Add a shadcn component when you have two registries
+promise: With a second registry set up, your agent can still add a shadcn component to your page.
+users: [agent]
+start: Your new shadcn Vite app has Magic UI (@magicui) set up as a second registry. Your coding agent (Codex) has the shadcn MCP server connected.
+steps:
+  - You ask your agent to find an accordion in the registries the project has set up and add it to the home page.
+  - check: The agent searches the shadcn registry as well as Magic UI.
+    id: searches-shadcn-too
+  - check: You see an accordion on the home page, and it opens when you click it.
+    id: accordion-on-page
+  - The agent asks the same MCP server to search the project's registries for an accordion without naming a registry.
+  - check: That search includes the shadcn registry.
+    id: search-includes-shadcn
+    added: true
+notes: The agent is Codex, run with codex exec. Magic UI has no accordion, so a search that skips the shadcn registry finds none.

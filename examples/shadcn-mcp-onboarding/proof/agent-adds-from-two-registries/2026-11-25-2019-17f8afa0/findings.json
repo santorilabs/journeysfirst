@@ -1,0 +1,3 @@
+{"findings":[
+{"id":"foundation-stated-5","criterion":"foundation-stated","step":5,"says":"With @magicui added, a search that names no registry covers only @magicui and does not say it skipped @shadcn, though get_project_registries lists both. This breaks \"The registries get_project_registries lists are the ones a search covers when no registry is named.\"","evidence":[{"source":"page","login":"agent","url":"http://localhost:5302/server-search.html","saw":"get_project_registries: \"- @shadcn - @magicui\"; search {query: accordion}: \"Found 7 items matching \\\"accordion\\\" in registries @magicui\""}]}
+]}

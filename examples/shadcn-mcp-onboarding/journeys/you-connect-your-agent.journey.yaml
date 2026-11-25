@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/santorilabs/journeysfirst/main/spec/journey-v1.schema.json
+format: journeysfirst/v1
+title: Connect your agent to shadcn and add a button
+promise: You can connect your coding agent to shadcn's MCP server, and it adds a shadcn button to your app.
+users: [agent]
+start: You have a new Vite React app without shadcn. Codex is installed and has no MCP servers.
+steps:
+  - You run shadcn's MCP setup for Codex and follow what it prints.
+  - check: You see what to add to Codex's settings.
+    id: setup-says-what-to-add
+  - You ask your agent to use the shadcn MCP server to add a button to the app.
+  - check: The agent calls the shadcn MCP server.
+    id: agent-uses-server
+  - check: You see a shadcn button on the home page.
+    id: button-on-page
+  - Before shadcn is set up in a second copy of the app, the agent asks the MCP server which registries are set up.
+  - check: The agent is told shadcn is not set up yet, instead of getting an empty list.
+    id: says-not-set-up
+    added: true
+notes: The agent is Codex, run with codex exec. You follow the printed steps exactly, in a Codex settings folder made for this run.

@@ -1,0 +1,238 @@
+{
+  "format": "journeysfirst-run/v1",
+  "id": "2026-11-25-2019-17f8afa0",
+  "journey": {
+    "name": "agent-adds-from-two-registries",
+    "version": "b49ecc05",
+    "case": null
+  },
+  "result": "failed",
+  "summary": "The server lists @shadcn and @magicui, but the search said: \"Found 7 items matching \"accordion\" in registries @magicui:\"",
+  "started_at": "2026-11-25T20:19:08.035Z",
+  "finished_at": "2026-11-25T20:19:45.446Z",
+  "ran_by": {
+    "agent": "playwright"
+  },
+  "journeysfirst": "0.0.6",
+  "tags": {
+    "browser": "chromium 159.0.8154.6"
+  },
+  "repos": [
+    {
+      "repo": "shadcn-app",
+      "commit": "776ec83cf8e053a7b750a715a519c398f2989033",
+      "branch": "master"
+    }
+  ],
+  "users": {
+    "you": "the app's own browser, no login",
+    "agent": "Codex with the shadcn MCP server"
+  },
+  "media": [
+    {
+      "file": "codex-session.jsonl",
+      "kind": "capture",
+      "tags": {
+        "user": "agent"
+      }
+    },
+    {
+      "file": "agent.webm",
+      "kind": "video",
+      "starts_at": 26,
+      "tags": {
+        "user": "agent"
+      }
+    },
+    {
+      "file": "you.webm",
+      "kind": "video",
+      "starts_at": 28.8,
+      "tags": {
+        "user": "you"
+      }
+    },
+    {
+      "file": "measure-2.txt",
+      "kind": "capture",
+      "tags": {
+        "user": "agent"
+      }
+    },
+    {
+      "file": "measure-3.txt",
+      "kind": "capture",
+      "tags": {
+        "user": "you"
+      }
+    },
+    {
+      "file": "measure-4.txt",
+      "kind": "capture",
+      "tags": {
+        "user": "agent"
+      }
+    },
+    {
+      "file": "measure-5.txt",
+      "kind": "capture",
+      "tags": {
+        "user": "agent"
+      }
+    },
+    {
+      "file": "trace.zip",
+      "kind": "trace"
+    }
+  ],
+  "verified": [
+    "The agent searches the shadcn registry as well as Magic UI.",
+    "You see an accordion on the home page, and it opens when you click it."
+  ],
+  "not_verified": [
+    "That search includes the shadcn registry: the server lists @shadcn and @magicui, but the search said: \"Found 7 items matching \"accordion\" in registries @magicui:\""
+  ],
+  "steps": [
+    {
+      "says": "You ask your agent to find an accordion in the registries the project has set up and add it to the home page.",
+      "by": "you",
+      "status": "done",
+      "at": 1.9,
+      "took": 23.6
+    },
+    {
+      "check": "The agent searches the shadcn registry as well as Magic UI.",
+      "id": "searches-shadcn-too",
+      "by": "agent",
+      "verdict": "passed",
+      "proof": "Read which registries each of Codex's searches covered: the MCP server's replies and any shadcn search command it ran.",
+      "evidence": [
+        {
+          "source": "log",
+          "login": "agent",
+          "query": "codex-session.jsonl: mcp_tool_call search_items_in_registries",
+          "got": [
+            {
+              "arguments": {
+                "query": "accordion",
+                "registries": [
+                  "@shadcn",
+                  "@magicui"
+                ],
+                "limit": 8
+              },
+              "reply": "Found 9 items matching \"accordion\" in registries @shadcn, @magicui:"
+            }
+          ]
+        },
+        {
+          "source": "log",
+          "login": "agent",
+          "query": "codex-session.jsonl: command_execution shadcn search",
+          "got": []
+        },
+        {
+          "source": "page",
+          "login": "agent",
+          "url": "http://localhost:5302/codex-session.html",
+          "saw": "Codex's searches and the server's replies"
+        }
+      ],
+      "at": 26.1,
+      "took": 0,
+      "screenshots": [
+        {
+          "file": "step-2.png",
+          "url": "http://localhost:5302/codex-session.html"
+        }
+      ]
+    },
+    {
+      "check": "You see an accordion on the home page, and it opens when you click it.",
+      "id": "accordion-on-page",
+      "by": "you",
+      "verdict": "passed",
+      "proof": "Opened the home page, clicked the first accordion header, and read whether it opened.",
+      "evidence": [
+        {
+          "source": "page",
+          "login": "you",
+          "url": "http://localhost:5302/",
+          "saw": "an accordion; after a click aria-expanded is true"
+        }
+      ],
+      "at": 28.8,
+      "took": 1.1,
+      "screenshots": [
+        {
+          "file": "step-3.png",
+          "url": "http://localhost:5302/"
+        }
+      ]
+    },
+    {
+      "says": "The agent asks the same MCP server to search the project's registries for an accordion without naming a registry.",
+      "by": "agent",
+      "status": "done",
+      "at": 32.5,
+      "took": 1.5,
+      "screenshots": [
+        {
+          "file": "step-4.png",
+          "url": "http://localhost:5302/server-search.html"
+        }
+      ]
+    },
+    {
+      "check": "That search includes the shadcn registry.",
+      "id": "search-includes-shadcn",
+      "by": "agent",
+      "verdict": "failed",
+      "proof": "Asked the server which registries are set up, then searched without naming one, from the same app folder.",
+      "evidence": [
+        {
+          "source": "page",
+          "login": "agent",
+          "url": "http://localhost:5302/server-search.html",
+          "saw": "Found 7 items matching \"accordion\" in registries @magicui:\n\nShowing items 1-7 of 7:\n\n- smooth-cursor (registry:ui) - A customizable, physics-based smooth cursor animation component with spring animations and rotation effects [@magicui] \n  Add command: `npx shadcn@latest add @magicui/smooth-cursor`\n\n"
+        },
+        {
+          "source": "log",
+          "login": "agent",
+          "query": "MCP get_project_registries then search_items_in_registries {query: 'accordion'}",
+          "got": {
+            "listed": "The following registries are configured in the current project:\n\n- @shadcn\n- @magicui\n\nYou can view the items in a registry by running:\n`npx",
+            "search": "Found 7 items matching \"accordion\" in registries @magicui:\n\nShowing items 1-7 of 7:\n\n- smooth-cursor (registry:ui) - A customizable, physics-based smooth cursor animation component with spring animati"
+          }
+        }
+      ],
+      "at": 34.5,
+      "took": 0.1,
+      "screenshots": [
+        {
+          "file": "step-5.png",
+          "url": "http://localhost:5302/server-search.html"
+        }
+      ],
+      "cause": "product",
+      "reason": "The server lists @shadcn and @magicui, but the search said: \"Found 7 items matching \"accordion\" in registries @magicui:\"",
+      "added": true
+    }
+  ],
+  "findings": [
+    {
+      "id": "foundation-stated-5",
+      "criterion": "foundation-stated",
+      "step": 5,
+      "says": "With @magicui added, a search that names no registry covers only @magicui and does not say it skipped @shadcn, though get_project_registries lists both. This breaks \"The registries get_project_registries lists are the ones a search covers when no registry is named.\"",
+      "evidence": [
+        {
+          "source": "page",
+          "login": "agent",
+          "url": "http://localhost:5302/server-search.html",
+          "saw": "get_project_registries: \"- @shadcn - @magicui\"; search {query: accordion}: \"Found 7 items matching \\\"accordion\\\" in registries @magicui\""
+        }
+      ]
+    }
+  ]
+}

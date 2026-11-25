@@ -1,0 +1,17 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/santorilabs/journeysfirst/main/spec/journey-v1.schema.json
+format: journeysfirst/v1
+title: Ask your agent what shadcn has for you
+promise: In a new shadcn project, your agent can tell you which registries are set up and find a component in them.
+users: [agent]
+start: You just made a new Vite app with shadcn init. Your coding agent (Codex) has the shadcn MCP server connected. You have not added any other registry.
+steps:
+  - You ask your agent which shadcn registries the project has set up, and to search them for a date picker.
+  - check: The agent says the project has the shadcn registry.
+    id: names-shadcn-registry
+  - check: The agent finds a shadcn date picker and gives you the command to add it.
+    id: finds-date-picker
+  - The agent asks the same MCP server to search the project's registries for a date picker without naming a registry.
+  - check: That search covers the registries the server said are set up.
+    id: search-covers-listed-registries
+    added: true
+notes: The agent is Codex, run with codex exec. The last search is what the server's own words invite, "When registries are omitted, search every configured registry".
