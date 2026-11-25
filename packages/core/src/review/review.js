@@ -514,6 +514,12 @@ pre{background:var(--tint);border-radius:8px;padding:8px 10px;font-size:12px;ove
 .start .findings{list-style:none;padding:0;margin:4px 0 8px}.findings li{padding:10px 0;border-top:1px solid var(--rule)}.findings li:first-child{border-top:0}
 .reported{border-top:1px solid var(--rule);margin-top:12px;padding-top:4px}.reported-user{padding:4px 0}.reported-user p{margin:4px 0}.reported code{font-size:13px;word-break:break-all}
 .findings p{margin:2px 0}.findings .says{font-weight:600}.findings a{color:var(--muted)}
+@media(max-width:600px){
+  .evidence dl,.run-details dl{grid-template-columns:minmax(0,1fr);gap:2px}
+  .evidence dt,.run-details dt{overflow-wrap:anywhere}
+  .evidence dd+dt,.run-details dd+dt{margin-top:6px}
+  .evidence dd dl{border-left:1px solid var(--rule);padding-left:10px}
+}
 </style></head><body><main>${body}</main></body></html>`;
 }
 

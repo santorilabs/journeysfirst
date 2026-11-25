@@ -4,6 +4,7 @@ import { request } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { chromium } from "@playwright/test";
 import { fromLegacy, listRuns, serveReview } from "../src/review/review.js";
 import { parseJourney } from "../src/format/format.js";
 import { RunRecorder } from "../src/runner/recorder.js";
@@ -151,6 +152,34 @@ test("a run page shows each step, who did it, proof, cause and where it is in th
     assert.equal(await video.text(), "id");
     assert.match(page, /<a href="\/files\/share-by-link\/2026-11-08-1802-7d2e\/trace.zip" download>trace.zip<\/a><pre>npx playwright show-trace \S+share-by-link\/2026-11-08-1802-7d2e\/trace.zip<\/pre>/, "the trace is listed with the command that opens it");
     assert.equal((await fetch(`${base}/files/share-by-link/2026-11-08-1802-7d2e/trace.zip`)).headers.get("content-type"), "application/zip");
+  } finally {
+    server.close();
+  }
+});
+
+test("nested evidence remains readable on a narrow screen", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "jf-review-"));
+  const run = recorder({ outputDir: dir, id: "2026-11-08-1900-narrow00" });
+  const call = "GET /albums/shared/photos/search";
+  const field = 'assets.items[0].metadata.originalFileName = "sample.jpg"';
+  run.check("viewer-blocked", { by: "viewer", verdict: "failed", proof: "Read the response fields.", reason: "The response contained a hidden field.", evidence: [
+    { source: "api", login: "viewer", url: "/albums/shared/photos/search", got: { hidden_details_found: 1, found: [{ call, field }] } },
+  ] });
+  run.finish();
+  const server = await listening({ dir });
+  try {
+    const browser = await chromium.launch();
+    try {
+      const page = await browser.newPage({ viewport: { width: 375, height: 812 } });
+      await page.goto(`http://127.0.0.1:${server.address().port}/runs/share-by-link/2026-11-08-1900-narrow00`);
+      for (const value of [call, field]) {
+        const box = await page.getByText(value, { exact: true }).boundingBox();
+        assert.ok(box && box.width > 180 && box.height < 80, `the value has room to wrap normally: ${value}`);
+      }
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
+    } finally {
+      await browser.close();
+    }
   } finally {
     server.close();
   }
