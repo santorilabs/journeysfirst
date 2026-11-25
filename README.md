@@ -69,10 +69,7 @@ Your agent can turn it into code checks so it runs faster, and read the run logs
 
 It's most useful for production apps that are more complex: several kinds of users, agents using it through MCP, and flows that depend on each other.
 
-| App | What broke, and for whom | Journey on the breaking commit | On the fix |
-|---|---|---|---|
-| [Immich](examples/immich-shared-link) | A shared link with "Show metadata" off still gave an app the photo's GPS, camera and file name. CI passed. | failed | passed |
-| [Docmost](examples/docmost-trash) | A page moved to trash still showed on its public link and in a teammate's search. | failed | passed |
+- **Real regressions:** journeys failed on both breaking commits and passed on both fixes. [Reproduce them](examples/).
 
 - **Changes to production apps:** we tested agents adding a new feature to an existing open source app with several kinds of users. Agents with journeys verified as every user role in 3 of 3 runs and kept a video in 2, against 1 of 3 and none without.
 - **New apps from 1 prompt:** without Journeys First, agents said done without opening the app, and 2 of 6 apps shipped unclickable. With it, the agent opened and used each app as each user first.

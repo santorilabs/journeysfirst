@@ -104,6 +104,7 @@ if (command === "run") {
       mcp: flags.mcp, container: flags.container, allowHostRead: flags["allow-host-read"], timeoutMs, agentArgs: end === -1 ? [] : rest.slice(end + 1) });
     console.log(`Saved ${saved.run.result} run to ${saved.folder}.`);
     if (saved.problem) { console.error(saved.problem); process.exitCode = 1; }
+    else if (saved.run.result !== "passed") console.log("Exit 0 means the agent finished and a run was saved. The journey did not pass.");
   } catch (error) {
     console.error(error.message);
     process.exitCode = 1;

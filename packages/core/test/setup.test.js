@@ -34,7 +34,7 @@ test("the new Playwright config starts the app with its dev script, else its sta
     writeFileSync(join(dir, "package.json"), JSON.stringify({ scripts }));
     return { dir, changes: init({ root: dir }) };
   };
-  const dev = withScripts({ dev: "vite", start: "node server.js" });
+  const dev = withScripts({ dev: "node dev.js", start: "node server.js" });
   assert.match(read(dev.dir, "playwright.config.js"), /command: "npm run dev",/);
   assert.ok(dev.changes.includes("added playwright.config.js: webServer starts the app with npm run dev, on the port in JOURNEYS_PORT (4321 if unset). Check that the app listens on PORT"), dev.changes.join("\n"));
   assert.ok(!existsSync(join(dev.dir, "demo")), "a repo with a dev script does not get the example");
@@ -283,7 +283,7 @@ test("upgrade refuses a repo with no Journeys First skills, and points to init",
 
 test("terminal init and upgrade keep skills without browser setup, even with a dev script", () => {
   const dir = repo();
-  writeFileSync(join(dir, "package.json"), JSON.stringify({ scripts: { dev: "convex dev" } }));
+  writeFileSync(join(dir, "package.json"), JSON.stringify({ scripts: { dev: "node server.js" } }));
   const result = cli(["init", "--terminal", "--skills", ".agents/skills"], dir);
   assert.equal(result.status, 0, result.stderr);
   assert.ok(existsSync(join(dir, ".agents/skills/journey-run/SKILL.md")));

@@ -17,13 +17,13 @@ Put it in the app's repo as a skill (for example `.claude/skills/<app>-journeys/
 
 Answer each one by reading the repo and running commands.
 
-- **What the machine needs.** A container runtime if the stack runs in containers (`supabase start` does). The Node version from CI, `.nvmrc` or `engines`. Check each (`docker info`, `node -v`). If one is missing or wrong, report it. Do not install system software.
-- **How the app starts locally.** The command, the port and the env file it reads. For a Vite app, the `package.json` scripts and `vite.config.*`. For Supabase, `supabase/config.toml`.
-- **How a test user signs in without a real account.** A test sign-in route, a one-time link from the auth provider's admin API on a local or staging stack, or a saved `storageState`. Never script a real Google sign-in. If there is no test sign-in path, propose one and wait for the person's OK, because it changes the product. An app with no accounts: each fresh browser context is a fresh test user (`account: "fresh browser context"`).
-- **Which values the server commands need.** Your shell may export a value from another product, like `SUPABASE_URL` or `DATABASE_URL`, and it wins over the app's env file. Pass every value explicitly (in `webServer.env`). Take local keys from the local stack (`supabase status`), never from an env file: env files can hold production keys.
-- **How to check the local schema is current.** The command that lists applied migrations and the one that applies the missing ones on the local stack (for Supabase, `supabase migration list --local` and `supabase migration up --local`). A local database behind the repo's migrations makes routes fail.
+- **What the machine needs.** A container runtime if the stack runs in containers. The language runtime version from CI or the project's config. Check each. If one is missing or wrong, report it. Do not install system software.
+- **How the app starts locally.** The command, the port and the env file it reads. Check the project's scripts and server config.
+- **How a test user signs in without a real account.** A test sign-in route, a one-time link from the auth provider's admin API on a local or staging stack, or a saved `storageState`. Never script a real third-party sign-in. If there is no test sign-in path, propose one and wait for the person's OK, because it changes the product. An app with no accounts: each fresh browser context is a fresh test user (`account: "fresh browser context"`).
+- **Which values the server commands need.** Your shell may export a value from another product, like `DATABASE_URL`, and it wins over the app's env file. Pass every value explicitly (in `webServer.env`). Take local keys from the local stack, never from an env file: env files can hold production keys.
+- **How to check the local schema is current.** The command that lists applied migrations and the one that applies the missing ones on the local stack. A local database behind the repo's migrations makes routes fail.
 - **How to reset or seed state.** A seed script, a SQL file, an admin API, a reset endpoint.
-- **What the app sends outside, and where it lands in test.** Search the code and dependencies for mail, SMS, chat and payment providers, and server functions that call them (for Supabase, `supabase/functions/`). For each one: what stops a real send, and how you read what was sent.
+- **What the app sends outside, and where it lands in test.** Search the code and dependencies for mail, SMS, chat and payment providers, and server functions that call them. For each one: what stops a real send, and how you read what was sent.
 
 Name the app skill `<app>-journeys`. Never give it the name of a Journeys First skill: `npx journeysfirst upgrade` rewrites those folders.
 
@@ -46,7 +46,7 @@ description: Run user journeys against <app> safely. Use before any journey run,
 | Name | When | How to start | URLs |
 - Needs on this machine: <container runtime, Node version from CI / .nvmrc / engines>. Check: <docker info, node -v>. If missing, report it; do not install system software.
 - Env file: <name>. Keys a journey uses: <names only>.
-- Check your shell: <vars that override the file if exported>. Pass each value to server commands explicitly. Local keys come from <the local stack, e.g. `supabase status`>, never from an env file that may hold production keys.
+- Check your shell: <vars that override the file if exported>. Pass each value to server commands explicitly. Local keys come from <the local stack>, never from an env file that may hold production keys.
 
 ## 3. Test accounts and sign-in
 - Browser: <one-time link, test login endpoint, saved storage state>. No accounts in the app: each fresh browser context is a fresh test user; record it as the account.
