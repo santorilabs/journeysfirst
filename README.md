@@ -10,10 +10,7 @@
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![skills.sh installs](https://skills.sh/b/santorilabs/journeysfirst)](https://skills.sh/santorilabs/journeysfirst)
 
-Agents build your product, and **agents now use it too.**
-
-An open format and skills for writing the contracts your product keeps: what each user, person or agent, must be able to do. 
-Your agents build to them, and check their work against what your users experience.
+An open format for user journeys, with skills and a CLI. Your agent verifies each journey in the real product before it says done, as every user, human or agent.
 
 - **Format:** journeys in plain sentences, and a run file with proof for every check.
 - **Skills:** onboard, build, write, run, review, fix.
@@ -21,6 +18,15 @@ Your agents build to them, and check their work against what your users experien
 - **Review page:** watch each run step by step, as each user.
 
 Everything lives in your repo and runs wherever your code runs: your machine, CI or your own cloud.
+
+
+**Ask your agent:** [Get started](https://journeysfirst.com/start)
+
+```text
+Get started with Journeys First: https://journeysfirst.com/start
+```
+
+It tells you its plan first, and stops before it runs anything.
 
 ## The problem
 
@@ -40,6 +46,7 @@ Journeys First works on top of what you already have: your tests, your agent's o
 
 - **Every affected user, including agents.** A journey names every user a change affects and checks each from their own login.
 - **A contract over one-time proof.** A journey says what each user should get, not which buttons to click. It stays in your repo, and every run keeps proof for every check.
+
 
 | Kind | Examples | What it does | Limits |
 |---|---|---|---|
@@ -62,7 +69,12 @@ Your agent can turn it into code checks so it runs faster, and read the run logs
 
 It's most useful for production apps that are more complex: several kinds of users, agents using it through MCP, and flows that depend on each other.
 
-- **Changes to production apps:** we tested agents adding a new feature to an existing open source app with several kinds of users. Agents with journeys verified as every user role in 3 of 3 runs and kept a video in 2, against 1 of 3 and none without. We also replayed 2 real bugs from Immich and Docmost, and agents with journeys caught both regressions.
+| App | What broke, and for whom | Journey on the breaking commit | On the fix |
+|---|---|---|---|
+| [Immich](examples/immich-shared-link) | A shared link with "Show metadata" off still gave an app the photo's GPS, camera and file name. CI passed. | failed | passed |
+| [Docmost](examples/docmost-trash) | A page moved to trash still showed on its public link and in a teammate's search. | failed | passed |
+
+- **Changes to production apps:** we tested agents adding a new feature to an existing open source app with several kinds of users. Agents with journeys verified as every user role in 3 of 3 runs and kept a video in 2, against 1 of 3 and none without.
 - **New apps from 1 prompt:** without Journeys First, agents said done without opening the app, and 2 of 6 apps shipped unclickable. With it, the agent opened and used each app as each user first.
 
 It costs more: builds took 3 to 4 times longer and cost 3 to 4 times as much. [All results](docs/results.md).
@@ -98,15 +110,7 @@ https://github.com/user-attachments/assets/8d8912ba-3d1c-472b-a1af-b98645e558f5
 
 ## Install
 
-Ask your agent to do it. Copy this to your agent:
-
-```text
-Set up Journeys First in this repo: https://journeysfirst.com/start
-```
-
-It tells you its plan first, and stops before it runs anything.
-
-Or do it yourself (Node 20 or newer):
+Do it yourself (Node 20 or newer):
 
 ```bash
 npm install --save-dev journeysfirst @playwright/test
@@ -116,26 +120,13 @@ npx journeysfirst init
 
 Or only the skills: `npx skills add santorilabs/journeysfirst --skill '*' --agent claude-code codex -y`
 
-## Try it
-
-Want to see it catch something? The example app has a bug you can turn on: the link keeps working after you turn sharing off.
-
-```bash
-git clone https://github.com/santorilabs/journeysfirst.git
-cd journeysfirst && npm install && npx playwright install --only-shell chromium
-cd examples/share-by-link
-npm test           # passes
-npm run test:bug   # fails: the viewer still sees the deck
-npx journeysfirst review journey-runs   # both runs at http://127.0.0.1:4400
-```
-
 ## Use it
 
 Just ask your agent. It picks the right skill:
 
 | Ask your agent | Skill |
 |---|---|
-| "Set up Journeys First here." | [journey-onboard](skills/journey-onboard/SKILL.md) |
+| "Get started with Journeys First here." | [journey-onboard](skills/journey-onboard/SKILL.md) |
 | "Build a site where study groups share notes." | [journey-build](skills/journey-build/SKILL.md) |
 | "Write a journey for inviting a teammate." | [journey-write](skills/journey-write/SKILL.md) |
 | "Run the journeys this change touches." | [journey-run](skills/journey-run/SKILL.md) |

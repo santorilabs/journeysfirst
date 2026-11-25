@@ -31,8 +31,6 @@ On the breaking commit, the teammate's search still lists the trashed page:
 
 ## The journey
 
-An agent that knew the bug and the fix wrote this journey, from the side of the user the bug hurt. The example shows that such a journey catches the break on replay. It does not show that an agent found the bug unprompted.
-
 [`journeys/trashed-page-stays-hidden.journey.yaml`](journeys/trashed-page-stays-hidden.journey.yaml). It has three users. The first two checks prove the viewer and the teammate could read the page before the delete, so a later "cannot see" comes from the delete.
 
 | Check | Break `ec12e80` | Fix `95b7be6` |
