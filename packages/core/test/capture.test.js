@@ -140,10 +140,17 @@ if (args[0] === "sandbox") {
   assert.ok(args.includes("exec") && args.includes("--json") && !args.some(a => a.includes("dangerously")));
   assert.match(input, /1\\. /);
   assert.match(input, /Check link-on/);
+  assert.match(input, /cause: product, test, environment/);
   assert.doesNotMatch(input, /private setup hint/);
   if (fs.existsSync("timeout.txt")) {
     fs.writeFileSync(".journeysfirst/results.jsonl", '{"line":1,"status":"done"}\\n');
     setInterval(() => {}, 500);
+  } else if (fs.existsSync("failures.txt")) {
+    fs.writeFileSync(".journeysfirst/results.jsonl", [
+      { line: 1, status: "failed", cause: "product", reason: "The control refused the change." },
+      { id: "link-on", verdict: "blocked", cause: "environment", reason: "The browser did not start." },
+      { id: "viewer-blocked", verdict: "blocked", reason: "Missing cause." },
+    ].map(JSON.stringify).join("\\n"));
   } else {
     assert.equal(fs.readFileSync(auth, "utf8"), "fake auth");
     const proxy = JSON.parse(args.find(a => a.startsWith("mcp_servers.demo.args=")).split("=").slice(1).join("="));
@@ -211,4 +218,14 @@ test("a failed sandbox probe never sends the API key to login", () => {
   assert.equal(result.status, 1);
   assert.match(result.stderr, /could not prove that its sandbox blocks the provider login/);
   assert.equal(run.steps[1].verdict, "not_checked");
+});
+
+test("Codex imports failure causes and records rejected result lines", () => {
+  const { run } = codexFixture("failures");
+  assert.equal(run.result, "failed");
+  assert.equal(run.steps[0].status, "failed");
+  assert.equal(run.steps[0].cause, "product");
+  assert.equal(run.steps[1].verdict, "blocked");
+  assert.equal(run.steps[1].cause, "environment");
+  assert.match(run.tags.result_import_errors[0], /Result line 3: .*needs a cause/);
 });

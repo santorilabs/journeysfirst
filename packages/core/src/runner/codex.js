@@ -3,6 +3,7 @@ import { closeSync, constants, copyFileSync, cpSync, fstatSync, mkdirSync, mkdte
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import { CAUSES } from "../format/runfile.js";
 import { RunRecorder, recording } from "./recorder.js";
 import { CAPTURE_LIMIT } from "./capture.js";
 import { maskText } from "./mask.js";
@@ -58,7 +59,8 @@ export async function runCodex({ journey, caseId, project, mcp, container, timeo
     const result = await launcher(["-a", "never", ...permissions, ...servers, "exec", "--json", "--ephemeral",
       "--skip-git-repo-check", ...selected, "-"], prompt, timeoutMs);
     const seat = recording(run, "you");
-    readResults(seat, state);
+    const importErrors = readResults(seat, state);
+    if (importErrors.length) run.tag("result_import_errors", importErrors.map((error) => maskText(run.redact(error))));
     const final = finalMessage(result.stdout);
     if (final) run.attach({ name: "handoff.txt", body: maskText(run.redact(final)), kind: "transcript" });
     if (result.timedOut) problem = "Codex reached the time limit.";
@@ -91,7 +93,8 @@ function agentPrompt(run) {
     "Use distinct capture names. Product MCP servers, when configured, save captures as NAME.txt.",
     "As you go, write one JSON object per line to .journeysfirst/results.jsonl.",
     'Actions: {"line":1,"status":"done"}. Checks: {"id":"check-id","verdict":"passed","proof":"what you observed","refs":[{"file":"NAME.txt","line":1}]}.',
-    "For a failed or blocked line include a reason. Do not claim a pass without a capture that proves it.",
+    `For a failed or blocked line include a reason and a cause: ${CAUSES.join(", ")}. A failed check also needs proof.`,
+    "Do not claim a pass without a capture that proves it. Cite an output or response line, not a request line.",
     "Finish with the message you would send to the person who asked you to run the journey.",
   ].filter((line) => line !== undefined).join("\n");
 }
@@ -164,11 +167,13 @@ function readResults(seat, state) {
   const output = readSmall(join(state, "results.jsonl"));
   const names = new Set(readdirSync(join(state, "captures"), { withFileTypes: true }).filter((item) => item.isFile()).map((item) => item.name));
   const attached = new Set();
-  for (const line of output.split("\n")) {
+  const errors = [];
+  for (const [index, line] of output.split("\n").entries()) {
+    if (!line.trim()) continue;
     try {
       const entry = JSON.parse(line);
       if (entry.line && ["done", "failed", "blocked", "not_run"].includes(entry.status)) {
-        seat.step(entry.line, { status: entry.status, reason: entry.reason });
+        seat.step(entry.line, { status: entry.status, reason: entry.reason, cause: entry.cause });
       } else if (entry.id && ["passed", "failed", "blocked", "not_checked"].includes(entry.verdict)) {
         const refs = Array.isArray(entry.refs) ? entry.refs : [];
         for (const { file } of refs) {
@@ -176,10 +181,11 @@ function readResults(seat, state) {
           if (!attached.has(file)) seat.attach(file, join(state, "captures", file), { login: "you" });
           attached.add(file);
         }
-        seat.check(entry.id, { verdict: entry.verdict, proof: entry.proof, reason: entry.reason, refs });
-      }
-    } catch {
-      // An invalid submission is not proof. Leave the step or check unverified.
+        seat.check(entry.id, { verdict: entry.verdict, proof: entry.proof, reason: entry.reason, cause: entry.cause, refs });
+      } else throw new Error("Give an action line and status, or a check id and verdict.");
+    } catch (error) {
+      const message = error instanceof SyntaxError ? "Not a JSON object." : error instanceof Error ? error.message : "Invalid result.";
+      errors.push(`Result line ${index + 1}: ${message}`);
     }
   }
   for (const file of names) {
@@ -187,6 +193,7 @@ function readResults(seat, state) {
       try { seat.attach(file, join(state, "captures", file)); } catch {}
     }
   }
+  return errors;
 }
 
 /** @param {string} path */
