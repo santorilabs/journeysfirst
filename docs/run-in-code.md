@@ -59,7 +59,7 @@ For MCP, pass `--mcp <file.json>` with server names and command arrays, such as 
 
 ```sh
 claude setup-token   # once, signed in with your Claude subscription
-CLAUDE_CODE_OAUTH_TOKEN=<token> npx journeysfirst run journeys/onboarding.journey.yaml --agent claude --project ./signed-out-project --allow-domains registry.npmjs.org -- --model sonnet
+CLAUDE_CODE_OAUTH_TOKEN=<token> npx journeysfirst run journeys/onboarding.journey.yaml --agent claude --project ./signed-out-project --allow-domains registry.npmjs.org -- --model <name>
 ```
 
 Put a recent Claude Code on PATH. On Linux, also install `bubblewrap` and `socat`, which Claude's command sandbox needs. The launcher uses only `CLAUDE_CODE_OAUTH_TOKEN`, a subscription token from `claude setup-token`. It refuses an API key, and it never passes `ANTHROPIC_API_KEY` to Claude. It hands the token to Claude Code on a pipe, so it is not in Claude's environment or in any command's environment.
