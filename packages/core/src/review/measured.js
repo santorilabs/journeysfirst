@@ -1,14 +1,13 @@
 // What a run's measure files say about the criteria a number can settle (the
 // journey-review skill has the criteria). The runner saves measure-<line>.txt
-// after each line. This reads them, compares with the earlier reviewed run and
-// with the values the product is known to use, and gives one fact for each
-// thing a review should look at. It judges nothing a number cannot show.
+// after each line. This reads them, compares with the earlier reviewed run,
+// and gives one fact for each thing a review should look at. It judges
+// nothing a number cannot show. It keeps no list of the product's values: the
+// design system journeys/README.md links to is that list, and a review reads it.
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { readRunJson } from "../format/run-folder.js";
 
-/** The line in journeys/README.md that lists the values the running product uses. */
-export const MEASURED_LINE = "Measured in the running product:";
 const VALUE_KINDS = /** @type {const} */ (["spacing", "type", "fonts", "radius"]);
 
 /**
@@ -17,9 +16,7 @@ const VALUE_KINDS = /** @type {const} */ (["spacing", "type", "fonts", "radius"]
  *   controls: Array<{name: string, in: string, width: number, height: number, small?: boolean, strong?: boolean}>,
  *   cut: Array<{name: string, left: number, width: number}>}} Screen
  * @typedef {{url?: string, wide?: Screen, phone?: Screen, actions: import("../runner/measure.js").ActionTime[]}} Measure
- * @typedef {{criterion: string, step: number, says: string, measured: object, ask?: true}} Fact ask: a person decides,
- *   because nothing says whether it is new
- * @typedef {Record<"spacing"|"type"|"fonts"|"radius", Set<string>>} Known
+ * @typedef {{criterion: string, step: number, says: string, measured: object}} Fact
  */
 
 /**
@@ -57,53 +54,31 @@ export function earlierRun(folder) {
 }
 
 /**
- * The values a README's measured line lists, or null when it has no such line
- * or the line holds no values yet.
- * @param {string} text journeys/README.md
- * @returns {Known|null}
- */
-export function knownValues(text) {
-  const line = text.split("\n").find((l) => l.trim().startsWith(MEASURED_LINE));
-  if (!line) return null;
-  /** @param {RegExp} pattern */
-  const list = (pattern) => new Set((pattern.exec(line)?.[1] ?? "").split(",").map((v) => v.trim()).filter(Boolean));
-  const known = { spacing: list(/spacing ([\d, ]+)px/i), type: list(/type ([\d, ]+)px/i), fonts: list(/fonts? ([^.]+)\./i), radius: list(/radius ([\d,% ]+)(?:px)?/i) };
-  return Object.values(known).some((set) => set.size) ? known : null;
-}
-
-/**
- * The measured line for these screens, added to what is already known.
+ * Every spacing, type size, font and radius these screens use, sorted, as one line.
  * @param {Map<number, Measure>} lines
- * @param {{known?: Known|null, leaveOut?: Set<string>}} [options] leaveOut: values a fact calls new, like "spacing 11".
- *   They join the line only when a person says they are right.
  */
-export function measuredLine(lines, { known = null, leaveOut = new Set() } = {}) {
-  const all = Object.fromEntries(VALUE_KINDS.map((kind) => [kind, new Set(known?.[kind] ?? [])]));
-  for (const measure of lines.values()) {
-    for (const screen of screens(measure)) for (const kind of VALUE_KINDS) for (const value of Object.keys(screen[kind] ?? {})) if (!leaveOut.has(`${kind} ${value}`)) all[kind].add(value);
-  }
+export function valuesUsed(lines) {
+  const all = Object.fromEntries(VALUE_KINDS.map((kind) => [kind, new Set()]));
+  for (const measure of lines.values()) for (const screen of screens(measure)) for (const kind of VALUE_KINDS) for (const value of Object.keys(screen[kind] ?? {})) all[kind].add(value);
   /** @param {Set<string>} set */
   const numbers = (set) => [...set].sort((a, b) => parseFloat(a) - parseFloat(b)).join(", ");
-  return `${MEASURED_LINE} spacing ${numbers(all.spacing)} px. Type ${numbers(all.type)} px. Font ${[...all.fonts].sort().join(", ")}. Radius ${numbers(all.radius) || "0"} px.`;
+  return `Spacing ${numbers(all.spacing)} px. Type ${numbers(all.type)} px. Font ${[...all.fonts].sort().join(", ")}. Radius ${numbers(all.radius) || "0"} px.`;
 }
 
 /**
  * One fact for each thing the measure files show that a criterion names.
- * @param {{lines: Map<number, Measure>, earlier?: Map<number, Measure>|null, known?: Known|null}} measured
- *   lines: this run. earlier: the earlier reviewed run. known: the README's measured line.
- * @returns {{facts: Fact[], counts: string[], notMeasured: string[], fresh: Set<string>, differ: number[]}}
- *   fresh: each value a foundation-values fact calls new, like "spacing 11".
+ * @param {{lines: Map<number, Measure>, earlier?: Map<number, Measure>|null}} measured
+ *   lines: this run. earlier: the earlier reviewed run.
+ * @returns {{facts: Fact[], counts: string[], notMeasured: string[], differ: number[]}}
  *   differ: the steps whose screen is not the one the earlier run measured (its words, controls, values or actions).
  */
-export function measuredFacts({ lines, earlier = null, known = null }) {
+export function measuredFacts({ lines, earlier = null }) {
   /** @type {Fact[]} */
   const facts = [];
   const counts = [];
   const notMeasured = [];
   const used = new Set([...lines.values()].flatMap((m) => m.actions.map((a) => a.name.slice(0, 30))));
   const reported = new Set();
-  /** @type {Set<string>} */
-  const freshValues = new Set();
   const differ = [...lines].filter(([step, measure]) => earlier && outline(measure) !== outline(earlier.get(step))).map(([step]) => step);
   for (const [step, measure] of lines) {
     const clicks = measure.actions.filter((a) => !a.field && !a.name.startsWith("open "));
@@ -130,20 +105,19 @@ export function measuredFacts({ lines, earlier = null, known = null }) {
     /** @type {string[]} */
     const fresh = [];
     for (const kind of /** @type {const} */ ([...VALUE_KINDS, "effects"])) {
-      if (!before && (kind === "effects" || !known)) continue;
+      if (!before) continue;
       const seen = new Set(screens(before).flatMap((screen) => Object.keys(screen[kind] ?? {})));
       for (const screen of screens(measure)) {
         for (const [value, { on }] of Object.entries(screen[kind] ?? {})) {
           const key = `${kind} ${value}`;
-          if (seen.has(value) || (kind !== "effects" && known?.[kind].has(value)) || reported.has(key)) continue;
+          if (seen.has(value) || reported.has(key)) continue;
           reported.add(key);
-          if (kind !== "effects") freshValues.add(key);
           fresh.push(`${kind === "effects" ? value : `${kind} ${value}${kind === "fonts" ? "" : " px"}`} on ${on}`);
         }
       }
     }
     if (fresh.length) {
-      facts.push({ criterion: "foundation-values", step, says: before ? `New since the earlier run: ${fresh.join("; ")}.` : `Not in the measured line: ${fresh.join("; ")}.`, measured: { new: fresh }, ...(before ? {} : { ask: /** @type {const} */ (true) }) });
+      facts.push({ criterion: "foundation-values", step, says: `New since the earlier run: ${fresh.join("; ")}.`, measured: { new: fresh } });
     }
     const phone = measure.phone;
     if (!phone) notMeasured.push(`foundation-phone on step ${step}: the run did not measure at 375 px`);
@@ -164,7 +138,7 @@ export function measuredFacts({ lines, earlier = null, known = null }) {
       if (said.length) facts.push({ criterion: "foundation-phone", step, says: `At ${phone.width} px: ${said.join(" ")}`, measured: { cut, small: small.map(({ name, width, height }) => ({ name, width, height })) } });
     }
   }
-  return { facts, counts, notMeasured, fresh: freshValues, differ };
+  return { facts, counts, notMeasured, differ };
 }
 
 /**
@@ -190,20 +164,17 @@ const count = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 /**
  * The report `journeysfirst measured` prints for a run folder.
  * @param {string} folder
- * @param {{readme?: string}} [options] readme: the path of journeys/README.md
  */
-export function measuredReport(folder, { readme = "journeys/README.md" } = {}) {
+export function measuredReport(folder) {
   readRunJson(folder);
   const lines = readMeasures(folder);
   if (!lines.size) return `${folder} has no measure files. A run made by a saved Playwright script has them. Without them every measured criterion is "not measured".`;
   const before = earlierRun(folder);
-  const known = existsSync(readme) ? knownValues(readFileSync(readme, "utf8")) : null;
-  const { facts, counts, notMeasured, fresh, differ } = measuredFacts({ lines, earlier: before ? readMeasures(before) : null, known });
+  const { facts, counts, notMeasured, differ } = measuredFacts({ lines, earlier: before ? readMeasures(before) : null });
   const said = [`${folder}`, before ? `Compared with the earlier reviewed run, ${before}.` : "No earlier reviewed run to compare with."];
   if (before) said.push(differ.length ? `Screens that differ from the earlier run: step ${differ.join(", ")}.` : "No screen differs from the earlier run.");
-  if (known) said.push(`Values compared with the measured line in ${readme}.`);
-  else said.push(`${readme} has no measured values yet. Write this line under its Design system:`, `  ${measuredLine(lines, { leaveOut: fresh })}`);
-  said.push("", ...(facts.length ? facts.map((f) => `${f.ask ? "ask  " : "fact "} ${f.criterion}  step ${f.step}  ${f.says}  (measure-${f.step}.txt)`) : ["No measured criterion fails."]));
+  else said.push("Values this run uses. Check them against the design system journeys/README.md links to:", `  ${valuesUsed(lines)}`);
+  said.push("", ...(facts.length ? facts.map((f) => `fact  ${f.criterion}  step ${f.step}  ${f.says}  (measure-${f.step}.txt)`) : ["No measured criterion fails."]));
   if (counts.length) said.push("", `Counts: ${counts.join("; ")}.`);
   for (const line of notMeasured) said.push(`Not measured: ${line}.`);
   return said.join("\n");

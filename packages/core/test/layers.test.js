@@ -18,7 +18,7 @@ const MAY_IMPORT = {
   "src/review": ["src/format", "src/shared"],
   "src/publish": ["src/format", "src/review", "src/shared"],
   src: ["src/format", "src/shared"],
-  bin: ["src", "src/format", "src/publish", "src/review", "src/shared"],
+  bin: ["src", "src/format", "src/publish", "src/review", "src/shared", "src/runner"],
 };
 
 const IMPORT = /^\s*(?:import|export)\s[^;"']*?\bfrom\s*["']([^"']+)["']|^\s*import\s*["']([^"']+)["']/gm;

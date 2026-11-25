@@ -30,6 +30,7 @@ import { doctor } from "../src/doctor.js";
 import { init, nextSteps, upgrade } from "../src/setup.js";
 import { reviewLine } from "../src/shared/display.js";
 import { VERSION } from "../src/shared/version.js";
+import { captureCommand } from "../src/runner/capture.js";
 
 const USAGE = `Usage:
   journeysfirst --version
@@ -39,7 +40,7 @@ const USAGE = `Usage:
       Without --journey, it compares the steps with journeys/<name>.journey.yaml when that file exists.
   journeysfirst measured <run folder>
       Prints what the run's measure files say, for a review: one line for each measured fact a criterion names.
-      It compares with the earlier reviewed run of the journey and with the measured line in journeys/README.md.
+      It compares with the earlier reviewed run of the journey. With none, it lists the values the run uses, to check against the design system journeys/README.md links to.
   journeysfirst add-findings <run folder> <findings file> [--journey <file>]
       Writes a review's findings into the run. The file is {"findings": [...]}, with an empty list when the review found nothing.
       Nothing else in the run changes: a finding never changes a verdict or the result. Do it before publish.
@@ -49,6 +50,10 @@ const USAGE = `Usage:
   journeysfirst review [runs folder] --out <new folder> [--include-transcripts]
       Export a static review. Check the pages and recordings for private data before hosting the folder.
       Include attached transcripts only with --include-transcripts, after checking them for private data.
+  journeysfirst capture --out <new file> [--secret-env <NAME,NAME>] -- <command> [args...]
+      Run a terminal command and save bounded, redacted output.
+  journeysfirst mcp-proxy --out <new file> [--secret-env <NAME,NAME>] -- <server command> [args...]
+      Relay an MCP server's stdio and save request labels and response summaries.
   journeysfirst publish <run folder> [--to <url>] [--journey <file>]   (default JOURNEYSFIRST_URL; token from JOURNEYSFIRST_TOKEN)
   journeysfirst dev-server [--port <n>] [--host <address>]   (default port 4500; host 127.0.0.1)
   journeysfirst affected <path...>
@@ -76,7 +81,25 @@ const USAGE = `Usage:
 const [command, ...rest] = process.argv.slice(2);
 const { positional, flags } = parseArgs(rest);
 
-if (command === "--version" || command === "version") {
+if (command === "capture" || command === "mcp-proxy") {
+  try {
+    const end = rest.indexOf("--");
+    const { positional, flags } = parseArgs(rest.slice(0, end));
+    if (end < 0 || !rest[end + 1] || typeof flags.out !== "string" || !flags.out || positional.length ||
+        Object.keys(flags).some((name) => name !== "out" && name !== "secret-env")) {
+      throw new Error("Give --out <new file> followed by -- and a command.");
+    }
+    const names = flags["secret-env"];
+    if (names !== undefined && (typeof names !== "string" || !/^[A-Za-z_][\w]*(?:,[A-Za-z_][\w]*)*$/.test(names))) {
+      throw new Error("Give environment variable names separated by commas to --secret-env.");
+    }
+    const secrets = typeof names === "string" ? names.split(",").map((name) => process.env[name]).filter(Boolean) : [];
+    process.exitCode = await captureCommand(rest.slice(end + 1), { out: flags.out, mcp: command === "mcp-proxy", secrets });
+  } catch (error) {
+    console.error(error.code === "EEXIST" ? "The capture file exists. Choose a new file with --out." : error.message);
+    process.exitCode = 1;
+  }
+} else if (command === "--version" || command === "version") {
   console.log(VERSION);
 } else if (command === "--help" || command === "-h" || command === "help") {
   console.log(USAGE);

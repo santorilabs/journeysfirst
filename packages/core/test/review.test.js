@@ -350,7 +350,7 @@ test("a run page leads with each finding and keeps its criterion, step, evidence
     assert.match(found, /<p>Is a 4 px corner right for this button\?<\/p>/);
     assert.match(found, /<p class="call"><b>ana@example\.test<\/b>: Keep it\./);
     assert.match(found, /the dialog is the same before and after the click/, "the evidence is there");
-    assert.match(found, /<li><b>foundation-values-3<\/b>: Keep it\. <span class="how">ana@example\.test, [^<]*\. On: &quot;Download&quot; has a 4 px corner\. The measured line has 10 and 16 px\.<\/span>/, "a call on a finding shows the finding's sentence");
+    assert.match(found, /<li><b>foundation-values-3<\/b>: Keep it\. <span class="how">ana@example\.test, [^<]*\. On: &quot;Download&quot; has a 4 px corner\. The design system uses 10 and 16 px\.<\/span>/, "a call on a finding shows the finding's sentence");
     assert.doesNotMatch(found, /<b>9 px|<svg onload/);
     assert.match(found, /&lt;b&gt;9 px&lt;\/b&gt; is not in the list\./);
 

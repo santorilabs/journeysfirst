@@ -81,7 +81,9 @@ Write what you find in the app skill, `.claude/skills/<app>-journeys/SKILL.md` (
 
 It holds the foundation and the journey list. Every line says where it came from: a file, an issue, the person or "guess".
 
-- `## Foundation`: what good means for this product, under the parts you found (Product principles, UX principles and, with a UI, Brand and Design system). The "What good means" lines are the product principles. "Decided" lists calls a person made on a review, each starting with the criterion id, so a review does not raise them again.
+Link, do not copy. When a fact already lives in a file (a design system, a style guide, a rule in `AGENTS.md`), link to that file and say in a few words what to find there. A copy goes stale when the file changes.
+
+- `## Foundation`: what good means for this product, under the parts you found (Product principles, UX principles and, with a UI, Brand and Design system). The "What good means" lines are the product principles. Design system links to the files that hold the tokens (spacing, type, radius), so a review can read them.
 - `## Journeys` and `## Running safely`.
 
 Under **Journeys**, list the journeys that matter most:

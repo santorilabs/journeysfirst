@@ -140,7 +140,7 @@ After the first run, a replay is a plain Playwright test: `npx playwright test`.
 ## Limitations
 
 - It's 0.0.x, so things may still break between releases.
-- It only runs web apps for now.
+- Browser replays use Playwright. For terminal or MCP journeys, [record selected commands and checks in a script](docs/run-in-code.md#record-a-terminal-command-or-mcp-exchange).
 - You set up the test accounts and start states. Onboarding tells you what it needs.
 - Onboarding drafts your top journeys, so it can miss one, like a single privacy setting. You or your agent add the rest as you work.
 - Your agent writes the check code, so read the checks in review like you would any test.

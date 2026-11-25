@@ -20,6 +20,8 @@ import { FILE_NAME, RUN_FORMAT, isCheck, settle, stepProblems } from "../format/
 import { maskRun } from "./mask.js";
 import { VERSION } from "../shared/version.js";
 
+export { recording } from "./recording.js";
+
 /**
  * @typedef {import("../format/runfile.js").Run} Run
  * @typedef {import("../format/runfile.js").Evidence} Evidence
@@ -171,7 +173,7 @@ export class RunRecorder {
 
   /**
    * Text with each secret's value replaced by its `${name}`, for a file the
-   * run attaches. result() checks run.json for secrets, not attached files.
+   * run attaches. result() checks run.json and attached transcripts for secrets.
    * @param {string} text
    */
   redact(text) {
@@ -219,7 +221,7 @@ export class RunRecorder {
 
   /**
    * The run file and its files, without writing anything. Throws when a
-   * secret value appears anywhere in the run.
+   * secret value appears in the run metadata or an attached transcript.
    * @param {{summary?: string}} [options]
    * @returns {{run: Run, files: Map<string, Buffer>}}
    */
@@ -258,6 +260,10 @@ export class RunRecorder {
       steps,
     })));
     run.summary ??= defaultSummary(run.result, run.steps);
+    if (this.#secrets.size && (run.media ?? []).some(({ file, kind }) =>
+      kind === "transcript" && transcriptHasSecret(this.files.get(file), this.#secrets))) {
+      throw new Error("A declared secret is in an attached transcript. Remove it from the transcript before writing the run.");
+    }
     const leaks = secretLeaks(run, this.#secrets);
     if (leaks.length) throw new Error(`${leaks.join("\n")}\nA secret's value must never be written to the run. Take it out of those fields, or don't mark the value secret.`);
     // After the check, so a declared secret still refuses the run. Patterns
@@ -398,6 +404,17 @@ function secretLeaks(run, secrets) {
     if (fields.length) lines.push(`The secret \${${name}} is in the run at ${fields.join(", ")}.`);
   }
   return lines;
+}
+
+/** @param {Buffer | undefined} body @param {Map<string, unknown>} secrets */
+function transcriptHasSecret(body, secrets) {
+  if (!body) return false;
+  const text = body.toString("utf8");
+  for (const value of secrets.values()) {
+    const secret = String(value ?? "");
+    if (secret && (text.includes(secret) || text.includes(JSON.stringify(secret).slice(1, -1)))) return true;
+  }
+  return false;
 }
 
 /**
