@@ -55,6 +55,10 @@ The script keeps `convex dev` running in anonymous agent mode and sends this cal
 | Human reads the first dashboard hint | [Journey](journeys/local-dashboard-message.journey.yaml) | [Run](proof/local-dashboard-message.run.json) · [Transcript](proof/local-dashboard-message.transcript.txt) |
 | Human delegates setup and reads the agent's reply | [Journey](journeys/owner-handoff.journey.yaml) | [Run](proof/owner-handoff.run.json) · [Transcript](proof/owner-handoff.transcript.txt) |
 
+**JourneysFirst review screenshots:** [Agent setup](proof/screens/agent-seat.png) · [MCP failure](proof/screens/mcp-failure.png) · [Human terminal query](proof/screens/human-terminal.png) · [Dashboard hint](proof/screens/dashboard-hint.png) · [Human behind the agent](proof/screens/human-behind-agent.png).
+
+These terminal runs have logs, not browser video. After reproducing a run, open the same review UI with `(cd "$sandbox/app" && npx journeysfirst review journey-runs)`, then visit `http://127.0.0.1:4400`.
+
 **Why keep it here?** It's a runnable JourneysFirst example that keeps what each role saw, not just what the tool returned. Devin played both roles in the handoff. We used a local sample query, not real user data, and tested the editor's MCP transport, not its interface.
 
 **Why it happens:** In [Convex 1.51.0](https://github.com/convex/convex-js/tree/npm/1.51.0), [local setup allows no login](https://github.com/convex/convex-js/blob/1228536614f874e0847a0ac33a91c43cf8694a2d/src/cli/configure.ts#L239-L301), but [MCP checks login before the tool can look up the deployment](https://github.com/convex/convex-js/blob/1228536614f874e0847a0ac33a91c43cf8694a2d/src/cli/mcp.ts#L165-L213). [Setup prints the dashboard hint](https://github.com/convex/convex-js/blob/1228536614f874e0847a0ac33a91c43cf8694a2d/src/cli/lib/init.ts#L57-L70) even when [the address is null](https://github.com/convex/convex-js/blob/1228536614f874e0847a0ac33a91c43cf8694a2d/src/cli/lib/localDeployment/dashboard.ts#L149-L156).
