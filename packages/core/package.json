@@ -1,10 +1,16 @@
 {
   "name": "journeysfirst",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "Plain-sentence user journeys that any agent can build against, run and check.",
   "type": "module",
   "license": "MIT",
-  "keywords": ["journeys", "testing", "playwright", "mcp", "agents"],
+  "keywords": [
+    "journeys",
+    "testing",
+    "playwright",
+    "mcp",
+    "agents"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/santorilabs/journeysfirst.git",
