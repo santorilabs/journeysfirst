@@ -60,7 +60,9 @@ export async function withAgentRun({ journey, caseId, project, agent, label, log
     for (const line of run.plan.lines) {
       const owner = lineOwner(line, run.plan.everyone);
       if (owner !== actor) {
-        throw new Error(`Line ${line.n} belongs to '${owner}', but the ${label} launcher plays '${actor}'. To record multiple seats, use Playwright or RunRecorder directly.`);
+        const item = line.kind === "action" ? "Step" : "Check";
+        const text = JSON.stringify(line.kind === "action" ? line.says : line.check);
+        throw new Error(`${item} ${line.n}, ${text}, belongs to '${owner}', but the ${label} launcher plays '${actor}'. If it is for '${actor}', start it with "The ${actor}". If the journey needs both seats, use Playwright or RunRecorder directly.`);
       }
     }
   }

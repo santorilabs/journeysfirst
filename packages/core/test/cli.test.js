@@ -332,14 +332,17 @@ test("the launcher treats a leading possessive role as the owner", () => {
 });
 
 test("the launcher refuses to play a line owned by you as the agent seat", () => {
-  for (const [line, journey] of [
-    [1, AGENT_JOURNEY.replace("The agent turns", "You turn")],
-    [2, AGENT_JOURNEY.replace("The agent sees that link", "Link")],
+  for (const [number, item, original, text] of [
+    [1, "Step", "The agent turns on link sharing.", "You turn on link sharing."],
+    [2, "Check", "The agent sees that link sharing is still on after a reload.", "Link sharing is still on after a reload."],
   ]) {
+    const journey = AGENT_JOURNEY.replace(original, text);
     const { result, run } = agentRun([], 0, fakeAgent, "", journey);
-    assert.equal(run, undefined, JSON.stringify(run?.steps[line - 1]));
+    assert.equal(run, undefined, JSON.stringify(run?.steps[number - 1]));
     assert.equal(result.status, 1, result.stderr);
-    assert.match(result.stderr, new RegExp(`Line ${line} belongs to 'you'.*use Playwright or RunRecorder`));
+    assert.ok(result.stderr.includes(
+      `${item} ${number}, "${text}", belongs to 'you', but the node launcher plays 'agent'. If it is for 'agent', start it with "The agent". If the journey needs both seats, use Playwright or RunRecorder directly.`,
+    ), result.stderr);
   }
 });
 
