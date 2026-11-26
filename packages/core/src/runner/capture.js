@@ -22,7 +22,7 @@ export async function captureCommand(argv, { out, mcp = false, secrets = [], ide
   const fd = openSync(out, "wx", 0o600);
   const redact = makeRedactor(secrets);
   let saved = 0, truncated = false, line = 0;
-  /** @param {{kind: string, text: string, request?: number}} entry */
+  /** @param {{kind: string, text: string, request?: number, at?: number, ms?: number, error?: true}} entry */
   const add = (entry) => {
     if (truncated) return;
     const text = JSON.stringify({ ...entry, text: redact(entry.text), ...(!line ? identity : undefined) }) + "\n";
@@ -161,19 +161,23 @@ function terminalTap(kind, add) {
 
 /**
  * Read a copy of MCP's newline-framed JSON without affecting the forwarded bytes.
- * @param {(entry: {kind: string, text: string, request?: number}) => number | undefined} add
+ * A request row says when it was seen, in ms since the proxy started (at).
+ * A response row says how long its request waited (ms), and error when the reply was one.
+ * @typedef {Map<string, {line: number, method: string, at: number}>} Requests open requests by id, with the clock when each was seen
+ * @param {(entry: {kind: string, text: string, request?: number, at?: number, ms?: number, error?: true}) => number | undefined} add
  * @param {"client"|"server"} side
- * @param {Map<string, {line: number, method: string}>} [other]
+ * @param {Requests} [other]
  */
 function mcpTap(add, side, other) {
-  /** @type {Map<string, {line: number, method: string}>} */
+  /** @type {Requests} */
   const requests = new Map();
+  const started = performance.now();
   /** @type {Buffer[]} */
   let parts = [];
   let size = 0, clipped = false;
   return {
     requests,
-    /** @param {Buffer} chunk @param {Map<string, {line: number, method: string}>} [peer] */
+    /** @param {Buffer} chunk @param {Requests} [peer] */
     read(chunk, peer = other) {
       for (let offset = 0; offset < chunk.length;) {
         const newline = chunk.indexOf(10, offset);
@@ -191,7 +195,7 @@ function mcpTap(add, side, other) {
     },
     finish() {},
   };
-  /** @param {string} text @param {Map<string, {line: number, method: string}>} [peer] */
+  /** @param {string} text @param {Requests} [peer] */
   function message(text, peer) {
     let data;
     try { data = JSON.parse(text); } catch { return; }
@@ -201,8 +205,9 @@ function mcpTap(add, side, other) {
       requests.delete(id);
       if (!METHODS.has(data.method)) return;
       const tool = data.method === "tools/call" && /^[\w.-]{1,80}$/.test(data.params?.name ?? "") ? " " + data.params.name : "";
-      const line = add({ kind: "request", text: side + " " + data.method + tool });
-      if (line !== undefined && requests.size < 128) requests.set(id, { line, method: data.method });
+      const at = performance.now();
+      const line = add({ kind: "request", at: Math.round(at - started), text: side + " " + data.method + tool });
+      if (line !== undefined && requests.size < 128) requests.set(id, { line, method: data.method, at });
     } else if ("result" in data || "error" in data) {
       const request = peer?.get(id);
       if (!request || !peer) return;
@@ -212,7 +217,8 @@ function mcpTap(add, side, other) {
           ? data.result.content.find((/** @type {any} */ item) => item?.type === "text" && typeof item.text === "string")?.text
           : null;
       const success = EVIDENCE_METHODS.has(request.method) ? resultText(data.result) : "";
-      add({ kind: "response", request: request.line, text: data.error || data.result?.isError ? reported || "Error" : success || "Result returned" });
+      const failed = Boolean(data.error || data.result?.isError);
+      add({ kind: "response", request: request.line, ms: Math.round(performance.now() - request.at), ...(failed ? { error: /** @type {const} */ (true) } : {}), text: failed ? reported || "Error" : success || "Result returned" });
     }
   }
 }

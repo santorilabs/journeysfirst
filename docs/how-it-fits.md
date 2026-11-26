@@ -90,7 +90,7 @@ What it does: records each line of a journey as it is done, then writes the run 
 Files, in `src/runner/`:
 
 - `recorder.js`: `RunRecorder`. Any script or agent can use it, with or without Playwright.
-- `capture.js`: selected terminal output, MCP request names, and reply text. The wrapper passes the child's stdio through without changing it.
+- `capture.js`: selected terminal output, MCP request names, and reply text. Each MCP request has when it was seen, and each reply has how long it waited and whether it was an error. The wrapper passes the child's stdio through without changing it.
 - `recording.js`: attaches a capture and resolves check evidence from its saved lines, for one seat at a time.
 - `agent.js`: prepares the scratch project, gives an agent the journey, and saves evidence and the handoff. It also runs custom agent commands.
 - `agents/`: known adapters implement `detect`, `authProbe`, `sandboxArgs`, `mcpConfig`, and `start`. The registry picks the first installed, signed-in adapter.

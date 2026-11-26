@@ -104,8 +104,19 @@ test("MCP proxy preserves bytes, pairs responses, and saves redacted tool output
   assert.match(transcript, /tools\/call status/);
   assert.match(transcript, /Not Authorized/);
   assert.match(rows(out)[5].text, /Sharing is on/);
+  // Each request says when it was seen. Each reply says how long its call waited, and whether it was an error.
+  for (const row of rows(out).slice(0, 3)) assert.ok(Number.isSafeInteger(row.at) && row.at >= 0, JSON.stringify(row));
+  for (const row of rows(out).slice(3)) assert.ok(Number.isSafeInteger(row.ms) && row.ms >= 0, JSON.stringify(row));
+  assert.deepEqual(rows(out).map((row) => row.error), [undefined, undefined, undefined, undefined, true, undefined]);
   assert.doesNotMatch(transcript, /secret-fixture/);
   assert.doesNotMatch(transcript, /private argument|private result|sample-admin-key/);
+  // A run that attaches the transcript keeps the times and the error mark. A made-up field is dropped.
+  writeFileSync(out, transcript.replace('"kind":"response"', '"kind":"response","made_up":1'));
+  const run = recordAllPassed(recorder({ outputDir: dir() }));
+  const file = recording(run, "you").attach("mcp.txt", out, { login: "you" });
+  const kept = String(run.files.get(file)).trim().split("\n").map((line) => JSON.parse(line));
+  assert.deepEqual(kept.map(({ at, ms, error }) => ({ at, ms, error })), rows(out).map(({ at, ms, error }) => ({ at, ms, error })));
+  assert.ok(kept.every((row) => !("made_up" in row)));
 });
 
 test("a seat records checks only from output lines of its own approved captures", () => {
