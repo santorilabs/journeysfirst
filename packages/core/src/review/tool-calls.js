@@ -125,7 +125,7 @@ const timing = (call) => [call.at === undefined ? "" : `at ${seconds(call.at)}`,
 export function toolCallReport(folder) {
   const tools = toolCalls(folder);
   if (!tools.length) return [];
-  const said = tools.flatMap(({ file, calls }) => calls.filter((call) => call.error).map((call) => `fact  intuitive-tools  ${call.tool} returned an error: ${call.says || "Error"} ${recovery(call)}  (${file})`));
+  const said = tools.flatMap(({ file, calls }) => calls.filter((call) => call.error).map((call) => `fact  intuitive-tools  ${call.tool} returned an error: ${call.says || "Error"} ${recovery(call)}  (${file}, line ${call.reply})`));
   if (said.length) said.push("");
   said.push("Tool calls:");
   for (const { file, calls, line, average, proves } of tools) {

@@ -100,8 +100,8 @@ test("a run's tool calls are counted and listed, with errors, recovery, the wait
   assert.equal(toolCallLine([{ tool: "book" }]), "1 tool call, 0 errors, wait not measured", "a transcript from an older proxy has no times");
   assert.deepEqual(measuredReport(folder).split("\n").slice(1), [
     "",
-    "fact  intuitive-tools  book returned an error: Not Authorized The agent recovered: a later book call worked.  (calendar.txt)",
-    "fact  intuitive-tools  delete returned an error: No such meeting No later delete call worked.  (calendar.txt)",
+    "fact  intuitive-tools  book returned an error: Not Authorized The agent recovered: a later book call worked.  (calendar.txt, line 6)",
+    "fact  intuitive-tools  delete returned an error: No such meeting No later delete call worked.  (calendar.txt, line 8)",
     "",
     "Tool calls:",
     "  calendar.txt: 5 tool calls, 2 errors, 3.1 s waiting, slowest book 2.1 s.",

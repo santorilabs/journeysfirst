@@ -47,7 +47,7 @@ fact  foundation-values  step 3  New since the earlier run: radius 4 px on butto
 - **No earlier reviewed run.** `measured` lists the values the run uses. Open the design system the Foundation links to and compare. A value it does not have is a question, quoting the file. No design system linked: say so in the report, and that is not a finding. Never copy the values into `journeys/README.md`. A new build skips this.
 - **No measure files** (a run driven by hand): every criterion that reads `measured` is "not measured". Never guess a pixel value from a screenshot.
 
-For a run with an MCP transcript, `measured` also prints the agent's tool calls: how many, how many returned an error, the wait, and the average of up to 10 earlier passed runs. An error is a `fact` line. The counts are not: an agent takes a different path each run, so one high count proves nothing. "More tool calls than any of those runs" is worth one sentence in the report, with the tools named.
+For a run with an MCP transcript, `measured` also prints the agent's tool calls: how many, how many returned an error, the wait, and the average of up to 10 earlier passed runs. An error is a `fact` line, which ends with the transcript and the line of the reply. The counts are not: an agent takes a different path each run, so one high count proves nothing. "More tool calls than any of those runs" is worth one sentence in the report, with the tools named.
 
 `foundation-loading` needs a slow replay, which holds each data request for 2 seconds and prints each click's time. With no saved script or a new build, it is "not measured".
 
@@ -109,7 +109,7 @@ Save `{"findings": [...]}` as `findings.json` in the run folder:
 }
 ```
 
-- `id`: the criterion and the step, never a check's id.
+- `id`: the criterion and the step, never a check's id. A tool error has no step: use the transcript's name and the reply's line, like `intuitive-tools-calendar-6`, so two errors in one run get two ids.
 - `step`: the journey line, counting actions and checks from 1. Leave it out for the whole journey.
 - `says`: one plain sentence a person can paste into a PR. Quote a broken Foundation line.
 - `evidence`: at least one item. For a screen: `source: "page"`, the `login` whose screen it was, the `url`, and `measured` with its `file`, or `saw` with the words quoted. For the journey file: `source: "log"`, `login: "you"`, and the command in `query`, like `cat journeys/share-by-link.journey.yaml`.
