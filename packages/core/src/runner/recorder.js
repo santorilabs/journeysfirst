@@ -17,6 +17,7 @@ import { basename } from "node:path";
 import { journeyName, journeyPlan, loadJourney, validateJourney } from "../format/format.js";
 import { writeRunFolder } from "../format/run-folder.js";
 import { FILE_NAME, LOOKUP, RUN_FORMAT, isCheck, settle, stepProblems } from "../format/runfile.js";
+import { makeRedactor } from "./capture.js";
 import { maskRun } from "./mask.js";
 import { VERSION } from "../shared/version.js";
 
@@ -43,6 +44,8 @@ export { recording } from "./recording.js";
 export class RunRecorder {
   /** Each secret `${name}` and its value, in memory only, to keep it out of the run. @type {Map<string, unknown>} */
   #secrets = new Map();
+  /** @type {((text: string) => string) | undefined} */
+  #redactOutput;
 
   /** @param {StartOptions} options journey is a path to a journey file, or a parsed journey (then pass file or name) */
   static start(options) {
@@ -177,11 +180,17 @@ export class RunRecorder {
    * @param {string} text
    */
   redact(text) {
+    if (this.#redactOutput) text = this.#redactOutput(text);
     for (const [name, value] of this.#secrets) {
       const secret = String(value ?? "");
       if (secret) text = text.replaceAll(secret, `\${${name}}`).replaceAll(JSON.stringify(secret).slice(1, -1), `\${${name}}`);
     }
     return text;
+  }
+
+  /** @param {string[]} values exact host values to mask in recorded text, not in the run's structural fields */
+  redactOutputValues(values) {
+    this.#redactOutput = values.some(Boolean) ? makeRedactor(values) : undefined;
   }
 
   /**

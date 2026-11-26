@@ -43,7 +43,8 @@ export function recording(run, by) {
     },
     /** @param {Parameters<typeof run.step>[0]} line @param {Omit<NonNullable<Parameters<typeof run.step>[1]>, "by">} [result] */
     step(line, result) {
-      run.step(line, { ...result, by });
+      const reason = typeof result?.reason === "string" ? run.redact(result.reason) : result?.reason;
+      run.step(line, { ...result, reason, by });
     },
     /**
      * Resolve refs against captures owned by this seat, not arbitrary paths.
@@ -60,7 +61,9 @@ export function recording(run, by) {
         if (result.verdict === "passed" && capture.login !== by) throw new Error("A passed check must cite evidence from this seat's own session.");
         return { source: "log", ...(capture.key ? { key: capture.key } : { login: capture.login }), query: `${file}, line ${line}`, got };
       });
-      run.check(id, { ...result, evidence, by });
+      const proof = typeof result.proof === "string" ? run.redact(result.proof) : result.proof;
+      const reason = typeof result.reason === "string" ? run.redact(result.reason) : result.reason;
+      run.check(id, { ...result, proof, reason, evidence, by });
     },
   };
 }

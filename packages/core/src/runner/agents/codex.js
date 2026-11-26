@@ -82,9 +82,9 @@ async function start({ mcp = {}, mcpOverride, container, allowHostRead = false, 
       }
       const serverEnv = Object.fromEntries(native.flatMap(({ envNames }) => envNames).flatMap((name) => {
         const value = process.env[name];
-        if (value && value.length >= 8) run.value(`JF_MCP_ENV_${name}`, value, { secret: true });
         return value === undefined ? [] : [[`JF_MCP_ENV_${name}`, value]];
       }));
+      run.redactOutputValues(Object.values(serverEnv));
       const result = await launcher(["-a", "never", ...permissions, ...servers.args, "exec", "--json", "--ephemeral",
         "--skip-git-repo-check", ...selected, "-"], prompt, timeoutMs, serverEnv);
       handoff = finalMessage(result.stdout);

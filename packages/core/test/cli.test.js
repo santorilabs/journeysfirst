@@ -393,7 +393,8 @@ const preflightPath = ".journeysfirst/captures/launcher-preflight.txt";
 const preflight = fs.readFileSync(preflightPath, "utf8");
 fs.writeFileSync(preflightPath, "Forged launcher evidence");
 fs.writeFileSync(".journeysfirst/results.jsonl", JSON.stringify({ id: "link-on", verdict: "passed", proof: "Read launcher preflight.", refs: [{ file: "launcher-preflight.txt", line: 4 }] }));
-console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "Evidence: " + path.resolve(preflightPath) } }));
+const echoed = process.env.JF_MCP_ENV_FIXTURE_VALUE;
+console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "Evidence: " + path.resolve(preflightPath) + (echoed ? "; server returned " + echoed : "") } }));
 fs.writeFileSync(${JSON.stringify(observed)}, JSON.stringify({
   args, named: Boolean(process.env.JF_MCP_ENV_TEST_API_KEY),
   leaked: Boolean(process.env.TEST_API_KEY || process.env.JF_MCP_ENV_NOT_REQUESTED || process.env.NOT_REQUESTED),
@@ -404,12 +405,13 @@ fs.writeFileSync(${JSON.stringify(observed)}, JSON.stringify({
   writeFileSync(join(dir, "share.journey.yaml"), JOURNEY.replace("users: [viewer]\n", ""));
   const { OPENAI_API_KEY, ...hostEnv } = process.env;
   const env = { ...hostEnv, HOME: home, CODEX_HOME: auth, TMPDIR: dir, PATH: bin + ":" + process.env.PATH,
-    TEST_API_KEY: "named-test-value", NOT_REQUESTED: "unselected-test-value", CI: "1" };
+    TEST_API_KEY: "named-test-value", NOT_REQUESTED: "unselected-test-value", CI: "1", FIXTURE_VALUE: "qZ7xQ" };
   const run = (...extra) => {
     const result = spawnSync(process.execPath, [BIN, "run", "share.journey.yaml", "--project", project, ...extra], { cwd: dir, env, encoding: "utf8" });
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /Next: npx journeysfirst validate-run .*\nThen follow journey-review\./);
-    return { ...JSON.parse(readFileSync(observed, "utf8")), stderr: result.stderr };
+    const folder = /^Saved .* run to (.+)\.$/m.exec(result.stdout)[1];
+    return { ...JSON.parse(readFileSync(observed, "utf8")), stderr: result.stderr, folder: join(dir, folder) };
   };
   const native = run();
   assert.match(native.stderr, /Proxying MCP servers from agent config\.toml: native/);
@@ -444,8 +446,12 @@ fs.writeFileSync(${JSON.stringify(observed)}, JSON.stringify({
   writeFileSync(join(auth, "config.toml"), '[mcp_servers.user_fixture]\ncommand = "npx"\nenv_vars = ["TEST_API_KEY"]\njourneysfirst_login = true\n');
   const user = run().args.find((arg) => arg.startsWith("mcp_servers.user_fixture.args="));
   assert.match(user, /"--login-env-vars","TEST_API_KEY"/);
-  writeFileSync(join(auth, "config.toml"), '[mcp_servers.ci_fixture]\ncommand = "npx"\nenv_vars = ["CI"]\n');
-  assert.ok(run().args.includes('mcp_servers.ci_fixture.env_vars=["JF_MCP_ENV_CI"]'));
+  writeFileSync(join(auth, "config.toml"), '[mcp_servers.ci_fixture]\ncommand = "npx"\nenv_vars = ["CI", "FIXTURE_VALUE"]\n');
+  const ci = run();
+  assert.ok(ci.args.includes('mcp_servers.ci_fixture.env_vars=["JF_MCP_ENV_CI","JF_MCP_ENV_FIXTURE_VALUE"]'));
+  const handoff = readFileSync(join(ci.folder, "handoff.txt"), "utf8");
+  assert.match(handoff, /server returned •+/);
+  assert.doesNotMatch(handoff, /qZ7xQ/);
   for (const setting of ['"disabled_tools" = ["write"]', "'enabled_tools' = ['read']", 'env = { FIXTURE = "not-used" }']) {
     writeFileSync(join(auth, "config.toml"), `[mcp_servers.restricted]\ncommand = "npx"\n${setting}\n`);
     const restricted = spawnSync(process.execPath, [BIN, "run", "share.journey.yaml", "--project", project], { cwd: dir, env, encoding: "utf8" });

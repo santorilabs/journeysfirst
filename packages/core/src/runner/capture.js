@@ -75,7 +75,7 @@ export async function captureCommand(argv, { out, mcp = false, secrets = [], ide
 }
 
 /** @param {string[]} secrets */
-function makeRedactor(secrets) {
+export function makeRedactor(secrets) {
   const variants = [...new Set(secrets.filter(Boolean).flatMap((value) =>
     [value, JSON.stringify(value).slice(1, -1), encodeURIComponent(value)]))].sort((a, b) => b.length - a.length);
   const pattern = variants.length ? new RegExp(variants.map((text) => text.replace(/[.*+?^$${}()|[\]\\]/g, "\\$&")).join("|"), "g") : null;

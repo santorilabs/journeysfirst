@@ -15,3 +15,5 @@ export declare function captureCommand(argv: string[], { out, mcp, secrets, iden
     };
     diagnostic?: string;
 }): Promise<any>;
+/** @param {string[]} secrets */
+export declare function makeRedactor(secrets: string[]): (/** @type {string} */ text: string) => string;
