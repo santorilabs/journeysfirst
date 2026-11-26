@@ -3,6 +3,7 @@
 // style on a page, in order: the foundation, the primitives, then the parts.
 import { PRIMITIVES_CSS } from "./primitives.js";
 import { RUN_PLAYER_CSS } from "./run-player.js";
+import { SESSION_CSS } from "./session.js";
 import { TOKENS_CSS } from "./tokens.js";
 
 const PARTS_CSS = `.frame{max-width:80rem;min-height:100vh;margin:0 auto;display:flex;flex-direction:column;border-left:1px solid var(--line);border-right:1px solid var(--line)}
@@ -55,4 +56,4 @@ a.row:hover{background:var(--chalk)}
 }`;
 
 /** Every style on a review page. */
-export const PAGE_CSS = `${TOKENS_CSS}\n${PRIMITIVES_CSS}\n${PARTS_CSS}\n${RUN_PLAYER_CSS}`;
+export const PAGE_CSS = `${TOKENS_CSS}\n${PRIMITIVES_CSS}\n${PARTS_CSS}\n${RUN_PLAYER_CSS}\n${SESSION_CSS}`;
