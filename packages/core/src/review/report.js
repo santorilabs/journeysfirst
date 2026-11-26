@@ -34,14 +34,14 @@ export function reportHtml(run) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)}</title>
 <style>
-body{margin:0;padding:24px;font:16px/1.45 system-ui,sans-serif;color:#1c1c1c;background:#fff}
+body{margin:0;padding:24px;font:16px/1.5 system-ui,sans-serif;color:#141516;background:#fff}
 h1{font-size:22px;margin:0 0 8px}
 .summary{margin:0 0 20px}
 ol{padding:0;list-style:none}
-li{border-top:1px solid #e4e4e4;padding:12px 0}
+li{border-top:1px solid #e6e6e3;padding:16px 0}
 .state{font-size:12px;font-weight:700;letter-spacing:.03em;text-transform:uppercase}
-.passed,.done{color:#0b7a3e}.failed{color:#b0124f}.blocked,.not_checked,.not_run,.not_fully_checked{color:#7a6440}
-img{max-width:100%;height:auto;margin-top:8px;border:1px solid #e4e4e4}
+.passed,.done{color:#141516}.failed{color:#a32057}.blocked,.not_checked,.not_run,.not_fully_checked{color:#6b6d69}
+img{max-width:100%;height:auto;margin-top:8px;border:1px solid #e6e6e3;border-radius:8px}
 </style>
 </head>
 <body>

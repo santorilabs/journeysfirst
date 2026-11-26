@@ -72,30 +72,30 @@ const roleName = (user) => user.charAt(0).toUpperCase() + user.slice(1);
 
 /** Styles for runPlayerHtml. */
 export const RUN_PLAYER_CSS = `${PLAYER_CSS}
-.run-player{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,36%);gap:24px;align-items:start;margin-top:16px}
+.run-player{display:grid;grid-template-columns:minmax(0,1fr) minmax(20rem,36%);gap:var(--s-lg);align-items:start;margin-top:var(--s-md)}
 .rp-main{min-width:0}
-.users{display:inline-flex;gap:4px;padding:4px;border-radius:999px;background:var(--tint);margin-bottom:8px}
-.users button{background:none;color:var(--ink);padding:6px 12px;min-height:36px}
-.users button[aria-pressed="true"]{background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.15)}
-.track{position:relative;height:36px;margin:8px 14px 0}
-.track::before{content:"";position:absolute;left:-14px;right:-14px;top:50%;height:2px;background:var(--rule)}
-.tick{position:absolute;top:50%;transform:translate(-50%,-50%);width:28px;height:28px;padding:0;border-radius:50%;font-size:12px;font-weight:700;background:#fff;color:var(--ink);border:2px solid var(--rule)}
-.tick.dot{width:12px;height:12px}.tick.good{background:var(--pass);border-color:var(--pass);color:#fff}
-.tick.bad{background:var(--fail);border-color:var(--fail);color:#fff}.tick.wait{background:var(--wait);border-color:var(--wait);color:#fff}
-.tick[aria-current="step"]{outline:2px solid var(--ink);outline-offset:2px}
-.step-card{margin-top:8px;padding:16px;border:1px solid var(--rule);border-radius:12px;overflow-wrap:anywhere}
-.step-card h2{font-size:20px;margin:4px 0 8px}.step-card p{margin:4px 0}
-.steps-panel h2{font-size:17px;margin:0 0 6px}
-.rp-steps{list-style:none;margin:0;padding:4px;border:1px solid var(--rule);border-radius:12px}
-.line{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:8px;align-items:start;width:100%;text-align:left;background:none;color:var(--ink);border-radius:8px;border-left:3px solid transparent;padding:8px;font-size:14px;min-height:44px}
-.line:hover{background:var(--tint)}.line[aria-current="step"]{background:var(--tint);border-left-color:var(--ink)}
-.line[aria-current="step"]:has(.bad){background:#fff1f5;border-left-color:var(--fail)}
-.line .n{color:var(--muted);font-size:13px;padding-top:2px}.line[aria-current="step"] .n{color:var(--ink);font-weight:700}
-.line-kind{display:block;color:var(--muted);font-size:12px;font-weight:600}
-.line .end{display:grid;justify-items:end;gap:2px}
-.step-status{border-radius:4px;padding:2px 6px;font-size:12px;font-weight:600;color:var(--wait);background:var(--tint)}
-.step-status.good{color:var(--pass);background:#e8f6ec}.step-status.bad{color:var(--fail);background:#fdebef}
-@media(max-width:800px){.run-player{grid-template-columns:1fr}}`;
+.users{display:inline-flex;gap:var(--s-xs);padding:var(--s-xs);border-radius:var(--r-full);background:var(--line);margin-bottom:var(--s-sm)}
+.users button{background:none;height:var(--control);padding:0 var(--s-md);border-radius:var(--r-full);font-size:var(--fs-sm)}
+.users button[aria-pressed="true"]{background:var(--white);box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.track{position:relative;height:var(--control);margin:var(--s-sm) var(--s-md) 0}
+.track::before{content:"";position:absolute;left:calc(var(--s-md)*-1);right:calc(var(--s-md)*-1);top:50%;height:2px;background:var(--line)}
+.tick{position:absolute;top:50%;transform:translate(-50%,-50%);width:var(--status);height:var(--status);padding:0;border-radius:50%;font:500 var(--fs-xs)/1 var(--mono);background:var(--white);border:2px solid var(--line)}
+.tick.dot{width:var(--s-md);height:var(--s-md)}.tick.good{background:var(--black);border-color:var(--black);color:var(--white)}
+.tick.bad{background:var(--error);border-color:var(--error);color:var(--white)}.tick.wait{background:var(--gray-700);border-color:var(--gray-700);color:var(--white)}
+.tick[aria-current="step"]{outline:2px solid var(--black);outline-offset:2px}
+.step-card{margin-top:var(--s-sm);padding:var(--s-md);border:1px solid var(--line);border-radius:var(--r-md);overflow-wrap:anywhere}
+.step-card h2{font:500 var(--fs-xl)/1.5 var(--body);margin:var(--s-xs) 0 var(--s-sm)}.step-card p{margin:var(--s-xs) 0}
+.steps-panel h2{font:500 var(--fs-lg)/1.4 var(--body);margin:0 0 var(--s-sm)}
+.rp-steps{list-style:none;margin:0;padding:var(--s-xs);border:1px solid var(--line);border-radius:var(--r-md)}
+.line{display:grid;grid-template-columns:var(--s-lg) minmax(0,1fr) auto;gap:var(--s-sm);align-items:start;width:100%;min-height:var(--touch);padding:var(--s-sm);border-radius:var(--r-sm);background:none;text-align:left;font-size:var(--fs-sm);line-height:1.5}
+.line:hover,.line[aria-current="step"]{background:var(--chalk)}
+.line[aria-current="step"]:has(.bad){background:var(--red-50)}
+.line .n,.line-kind{color:var(--text-3);font:400 var(--fs-xs)/1.75 var(--mono);letter-spacing:.01em}.line[aria-current="step"] .n{color:var(--text);font-weight:500}
+.line-kind{display:block}
+.line .end{display:grid;justify-items:end;gap:var(--s-xs)}
+.step-status{border-radius:var(--r-xs);padding:0 var(--s-sm);font:500 var(--fs-xs)/1.75 var(--mono);letter-spacing:.01em;color:var(--text-2);background:var(--chalk)}
+.step-status.good{color:var(--text);background:none;box-shadow:inset 0 0 0 1px var(--line)}.step-status.bad{color:var(--white);background:var(--error)}
+@media(max-width:54em){.run-player{grid-template-columns:1fr}}`;
 
 /** Wires the run player. Runs in the browser. */
 export const RUN_PLAYER_SCRIPT = `${PLAYER_SCRIPT}
