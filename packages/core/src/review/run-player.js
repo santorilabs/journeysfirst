@@ -107,7 +107,7 @@ li:not(.check) .step-status.good{position:absolute;width:1px;height:1px;overflow
 .check:has(.step-status.good) .n,li:has(.step-status.bad) .n{display:none}
 .step-card{padding:0 var(--s-sm) var(--s-md) calc(var(--s-lg) + var(--s-md));font-size:var(--fs-sm);overflow-wrap:anywhere}.step-card p{margin:var(--s-xs) 0}
 .step-card pre,.step-card .evidence li{background:var(--white)}
-@media(max-width:54em){.run-player{grid-template-columns:minmax(0,1fr);grid-template-rows:auto}.rp-main{padding:var(--s-md)}.users{margin:calc(var(--s-md)*-1) calc(var(--s-md)*-1) var(--s-md);padding:0 var(--s-md)}.steps-panel{border-left:0}.panel{overflow:visible}.shot img,.screen .player video{flex:none}}`;
+@media(max-width:54em){.run-player{grid-template-columns:minmax(0,1fr);grid-template-rows:auto}.rp-main{padding:var(--s-md)}.users{margin:calc(var(--s-md)*-1) calc(var(--s-md)*-1) var(--s-md);padding:0 var(--s-md)}.steps-panel{border-left:0}.panel{overflow:visible}.shot img,.screen .player:not(:fullscreen) video{flex:none}}`;
 
 /** Wires the run player. Runs in the browser. */
 export const RUN_PLAYER_SCRIPT = `${PLAYER_SCRIPT}
