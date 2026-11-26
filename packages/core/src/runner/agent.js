@@ -1,7 +1,7 @@
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { closeSync, constants, copyFileSync, cpSync, fstatSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, isAbsolute, join, relative } from "node:path";
+import { basename, isAbsolute, join, relative, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CAUSES } from "../format/runfile.js";
 import { RunRecorder, recording } from "./recorder.js";
@@ -183,8 +183,12 @@ export function processResult(command, args, { cwd, env, stdin, timeout, signal,
   return new Promise((done) => {
     if (signal?.aborted) { done({ code: null, stdout: "", timedOut: false }); return; }
     const child = spawn(command, args, { cwd, env, shell, detached: true, stdio: ["pipe", "pipe", shell ? "inherit" : "ignore"] });
-    let stdout = "", timedOut = false;
-    const stop = () => { try { if (child.pid) process.kill(-child.pid, "SIGKILL"); } catch {} };
+    let stdout = "", timedOut = false, stopping = false;
+    const stop = () => {
+      if (stopping) return;
+      stopping = true;
+      stopProcessTree(child);
+    };
     signal?.addEventListener("abort", stop, { once: true });
     const timer = setTimeout(() => {
       timedOut = true;
@@ -203,6 +207,25 @@ export function processResult(command, args, { cwd, env, stdin, timeout, signal,
     child.once("error", () => finish(null));
     child.once("close", finish);
   });
+}
+
+/**
+ * @param {Pick<import("node:child_process").ChildProcess, "pid" | "kill">} child
+ * @param {NodeJS.Platform} platform
+ * @param {typeof execFile} run
+ */
+export function stopProcessTree(child, platform = process.platform, run = execFile) {
+  if (!child.pid) return;
+  if (platform === "win32") {
+    const taskkill = win32.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "taskkill.exe");
+    run(taskkill, ["/PID", String(child.pid), "/T", "/F"], { timeout: 5000, windowsHide: true }, (error) => {
+      if (error) {
+        try { child.kill("SIGKILL"); } catch {}
+      }
+    });
+    return;
+  }
+  try { process.kill(-child.pid, "SIGKILL"); } catch {}
 }
 
 /** @param {string | undefined} file @param {string} project */

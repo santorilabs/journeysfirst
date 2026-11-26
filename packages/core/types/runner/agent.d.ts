@@ -1,3 +1,4 @@
+import { execFile } from "node:child_process";
 import { RunRecorder, recording } from "./recorder.js";
 export type RunOptions = {
     journey: string;
@@ -97,6 +98,12 @@ export declare function processResult(command: string, args: string[], { cwd, en
     stdout: string;
     timedOut: boolean;
 }>;
+/**
+ * @param {Pick<import("node:child_process").ChildProcess, "pid" | "kill">} child
+ * @param {NodeJS.Platform} platform
+ * @param {typeof execFile} run
+ */
+export declare function stopProcessTree(child: Pick<import("node:child_process").ChildProcess, "pid" | "kill">, platform?: NodeJS.Platform, run?: typeof execFile): void;
 /** @param {string | undefined} file @param {string} project */
 export declare function readMcpServers(file: string | undefined, project: string): {
     [k: string]: string[];

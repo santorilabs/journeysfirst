@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { adapters, selectAdapter } from "../src/runner/agents/index.js";
-import { importResults } from "../src/runner/agent.js";
+import { importResults, stopProcessTree } from "../src/runner/agent.js";
 import { recording } from "../src/runner/recorder.js";
 import { JOURNEY, recordAllPassed, recorder } from "./helpers.js";
 
@@ -14,6 +14,19 @@ const cli = fileURLToPath(new URL("../bin/journeysfirst.js", import.meta.url));
 const node = process.execPath;
 const dir = () => mkdtempSync(join(tmpdir(), "jf-capture-"));
 const rows = (out) => readFileSync(out, "utf8").trim().split("\n").map((line) => JSON.parse(line));
+
+test("Windows cancellation tells taskkill to stop the whole tree for the child PID", () => {
+  const calls = [];
+  const child = { pid: 1234, kill: (signal) => calls.push(signal) };
+  stopProcessTree(child, "win32", (file, args, options, done) => {
+    assert.match(file, /\\System32\\taskkill\.exe$/);
+    assert.deepEqual(args, ["/PID", "1234", "/T", "/F"]);
+    assert.ok(options.windowsHide);
+    calls.push("taskkill");
+    done(null);
+  });
+  assert.deepEqual(calls, ["taskkill"]);
+});
 
 test("import refuses a capture directory that is a link, even to an empty directory", () => {
   const base = realpathSync(dir());
