@@ -16,6 +16,7 @@ import { RUN_PLAYER_SCRIPT, runPlayerHtml } from "./run-player.js";
 import { badge } from "./primitives.js";
 import { PAGE_CSS } from "./style.js";
 import { FONTS, MARK } from "./tokens.js";
+import { readSession, sessionHtml } from "./session.js";
 import { transcriptPanels } from "./transcripts.js";
 
 /**
@@ -273,12 +274,17 @@ export function runPage(run, journey, id, folder, assets) {
   const videos = media.map((v) => ({ user: String(v.tags?.user), src: /** @type {string} */ (fileUrl(v.file)),
     captions: assets ? assets.captions(v.file) : `/captions/${esc(journey)}/${esc(id)}/${esc(v.file)}.vtt` }));
   const report = assets ? null : appReport(run, folder);
-  const transcripts = !assets || assets.includeTranscripts ? transcriptPanels(run, folder) : new Map();
+  const showTranscripts = !assets || assets.includeTranscripts;
+  // An agent's run with no video shows its session where the video would be, with the files it kept as tabs beside it.
+  const session = showTranscripts && !media.length ? readSession(run, folder) : null;
+  /** @type {Array<{file: string, body: string, truncated: boolean}>} */
+  const kept = [];
+  const transcripts = showTranscripts ? transcriptPanels(run, folder, session ? { skip: session.file, kept } : {}) : new Map();
   const steps = run.steps.map((/** @type {StepFields} */ step, i) => {
     const at = videoAt(step, media);
     const shots = screenshots(step, i + 1, fileUrl);
-    const card = stepCard(step, at ? shots : "") + (report?.line === i + 1 ? reportedSection(report) : "") + (transcripts.get(i + 1) ?? "");
-    return { n: i + 1, text: String(step.check ?? step.says ?? ""), isCheck: isCheck(step), state: stepState(step), by: step.by || undefined, at: at?.seconds, card, shot: at ? undefined : shots || undefined };
+    const card = stepCard(step, at || session ? shots : "") + (report?.line === i + 1 ? reportedSection(report) : "") + (transcripts.get(i + 1) ?? "");
+    return { n: i + 1, text: String(step.check ?? step.says ?? ""), isCheck: isCheck(step), state: stepState(step), by: step.by || undefined, at: at?.seconds, card, shot: at || session ? undefined : shots || undefined };
   });
   const openAt = (steps.find((s) => s.state === "failed") ?? steps.find((s) => s.isCheck && s.state !== "passed"))?.n ?? steps.length;
   const repo = run.repos?.[0];
@@ -292,7 +298,7 @@ export function runPage(run, journey, id, folder, assets) {
        <h1>${esc(run.promise ?? title(run))}</h1>
      </section>
      ${run.problems?.length ? `<section class="problems"><p><b>This run file breaks the rules.</b> What is shown below is what the rules allow, not what the file claims.</p><ul>${run.problems.map((p) => `<li>${esc(p)}</li>`).join("")}</ul></section>` : ""}
-     ${steps.length ? runPlayerHtml({ steps, videos, openAt, panels }) : `<p class="empty">This run has no steps.</p>${panels.map((p) => p.html).join("")}`}
+     ${steps.length ? runPlayerHtml({ steps, videos, openAt, panels, log: session ? sessionHtml(session, run.steps, kept) : "" }) : `<p class="empty">This run has no steps.</p>${panels.map((p) => p.html).join("")}`}
      <script>${RUN_PLAYER_SCRIPT}</script>`,
     [{ text: "All runs", href: assets ? "../../../index.html" : "/" }, { text: title(run) }, ...(run.started_at ? [{ text: when(run.started_at) }] : [])],
     true,

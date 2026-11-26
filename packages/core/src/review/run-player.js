@@ -21,9 +21,10 @@ import { panel, tabs } from "./primitives.js";
  */
 
 /**
- * @param {{steps: PlayerStep[], videos: PlayerVideo[], openAt: number, panels?: SidePanel[]}} options
+ * @param {{steps: PlayerStep[], videos: PlayerVideo[], openAt: number, panels?: SidePanel[], log?: string}} options
+ *   log: what takes the videos' place in a run that has none, as HTML.
  */
-export function runPlayerHtml({ steps, videos, openAt, panels = [] }) {
+export function runPlayerHtml({ steps, videos, openAt, panels = [], log = "" }) {
   const open = steps.find((s) => s.n === openAt) ?? steps[steps.length - 1];
   const shown = (open?.by && videos.some((v) => v.user === open.by) ? open.by : videos[0]?.user) ?? "";
   const multipleRoles = new Set(steps.map((s) => s.by).filter(Boolean)).size > 1;
@@ -57,8 +58,8 @@ export function runPlayerHtml({ steps, videos, openAt, panels = [] }) {
     .join("");
   const checks = steps.filter((s) => s.isCheck).length;
   return `<section class="run-player" aria-label="The run" data-open="${open?.n ?? ""}" id="steps">
-    <div class="rp-main">${users}${screens}${shots}</div>
-    <aside class="steps-panel">
+    ${log || `<div class="rp-main">${users}${screens}${shots}</div>`}
+    <aside class="steps-panel tabbed">
       ${tabs("What to show beside the run", [{ name: "steps", label: `Steps ${steps.length}` }, ...(checks && checks < steps.length ? [{ name: "checks", label: `Checks ${checks}` }] : []), ...panels.map((p) => ({ name: p.name, label: esc(p.label) }))])}
       ${panel("steps", `<ol class="rp-steps" aria-label="Every step">${lines}</ol>`)}
       ${panels.map((p) => panel(p.name, p.html, true)).join("")}
@@ -78,7 +79,7 @@ const roleName = (user) => user.charAt(0).toUpperCase() + user.slice(1);
 /** Styles for runPlayerHtml. */
 export const RUN_PLAYER_CSS = `${PLAYER_CSS}
 .run-player{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 27rem;grid-template-rows:minmax(0,1fr);border-top:1px solid var(--line)}
-.run-player:not(:has(.rp-main>*)){grid-template-columns:minmax(0,1fr)}.rp-main:empty{display:none}
+.run-player:not(:has(.rp-main>*,.rp-log)){grid-template-columns:minmax(0,1fr)}.rp-main:empty{display:none}
 .rp-main{min-width:0;min-height:0;overflow:hidden;display:flex;flex-direction:column;padding:var(--s-lg);background:var(--black);color:var(--white)}
 .users{flex:none;display:flex;gap:var(--s-lg);overflow-x:auto;white-space:nowrap;margin:calc(var(--s-lg)*-1) calc(var(--s-lg)*-1) var(--s-lg);padding:0 var(--s-lg);border-bottom:1px solid var(--gray-800)}
 .users button{color:var(--gray-500)}.users button[aria-pressed="true"]{color:var(--white);border-bottom-color:var(--yellow-300)}
@@ -133,6 +134,9 @@ if (root) {
     }
     const line = root.querySelector('.line[data-step="' + n + '"]');
     if (line) line.scrollIntoView({ block: "nearest" });
+    // In an agent's run, picking a step brings what the agent did for it into view.
+    const mark = root.querySelector('.at-step[data-step="' + n + '"]');
+    if (mark && play) mark.scrollIntoView({ block: "start", behavior: "smooth" });
     // A step with a screenshot of its own takes the videos' place.
     if (root.querySelector('.shot[data-step="' + n + '"]')) showUser("");
     else if (line && line.dataset.user) {
@@ -163,13 +167,23 @@ if (root) {
     if (tab) {
       // "Checks" is the steps panel, with only its checks.
       const panel = tab.dataset.tab === "checks" ? "steps" : tab.dataset.tab;
-      for (const t of all(".tab")) t.setAttribute("aria-selected", String(t === tab));
-      for (const p of all(".panel")) p.hidden = p.dataset.panel !== panel;
-      const list = root.querySelector(".rp-steps");
+      // Each set of tabs switches only its own panels.
+      const box = tab.closest(".tabbed");
+      for (const t of box.querySelectorAll(":scope > .tabs .tab")) t.setAttribute("aria-selected", String(t === tab));
+      for (const p of box.querySelectorAll(":scope > .panel")) p.hidden = p.dataset.panel !== panel;
+      const list = box.querySelector(".rp-steps");
+      if (!list) return;
       if (tab.dataset.tab === "checks") list.dataset.only = "checks"; else delete list.dataset.only;
       return;
     }
-    const step = e.target.closest(".line, .tick");
+    const kind = e.target.closest(".kind");
+    if (kind) {
+      for (const k of all(".kind")) k.setAttribute("aria-pressed", String(k === kind));
+      const acts = root.querySelector(".acts");
+      if (kind.dataset.kind) acts.dataset.only = kind.dataset.kind; else delete acts.dataset.only;
+      return;
+    }
+    const step = e.target.closest(".line, .tick, .at-step[data-step]");
     if (step) pick(step.dataset.step, true);
   });
   root.addEventListener("keydown", (e) => {
