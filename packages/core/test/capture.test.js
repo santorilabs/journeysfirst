@@ -340,7 +340,7 @@ function codexFixture(mode, flags = []) {
   if (project !== root) mkdirSync(project);
   mkdirSync(join(project, ".product-state"));
   writeFileSync(join(bin, "codex"), fakeCodex, { mode: 0o700 });
-  const journey = mode === "multi-seat" ? JOURNEY : JOURNEY.replace("users: [viewer]\n", "");
+  const journey = mode === "multi-seat" ? JOURNEY : JOURNEY.replace("users: [viewer]\n", mode === "agent-seat" ? "users: [agent]\n" : "");
   writeFileSync(join(root, "share-by-link.journey.yaml"), journey + "\nnotes: private setup hint\n");
   writeFileSync(join(project, ".env.local"), "Private product login");
   if (mode) writeFileSync(join(project, mode + ".txt"), "");
@@ -592,11 +592,20 @@ test("Codex can read the resolver through the /etc/resolvconf/run directory alia
   assert.equal(run.steps[1].verdict, "passed");
 });
 
-test("the single-seat Codex launcher refuses a journey that names another seat", () => {
+test("the single-seat Codex launcher refuses a journey that names a human seat", () => {
   const { result, run } = codexFixture("multi-seat");
   assert.equal(result.status, 1);
-  assert.match(result.stderr, /only plays the 'you' seat/);
+  assert.match(result.stderr, /To record human or multiple seats, use Playwright or RunRecorder directly/);
   assert.equal(run, undefined);
+});
+
+test("the Codex adapter records terminal evidence for the named agent seat", () => {
+  const { result, run } = codexFixture("agent-seat");
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(run.played_by, { agent: "Codex" });
+  assert.equal(run.steps[1].verdict, "passed");
+  assert.equal(run.steps[1].by, "agent");
+  assert.equal(run.steps[1].evidence[0].login, "agent");
 });
 
 test("host-home denial must pass the probe unless the caller opts into host reads", () => {

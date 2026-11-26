@@ -10,7 +10,7 @@ How [Journeys First](../README.md) runs a journey, what a journey and a run look
 - `.gitignore`: ignores `journey-runs/`.
 - After approval, a short Journeys section in the project's agent instructions.
 - `.github/workflows/journeysfirst-upgrade.yml`: opens a pull request when a new version is out.
-- Later, onboarding adds `journeys/` and your app's own skill.
+- `journeys/`: init creates it for your journey files. Later, onboarding adds your app's own skill.
 
 To undo it, revert those files. Nothing is installed outside your repo except Playwright's browser.
 

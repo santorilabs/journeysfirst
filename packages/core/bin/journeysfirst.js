@@ -75,7 +75,7 @@ const USAGE = `Usage:
       Checks Node, Playwright, Chromium, playwright.config.js, whether baseURL answers, and each journey file.
       A failed check says what to run next. Chromium is installed with: npx playwright install --only-shell chromium
   journeysfirst init [--skills <folder>] [--demo | --terminal] [--agent-instructions]
-      Set up the skills and show a proposed Journeys section. Pass --agent-instructions to approve writing it to the project's agent instructions.
+      Create journeys/, set up the skills, and show a proposed Journeys section. Pass --agent-instructions to approve writing it to the project's agent instructions.
       Skills go to .agents/skills and .claude/skills. --skills <folder> copies to that folder only.
       With no dev or start script, also add an example page, journey and script that pass. --demo adds that example even when a dev or start script exists.
       When baseURL and webServer are both missing, init says what to set.

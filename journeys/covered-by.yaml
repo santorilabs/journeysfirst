@@ -47,6 +47,7 @@ keep-an-aborted-agent-rerun:
 
 run-a-custom-agent-command:
   - packages/core/bin/journeysfirst.js
+  - packages/core/src/setup.js
   - packages/core/src/runner/agent.js
   - packages/core/src/runner/capture.js
   - packages/core/src/runner/capture.mjs

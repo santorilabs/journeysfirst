@@ -262,7 +262,7 @@ console.log("login " + (process.env.JF_TEST_AGENT_LOGIN ?? "missing") + ", env f
 process.exitCode = Number(process.argv[2] ?? 0);
 `;
 
-function agentRun(extra = [], exitCode = 0, script = fakeAgent) {
+function agentRun(extra = [], exitCode = 0, script = fakeAgent, users = "") {
   const dir = mkdtempSync(join(tmpdir(), "jf-agent-"));
   mkdirSync(join(dir, "project"));
   writeFileSync(join(dir, "project", ".env.local"), "Private product login");
@@ -270,7 +270,7 @@ function agentRun(extra = [], exitCode = 0, script = fakeAgent) {
     example: { command: process.execPath, args: ["-e", "process.stdin.once('data', () => process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:1,result:{}})+'\\n'))"] },
   } }));
   writeFileSync(join(dir, "agent.mjs"), script);
-  writeFileSync(join(dir, "share.journey.yaml"), JOURNEY.replace("users: [viewer]\n", ""));
+  writeFileSync(join(dir, "share.journey.yaml"), JOURNEY.replace("users: [viewer]\n", users));
   const command = `node ${JSON.stringify(join(dir, "agent.mjs"))} ${exitCode}`;
   const result = spawnSync(process.execPath, [BIN, "run", "share.journey.yaml", "--agent", command, "--project", "project", ...extra],
     { cwd: dir, encoding: "utf8", env: { ...process.env, JF_TEST_AGENT_LOGIN: "kept" } });
@@ -295,6 +295,28 @@ test("run --agent gives any agent command the journey on stdin and saves what it
   assert.match(handoff, /^You can share a presentation by link/);
   assert.match(handoff, /login kept, env file left out/);
   assert.equal(cli(["validate-run", folder, "--journey", join(folder, "../../../share.journey.yaml")]).status, 0);
+});
+
+test("the launcher records actions, checks, and captures as the named agent seat", () => {
+  const script = fakeAgent.replace('const prompt = fs.readFileSync(0, "utf8");',
+    'const prompt = fs.readFileSync(0, "utf8"); if (!prompt.includes("Play the \'agent\' seat.")) process.exit(10);');
+  const { result, folder, run } = agentRun([], 0, script, "users: [agent]\n");
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(run.played_by, { agent: "node" });
+  assert.ok(run.steps.slice(0, 2).every((step) => step.by === "agent"));
+  assert.equal(run.steps[1].verdict, "passed");
+  assert.equal(run.steps[1].evidence[0].login, "agent");
+  assert.equal(JSON.parse(readFileSync(join(folder, "example.txt"), "utf8").split("\n")[0]).login, "agent");
+  assert.equal(cli(["validate-run", folder, "--journey", join(folder, "../../../share.journey.yaml")]).status, 0);
+});
+
+test("the launcher points journeys with named human or multiple seats to other runners", () => {
+  for (const users of ["users: [human]\n", "users: [agent, viewer]\n"]) {
+    const { result, run } = agentRun([], 0, fakeAgent, users);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /plays one seat: 'you', or 'agent'.*use Playwright or RunRecorder/);
+    assert.equal(run, undefined);
+  }
 });
 
 test("run --agent saves an aborted attempt when the agent exits with an error, so it cannot pass", () => {
@@ -544,6 +566,7 @@ test("run states from facts that no MCP server is configured and which checks we
 test("forwarded MCP credentials prove a pass only when marked as the user's login", () => {
   const dir = mkdtempSync(join(tmpdir(), "jf-delegated-mcp-"));
   mkdirSync(join(dir, "captures"));
+  writeFileSync(join(dir, "seat"), "you");
   for (const file of ["capture.mjs", "capture.js", "mask.js"]) {
     copyFileSync(new URL("../src/runner/" + file, import.meta.url), join(dir, file));
   }

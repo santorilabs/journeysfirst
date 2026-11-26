@@ -29,10 +29,11 @@ test("a path selects the journeys that list it, and leaves the others", () => {
   assert.deepEqual(doctor.selected, ["journeys/start-from-an-empty-project.journey.yaml"]);
   assert.ok(doctor.skipped.includes("journeys/run-the-journeys-a-change-covers.journey.yaml"));
   const setup = affectedJourneys(REPO, ["packages/core/src/setup.js"]);
-  assert.equal(setup.selected.length, 3);
+  assert.equal(setup.selected.length, 4);
+  assert.ok(setup.selected.includes("journeys/run-a-custom-agent-command.journey.yaml"));
   assert.deepEqual(setup.skipped, [
     "journeys/keep-an-aborted-agent-rerun.journey.yaml", "journeys/let-an-agent-run-a-journey.journey.yaml",
-    "journeys/run-a-custom-agent-command.journey.yaml", "journeys/run-the-journeys-a-change-covers.journey.yaml", "journeys/see-why-a-run-failed.journey.yaml",
+    "journeys/run-the-journeys-a-change-covers.journey.yaml", "journeys/see-why-a-run-failed.journey.yaml",
   ]);
   const readme = affectedLines(REPO, ["README.md"]);
   assert.deepEqual(readme.filter((line) => line.startsWith("run ")), ["run journeys/start-from-an-empty-project.journey.yaml"]);

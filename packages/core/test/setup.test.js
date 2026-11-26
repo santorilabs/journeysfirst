@@ -35,6 +35,7 @@ test("the new Playwright config starts the app with its dev script, else its sta
     return { dir, changes: init({ root: dir }) };
   };
   const dev = withScripts({ dev: "node dev.js", start: "node server.js" });
+  assert.deepEqual(readdirSync(join(dev.dir, "journeys")), []);
   assert.match(read(dev.dir, "playwright.config.js"), /command: "npm run dev",/);
   assert.ok(dev.changes.includes("added playwright.config.js: webServer starts the app with npm run dev, on the port in JOURNEYS_PORT (4321 if unset). Check that the app listens on PORT"), dev.changes.join("\n"));
   assert.ok(!existsSync(join(dev.dir, "demo")), "a repo with a dev script does not get the example");
@@ -116,6 +117,7 @@ test("init keeps an existing Playwright config and .gitignore lines, and says wh
   writeFileSync(join(dir, "playwright.config.ts"), "export default {};\n");
   writeFileSync(join(dir, ".gitignore"), "node_modules/");
   const changes = init({ root: dir, skillsDir: ".agents/skills" });
+  assert.deepEqual(readdirSync(join(dir, "journeys")), []);
   assert.ok(existsSync(join(dir, ".agents/skills/journey-run/SKILL.md")));
   assert.ok(!existsSync(join(dir, "playwright.config.js")));
   assert.equal(read(dir, "playwright.config.ts"), "export default {};\n");
@@ -286,6 +288,8 @@ test("terminal init and upgrade keep skills without browser setup, even with a d
   writeFileSync(join(dir, "package.json"), JSON.stringify({ scripts: { dev: "node server.js" } }));
   const result = cli(["init", "--terminal", "--skills", ".agents/skills"], dir);
   assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /^  added journeys\/$/m);
+  assert.deepEqual(readdirSync(join(dir, "journeys")), []);
   assert.match(result.stdout, /Run an existing journey with .*journey-run.*Use .*journey-onboard/);
   assert.ok(existsSync(join(dir, ".agents/skills/journey-run/SKILL.md")));
   const refreshed = cli(["upgrade", "--skills", ".agents/skills"], dir);
