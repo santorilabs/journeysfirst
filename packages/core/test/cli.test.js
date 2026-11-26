@@ -473,13 +473,22 @@ fs.writeFileSync(${JSON.stringify(observed)}, JSON.stringify({
   }
 });
 
-test("run warns when a journey has no MCP server and the handoff contradicts the saved checks", () => {
+test("run states from facts that no MCP server is configured and which checks were not checked", () => {
   const dir = mkdtempSync(join(tmpdir(), "jf-run-warnings-"));
-  writeFileSync(join(dir, "share.journey.yaml"), JOURNEY.replace("users: [viewer]\n", "").replace(/^promise:.*$/m, "promise: Call my MCP server"));
-  const result = cli(["run", "share.journey.yaml", "--agent", "echo All checks passed"], dir);
+  writeFileSync(join(dir, "share.journey.yaml"), JOURNEY.replace("users: [viewer]\n", "").split("  - The viewer opens the link.\n")[0]);
+  const result = cli(["run", "share.journey.yaml", "--agent", "echo Everything went fine"], dir);
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stderr, /mentions MCP or tools, but no MCP server is configured/);
-  assert.match(result.stderr, /claims in handoff\.txt against the saved run.*not checked: link-on/);
+  assert.match(result.stderr, /No MCP servers are configured for the agent/);
+  assert.match(result.stderr, /These checks were not checked: link-on\. The saved run is the record\./);
+  assert.match(result.stderr, /handoff\.txt is only what the agent said/);
+  const silent = cli(["run", "share.journey.yaml", "--agent", "true"], dir);
+  assert.match(silent.stderr, /These checks were not checked: link-on\. The saved run is the record\.\n/);
+  assert.doesNotMatch(silent.stderr, /handoff\.txt/);
+  writeFileSync(join(dir, ".mcp.json"), JSON.stringify({ mcpServers: { fixture: { command: "fixture-server" } } }));
+  const results = '{"id":"link-on","verdict":"failed","proof":"The link was off.","reason":"Sharing stayed off.","cause":"product"}';
+  const checked = cli(["run", "share.journey.yaml", "--agent", `echo '${results}' > .journeysfirst/results.jsonl; echo All checks passed`], dir);
+  assert.equal(checked.status, 0, checked.stderr);
+  assert.doesNotMatch(checked.stderr, /No MCP servers|were not checked/);
 });
 
 test("forwarded MCP credentials prove a pass only when marked as the user's login", () => {

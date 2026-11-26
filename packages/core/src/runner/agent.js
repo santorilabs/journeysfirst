@@ -26,7 +26,7 @@ export async function runAgent({ command, mcp = {}, timeoutMs = 1800000, ...opti
   const name = basename(command.trim().split(/\s+/)[0] ?? "");
   const agent = /^[\w.-]+$/.test(name) ? name : "agent";
   return withAgentRun({ ...options, agent, label: agent, unverified: true }, async ({ work, prompt, signal, run }) => {
-    warnIfMissingMcp(run, Object.keys(mcp));
+    noteMissingMcp(Object.keys(mcp));
     if (Object.keys(mcp).length) {
       const mcpServers = Object.fromEntries(Object.entries(mcp).map(([name, argv]) => [name, {
         command: process.execPath, args: [".journeysfirst/capture.mjs", "mcp-proxy", name + ".txt", "--", ...argv],
@@ -56,7 +56,6 @@ export async function withAgentRun({ journey, caseId, project, agent, label, log
   const interrupt = new AbortController();
   const onInt = () => interrupt.abort("SIGINT");
   const onTerm = () => interrupt.abort("SIGTERM");
-  let handoff;
   let problem;
   /** @type {import("./recording.js").PreflightRow[]} */
   let preflight = [];
@@ -75,7 +74,7 @@ export async function withAgentRun({ journey, caseId, project, agent, label, log
     const errors = importResults(seat, base);
     if (errors.length) run.tag("result_import_errors", errors.map((error) => maskText(run.redact(error))));
     if (result.handoff) {
-      handoff = result.handoff;
+      let handoff = result.handoff;
       for (const file of run.files.keys()) {
         handoff = handoff.replaceAll(join(state, "captures", file), file);
       }
@@ -94,18 +93,17 @@ export async function withAgentRun({ journey, caseId, project, agent, label, log
   if (signal) problem = [`${label} was interrupted (${signal}).`, problem].filter(Boolean).join(" ");
   const saved = run.finish(problem ? { attempt: { status: "aborted", reason: problem } } : undefined);
   const unchecked = saved.run.steps.flatMap((step) => "verdict" in step && step.verdict === "not_checked" ? [step.id] : []);
-  if (handoff && unchecked.length && /\bpass(?:ed|es|ing)\b/i.test(handoff)) {
-    console.error(`Check the agent's claims in handoff.txt against the saved run. These checks were not checked: ${unchecked.join(", ")}.`);
+  if (unchecked.length) {
+    const said = run.files.has(HANDOFF_FILE) ? ` ${HANDOFF_FILE} is only what the agent said.` : "";
+    console.error(`These checks were not checked: ${unchecked.join(", ")}. The saved run is the record.${said}`);
   }
   return { ...saved, problem, exitCode: signal === "SIGINT" ? 130 : signal === "SIGTERM" ? 143 : problem ? 1 : 0 };
 }
 
-/** @param {RunRecorder} run @param {string[]} names */
-export function warnIfMissingMcp(run, names) {
-  const { promise, start, notes } = run.journey;
-  const text = [promise, start, notes, ...run.plan.lines.map((line) => line.kind === "check" ? line.check : line.says)].join("\n");
-  if (!names.length && /\b(?:MCP|tools?)\b/i.test(text)) {
-    console.error("This journey mentions MCP or tools, but no MCP server is configured. Add a trusted stdio server to .mcp.json or pass --mcp <file.json>.");
+/** @param {string[]} names */
+export function noteMissingMcp(names) {
+  if (!names.length) {
+    console.error("No MCP servers are configured for the agent. To give it one, add a trusted stdio server to .mcp.json or pass --mcp <file.json>.");
   }
 }
 
