@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const REPO = fileURLToPath(new URL("..", import.meta.url));
-const CACHE = "/tmp/jf-self";
+const TIMINGS = "/tmp/jf-self";
 
 /** @param {string} text */
 export function plain(text) {
@@ -44,34 +44,36 @@ function mainRef() {
 }
 
 /**
- * Pack this branch and main once. Later calls read the cache.
- * @returns {{branchTgz: string, mainTgz: string, mainTree: string, repo: string}}
+ * Pack the working tree and the broken build for this Playwright invocation.
+ * @param {string} directory
  */
-export function packs() {
-  const file = join(CACHE, "packs.json");
-  if (existsSync(file)) return JSON.parse(readFileSync(file, "utf8"));
-  mkdirSync(CACHE, { recursive: true });
-  const branchTgz = packCore(join(REPO, "packages/core"), join(CACHE, "branch.tgz"));
-  const mainTree = join(CACHE, "main");
+export function buildPacks(directory) {
+  const branchTgz = packCore(join(REPO, "packages/core"), directory, "branch.tgz");
+  const mainTree = join(directory, "main");
   mkdirSync(mainTree, { recursive: true });
   const archived = spawnSync("git", ["archive", mainRef()], { cwd: REPO, maxBuffer: 64 * 1024 * 1024 });
   if (archived.status !== 0) throw new Error(archived.stderr?.toString() || "git archive of main failed");
   const extracted = spawnSync("tar", ["-x", "-C", mainTree], { input: archived.stdout });
   if (extracted.status !== 0) throw new Error(extracted.stderr?.toString() || "tar failed");
-  const mainTgz = packCore(join(mainTree, "packages/core"), join(CACHE, "main.tgz"));
-  const saved = { branchTgz, mainTgz, mainTree, repo: REPO };
-  writeFileSync(file, JSON.stringify(saved));
-  return saved;
+  const mainTgz = packCore(join(mainTree, "packages/core"), directory, "main.tgz");
+  return { branchTgz, mainTgz, mainTree, repo: REPO };
 }
 
-/** @param {string} coreDir @param {string} dest */
-function packCore(coreDir, dest) {
-  const result = spawnSync("npm", ["pack", "--pack-destination", CACHE], { cwd: coreDir, encoding: "utf8" });
+/** @returns {ReturnType<typeof buildPacks>} */
+export function packs() {
+  if (!process.env.JF_SELF_PACKS) throw new Error("Run the self journeys with the repository's Playwright config.");
+  return JSON.parse(process.env.JF_SELF_PACKS);
+}
+
+/** @param {string} coreDir @param {string} directory @param {string} dest */
+function packCore(coreDir, directory, dest) {
+  const result = spawnSync("npm", ["pack", "--pack-destination", directory], { cwd: coreDir, encoding: "utf8" });
   if (result.status !== 0) throw new Error(result.stdout + result.stderr);
   const name = result.stdout.trim().split("\n").pop();
-  const packed = join(CACHE, /** @type {string} */ (name));
-  if (packed !== dest) writeFileSync(dest, readFileSync(packed));
-  return dest;
+  const packed = join(directory, /** @type {string} */ (name));
+  const target = join(directory, dest);
+  if (packed !== target) writeFileSync(target, readFileSync(packed));
+  return target;
 }
 
 /**
@@ -141,8 +143,8 @@ export function newestRun(dir, name) {
 
 /** @param {string} name @param {number} ms */
 export function markTime(name, ms) {
-  mkdirSync(CACHE, { recursive: true });
-  appendFileSync(join(CACHE, "times.log"), `${name} ${ms}\n`);
+  mkdirSync(TIMINGS, { recursive: true });
+  appendFileSync(join(TIMINGS, "times.log"), `${name} ${ms}\n`);
   console.log(`wall_ms ${name} ${ms}`);
 }
 
