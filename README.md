@@ -129,7 +129,7 @@ Or only the skills: `npx skills add santorilabs/journeysfirst --skill '*' --agen
 | Terminal | The agent runs commands. Use `journeysfirst capture` to save their output for checks. |
 | MCP | The agent calls tools through a proxy. Review the recorded calls and selected replies as evidence. |
 
-For journeys that call for an agent CLI, run `npx journeysfirst run journeys/<name>.journey.yaml` from a trusted test project. Journeys First picks an adapter for a supported, signed-in agent CLI. The run keeps the agent's submitted checks, captures, and final message. Use the same command when rerunning after an abort, or add [`--agent "<command>"`](docs/run-in-code.md#run-a-custom-agent-command) to launch a custom command.
+For journeys that call for an agent CLI and have only the `you` seat, run `npx journeysfirst run journeys/<name>.journey.yaml` from a trusted test project. Journeys First picks an adapter for a supported, signed-in agent CLI. The run keeps the agent's submitted checks, captures, and final message. Use the same command when rerunning after an abort, or add [`--agent "<command>"`](docs/run-in-code.md#run-a-custom-agent-command) to launch a custom command.
 
 ### Set up MCP
 

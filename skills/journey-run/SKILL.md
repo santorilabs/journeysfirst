@@ -18,7 +18,7 @@ The first thing you do is find out who you are playing. Then you run the journey
 
 Choose the runner before writing any recording code:
 
-- If the journey calls for an agent CLI and `you` is the only seat, start with `npx journeysfirst run journeys/<name>.journey.yaml`. This includes terminal and MCP journeys, journeys that test the launcher, and reruns after an abort. Use `--agent "<command>"` when the journey calls for a custom agent command. Do not replace this top-level run with `RunRecorder`.
+- If the journey calls for an agent CLI and `you` is the only seat, start with `npx journeysfirst run journeys/<name>.journey.yaml`. This includes terminal and MCP journeys, journeys that test the launcher, and reruns after an abort. Do not replace this top-level run with `RunRecorder`.
 - If the journey has more than one seat, do not use the agent launcher. Replay the saved Playwright script if there is one. Otherwise, drive the journey as each user and use Playwright for browser runs or the recorder directly for other runs.
 
 ## 2. Get a safe environment
@@ -44,6 +44,8 @@ No safe environment, no test sign-in, or no sink for a send: the affected checks
 ### With the agent launcher
 
 Run the agent launcher from the trusted test project. By default it picks a supported, signed-in agent CLI and records configured stdio MCP servers. Use `--mcp <file.json>` to select only the test servers in that file. If you are writing a custom command, see "Record from inside an agent run" in `node_modules/journeysfirst/docs/run-in-code.md`. Use the scratch capture helper and write `.journeysfirst/results.jsonl`; the launcher saves the run.
+
+Use `--agent "<command>"` on the invocation that needs to run your command. If the parent journey tests built-in adapter selection, launch it without `--agent` and put the custom command on the disposable child fixture's invocation.
 
 When the journey asks you to prove an aborted rerun, use the launcher for both attempts. Keep both printed run folder paths and check the newer attempt with `validate-run` and `merge-check`. If these are child attempts inside a launcher journey, capture their output as evidence and submit the parent checks through the parent's results file.
 
