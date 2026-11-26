@@ -10,6 +10,7 @@ import { maskText } from "./mask.js";
 
 // Local logins, installed packages and earlier runs stay out of the copy, so the agent starts as a new user.
 const OMIT = new Set([".git", ".mcp.json", ".aws", ".config", ".docker", ".env", ".npmrc", ".netrc", "node_modules", "journey-runs", ".journeysfirst"]);
+const HANDOFF_FILE = "handoff.txt";
 
 /** @typedef {{journey: string, caseId?: string, project?: string, mcp?: Record<string, string[]>, timeoutMs?: number}} RunOptions */
 /** @typedef {RunOptions & {container?: string, allowHostRead?: boolean, agentArgs: string[]}} AdapterOptions */
@@ -60,7 +61,7 @@ export async function withAgentRun({ journey, caseId, project, agent, label, log
     const result = await execute({ base, work, state, run, signal: interrupt.signal, prompt: agentPrompt(run) });
     const errors = importResults(recording(run, "you"), base);
     if (errors.length) run.tag("result_import_errors", errors.map((error) => maskText(run.redact(error))));
-    if (result.handoff) run.attach({ name: "handoff.txt", body: maskText(run.redact(result.handoff)), kind: "transcript" });
+    if (result.handoff) run.attach({ name: HANDOFF_FILE, body: maskText(run.redact(result.handoff)), kind: "transcript" });
     problem = result.problem;
   } catch (error) {
     problem = run.redact(error instanceof Error ? error.message : "The agent could not complete the journey.");
@@ -106,7 +107,7 @@ export function agentPrompt(run) {
     "To record selected command output, run node .journeysfirst/capture.mjs capture NAME.txt -- COMMAND ARGS.",
     "For a command that uses a service key, put --key ENV_NAME before --. Use the variable name, not its value. A key capture cannot prove a pass.",
     "If this project has .mcp.json, use it for MCP calls. Configured servers record calls as NAME.txt.",
-    "Use distinct capture names. Every file in .journeysfirst/captures is a capture you can cite.",
+    `Use distinct capture names other than ${HANDOFF_FILE}. Cite files from .journeysfirst/captures.`,
     "As you go, write one JSON object per line to .journeysfirst/results.jsonl.",
     'Actions: {"line":1,"status":"done"}. Checks: {"id":"check-id","verdict":"passed","proof":"what you observed","refs":[{"file":"NAME.txt","line":1}]}.',
     `For a failed or blocked line include a reason and a cause: ${CAUSES.join(", ")}. A failed check also needs proof.`,
@@ -121,7 +122,7 @@ export function importResults(seat, base) {
   const captures = join(state, "captures");
   if (realpathSync(captures) !== captures) throw new Error("Capture folders must stay inside the scratch project and cannot be links.");
   const output = readSmall(join(state, "results.jsonl"));
-  const names = new Set(readdirSync(captures, { withFileTypes: true }).filter((item) => item.isFile()).map((item) => item.name));
+  const names = new Set(readdirSync(captures, { withFileTypes: true }).filter((item) => item.isFile() && item.name !== HANDOFF_FILE).map((item) => item.name));
   const attached = new Set();
   const errors = [];
   for (const [index, line] of output.split("\n").entries()) {

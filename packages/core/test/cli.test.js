@@ -314,6 +314,14 @@ test("a custom agent cannot use a service-key capture as its own evidence for a 
   assert.equal(JSON.parse(readFileSync(join(folder, "command.txt"), "utf8").trim()).key, "SERVICE_ROLE_KEY");
 });
 
+test("the final handoff cannot overwrite cited evidence", () => {
+  const { result, run, folder } = agentRun([], 0, fakeAgent.replaceAll("command.txt", "handoff.txt"));
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(run.steps[1].verdict, "not_checked");
+  assert.match(run.tags.result_import_errors[0], /capture attached to this seat/);
+  assert.match(readFileSync(join(folder, "handoff.txt"), "utf8"), /^You can share a presentation by link/);
+});
+
 test("interrupting a custom agent stops its process and saves an aborted attempt", async () => {
   for (const [signal, code] of [["SIGINT", 130], ["SIGTERM", 143]]) {
     const dir = mkdtempSync(join(tmpdir(), "jf-agent-interrupt-"));
