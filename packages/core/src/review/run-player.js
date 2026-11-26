@@ -80,9 +80,11 @@ export const RUN_PLAYER_CSS = `${PLAYER_CSS}
 .run-player{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 27rem;grid-template-rows:minmax(0,1fr);border-top:1px solid var(--line)}
 .run-player:not(:has(.rp-main>*)){grid-template-columns:minmax(0,1fr)}.rp-main:empty{display:none}
 .rp-main{min-width:0;min-height:0;overflow:hidden;display:flex;flex-direction:column;padding:var(--s-lg);background:var(--black);color:var(--white)}
-.users{display:flex;gap:var(--s-lg);margin:calc(var(--s-lg)*-1) calc(var(--s-lg)*-1) var(--s-lg);padding:0 var(--s-lg);border-bottom:1px solid var(--gray-800)}
+.users{flex:none;display:flex;gap:var(--s-lg);overflow-x:auto;white-space:nowrap;margin:calc(var(--s-lg)*-1) calc(var(--s-lg)*-1) var(--s-lg);padding:0 var(--s-lg);border-bottom:1px solid var(--gray-800)}
 .users button{color:var(--gray-500)}.users button[aria-pressed="true"]{color:var(--white);border-bottom-color:var(--yellow-300)}
 .screen,.shot{flex:1;min-height:0;display:flex;flex-direction:column}.screen[hidden],.shot[hidden]{display:none}
+/* The video takes the room that is left, so its controls and marks are always on screen. */
+.screen .player{flex:1;min-height:0;display:flex;flex-direction:column;margin-top:0}.screen .player video{flex:1;min-height:0;object-fit:contain}.screen .controls{flex:none}
 .shot{gap:var(--s-sm)}.shot img{flex:1;min-height:0;width:100%;object-fit:contain;margin:0;border:0}
 .track{position:relative;flex:none;height:var(--control);margin:var(--s-sm) var(--s-md) 0}
 .track::before{content:"";position:absolute;left:calc(var(--s-md)*-1);right:calc(var(--s-md)*-1);top:50%;height:2px;background:var(--gray-800)}
@@ -105,7 +107,7 @@ li:not(.check) .step-status.good{position:absolute;width:1px;height:1px;overflow
 .check:has(.step-status.good) .n,li:has(.step-status.bad) .n{display:none}
 .step-card{padding:0 var(--s-sm) var(--s-md) calc(var(--s-lg) + var(--s-md));font-size:var(--fs-sm);overflow-wrap:anywhere}.step-card p{margin:var(--s-xs) 0}
 .step-card pre,.step-card .evidence li{background:var(--white)}
-@media(max-width:54em){.run-player{grid-template-columns:minmax(0,1fr);grid-template-rows:auto}.rp-main{padding:var(--s-md)}.users{margin:calc(var(--s-md)*-1) calc(var(--s-md)*-1) var(--s-md);padding:0 var(--s-md)}.steps-panel{border-left:0}.panel{overflow:visible}.shot img{flex:none}}`;
+@media(max-width:54em){.run-player{grid-template-columns:minmax(0,1fr);grid-template-rows:auto}.rp-main{padding:var(--s-md)}.users{margin:calc(var(--s-md)*-1) calc(var(--s-md)*-1) var(--s-md);padding:0 var(--s-md)}.steps-panel{border-left:0}.panel{overflow:visible}.shot img,.screen .player video{flex:none}}`;
 
 /** Wires the run player. Runs in the browser. */
 export const RUN_PLAYER_SCRIPT = `${PLAYER_SCRIPT}
