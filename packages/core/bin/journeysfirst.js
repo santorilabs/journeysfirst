@@ -109,9 +109,13 @@ if (command === "run") {
     if (flags["allow-host-read"]) console.error("Host files, including files in your home directory, can be read by agent commands.");
     const project = flags.project ?? process.cwd();
     const options = { journey: positional[0], caseId: flags.case, project, mcp: readMcpServers(flags.mcp, project), timeoutMs };
+    if (!adapter && Object.keys(options.mcp).length) {
+      console.error(`Configured MCP proxies from ${flags.mcp ? "--mcp" : ".mcp.json"}: ${Object.keys(options.mcp).join(", ")}. The command must read .mcp.json to use them.`);
+    }
     const saved = adapter ? await adapter.start({ ...options, container: flags.container, allowHostRead: flags["allow-host-read"], mcpOverride: flags.mcp !== undefined,
       agentArgs: end === -1 ? [] : rest.slice(end + 1) }) : await runAgent({ ...options, command: flags.agent });
     console.log(`Saved ${saved.run.result} run to ${saved.folder}.`);
+    console.log(`Next: npx journeysfirst validate-run ${JSON.stringify(saved.folder)}\nThen follow journey-review.`);
     if (saved.problem) { console.error(saved.problem); process.exitCode = saved.exitCode; }
     else if (saved.run.result !== "passed") console.log("Exit 0 means the agent finished and a run was saved. The journey did not pass.");
   } catch (error) {

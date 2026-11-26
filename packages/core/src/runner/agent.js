@@ -77,7 +77,11 @@ export async function withAgentRun({ journey, caseId, project, agent, label, log
     const errors = importResults(seat, base);
     if (errors.length) run.tag("result_import_errors", errors.map((error) => maskText(run.redact(error))));
     if (result.handoff) {
-      handoff = maskText(run.redact(result.handoff));
+      handoff = result.handoff;
+      for (const file of run.files.keys()) {
+        handoff = handoff.replaceAll(join(state, "captures", file), file);
+      }
+      handoff = maskText(run.redact(handoff));
       run.attach({ name: HANDOFF_FILE, body: handoff, kind: "transcript" });
     }
     problem = result.problem;
@@ -147,7 +151,7 @@ export function agentPrompt(run) {
     'Actions: {"line":1,"status":"done"}. Checks: {"id":"check-id","verdict":"passed","proof":"what you observed","refs":[{"file":"NAME.txt","line":1}]}.',
     `For a failed or blocked line include a reason and a cause: ${CAUSES.join(", ")}. A failed check also needs proof.`,
     "Do not claim a pass without a capture that proves it. Cite an output or response line, not a request line.",
-    "Finish with the message you would send to the person who asked you to run the journey.",
+    "Finish with the message you would send to the person who asked you to run the journey. Refer to saved captures by filename and line, not by absolute scratch path. Claim only results supported by those captures.",
   ].filter((line) => line !== undefined).join("\n");
 }
 

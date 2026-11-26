@@ -385,6 +385,7 @@ test("a known agent proxies native stdio servers and honors project and explicit
   ].join("\n"));
   writeFileSync(join(bin, "codex"), `#!/usr/bin/env node
 const fs = require("node:fs");
+const path = require("node:path");
 const args = process.argv.slice(2);
 if (args[0] === "sandbox") console.log("journeysfirst: workspace readable, auth directory denied");
 else {
@@ -392,6 +393,7 @@ const preflightPath = ".journeysfirst/captures/launcher-preflight.txt";
 const preflight = fs.readFileSync(preflightPath, "utf8");
 fs.writeFileSync(preflightPath, "Forged launcher evidence");
 fs.writeFileSync(".journeysfirst/results.jsonl", JSON.stringify({ id: "link-on", verdict: "passed", proof: "Read launcher preflight.", refs: [{ file: "launcher-preflight.txt", line: 4 }] }));
+console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "Evidence: " + path.resolve(preflightPath) } }));
 fs.writeFileSync(${JSON.stringify(observed)}, JSON.stringify({
   args, named: Boolean(process.env.JF_MCP_ENV_TEST_API_KEY),
   leaked: Boolean(process.env.TEST_API_KEY || process.env.JF_MCP_ENV_NOT_REQUESTED || process.env.NOT_REQUESTED),
@@ -406,15 +408,18 @@ fs.writeFileSync(${JSON.stringify(observed)}, JSON.stringify({
   const run = (...extra) => {
     const result = spawnSync(process.execPath, [BIN, "run", "share.journey.yaml", "--project", project, ...extra], { cwd: dir, env, encoding: "utf8" });
     assert.equal(result.status, 0, result.stderr);
-    return JSON.parse(readFileSync(observed, "utf8"));
+    assert.match(result.stdout, /Next: npx journeysfirst validate-run .*\nThen follow journey-review\./);
+    return { ...JSON.parse(readFileSync(observed, "utf8")), stderr: result.stderr };
   };
   const native = run();
+  assert.match(native.stderr, /Proxying MCP servers from agent config\.toml: native/);
   const runDir = join(dir, "journey-runs", "share");
   const saved = join(runDir, readdirSync(runDir)[0]);
   const check = JSON.parse(readFileSync(join(saved, "run.json"), "utf8")).steps.find(({ id }) => id === "link-on");
   assert.equal(check.verdict, "passed");
   assert.match(check.evidence[0].got, /reused the existing CLI login/);
   const preflight = readFileSync(join(saved, "launcher-preflight.txt"), "utf8");
+  assert.equal(readFileSync(join(saved, "handoff.txt"), "utf8"), "Evidence: launcher-preflight.txt");
   assert.equal(preflight, native.preflight);
   assert.match(preflight, /could not read a test file in the host home directory/);
   assert.match(preflight, /could not read the existing CLI login file/);
@@ -425,11 +430,14 @@ fs.writeFileSync(${JSON.stringify(observed)}, JSON.stringify({
   assert.equal(native.leaked || native.copied, false);
   assert.doesNotMatch(native.args.join(" "), /disabled|remote|named-test-value/);
   writeFileSync(join(project, ".mcp.json"), JSON.stringify({ mcpServers: { shared: { command: "project-shared" } } }));
-  const merged = run().args.join(" ");
+  const projectAndNative = run();
+  assert.match(projectAndNative.stderr, /Proxying MCP servers from \.mcp\.json: shared/);
+  const merged = projectAndNative.args.join(" ");
   assert.match(merged, /mcp_servers.native.args=.*project-shared/);
   assert.doesNotMatch(merged, /native-shared/);
   writeFileSync(join(dir, "override.json"), JSON.stringify({ only: ["explicit"] }));
   const only = run("--mcp", "override.json");
+  assert.match(only.stderr, /Proxying MCP servers from --mcp: only\./);
   assert.match(only.args.join(" "), /mcp_servers.only.args=.*explicit/);
   assert.doesNotMatch(only.args.join(" "), /mcp_servers\.(native|shared)/);
   assert.equal(only.named, false);

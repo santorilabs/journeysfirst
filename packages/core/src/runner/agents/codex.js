@@ -75,6 +75,11 @@ async function start({ mcp = {}, mcpOverride, container, allowHostRead = false, 
       const envNames = Object.fromEntries(native.map(({ name, envNames }) => [name, envNames]));
       const servers = mcpConfig(config, sandbox, state, work, runtime ?? "codex", node, envNames);
       warnIfMissingMcp(run, servers.names);
+      const sources = [["agent config.toml", native.map(({ name }) => name)],
+        [mcpOverride ? "--mcp" : ".mcp.json", Object.keys(mcp)]];
+      for (const [source, names] of sources) {
+        if (Array.isArray(names) && names.length) console.error(`Proxying MCP servers from ${source}: ${names.join(", ")}.`);
+      }
       const serverEnv = Object.fromEntries(Object.values(envNames).flat().flatMap((name) => {
         const value = process.env[name];
         if (value && value.length >= 8) run.value(`JF_MCP_ENV_${name}`, value, { secret: true });
