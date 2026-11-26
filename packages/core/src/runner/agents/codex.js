@@ -413,7 +413,8 @@ function nativeMcpServers(project) {
   return [...tables].flatMap(([name, values]) => {
     if (values.has("url") || values.get("enabled") === "false" || !values.has("command")) return [];
     if (["env", "enabled_tools", "disabled_tools", "nested"].some((key) => values.has(key))) {
-      throw new Error(`MCP server "${name}" uses inline environment values or tool restrictions that Journeys First does not copy. Use env_vars for named variables, or pass --mcp with only the trusted test servers you want.`);
+      console.error(`Skipping MCP server "${name}": it uses inline environment values or tool restrictions that Journeys First does not copy. Use env_vars for named variables, or pass --mcp with only the trusted test servers you want.`);
+      return [];
     }
     try {
       const command = tomlString(values.get("command"));
@@ -422,7 +423,8 @@ function nativeMcpServers(project) {
       if (!command || !envNames.every((key) => /^[A-Z_][A-Z0-9_]*$/.test(key) && !["PATH", "HOME", "CODEX_HOME"].includes(key) && !key.startsWith("JF_MCP_ENV_"))) throw new Error();
       return [{ name, argv: [command, ...args], envNames: [...new Set(envNames)] }];
     } catch {
-      throw new Error(`Check command, args and env_vars for MCP server "${name}" in config.toml, or pass --mcp to override it.`);
+      console.error(`Skipping MCP server "${name}": check command, args and env_vars in config.toml, or pass --mcp to override it.`);
+      return [];
     }
   });
 }

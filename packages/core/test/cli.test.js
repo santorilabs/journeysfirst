@@ -419,11 +419,14 @@ else fs.writeFileSync(${JSON.stringify(observed)}, JSON.stringify({
   assert.equal(only.named, false);
   writeFileSync(join(auth, "config.toml"), '[mcp_servers.ci_fixture]\ncommand = "npx"\nenv_vars = ["CI"]\n');
   assert.ok(run().args.includes('mcp_servers.ci_fixture.env_vars=["JF_MCP_ENV_CI"]'));
-  for (const key of ['"disabled_tools"', "'enabled_tools'"]) {
-    writeFileSync(join(auth, "config.toml"), `[mcp_servers.restricted]\ncommand = "npx"\n${key} = ["read-only"]\n`);
+  for (const setting of ['"disabled_tools" = ["write"]', "'enabled_tools' = ['read']", 'env = { FIXTURE = "not-used" }']) {
+    writeFileSync(join(auth, "config.toml"), `[mcp_servers.restricted]\ncommand = "npx"\n${setting}\n`);
     const restricted = spawnSync(process.execPath, [BIN, "run", "share.journey.yaml", "--project", project], { cwd: dir, env, encoding: "utf8" });
-    assert.equal(restricted.status, 1, restricted.stderr);
-    assert.match(restricted.stderr, /MCP server "restricted".*tool restrictions/);
+    assert.equal(restricted.status, 0, restricted.stderr);
+    assert.match(restricted.stderr, /Skipping MCP server "restricted".*inline environment values or tool restrictions/);
+    const args = JSON.parse(readFileSync(observed, "utf8")).args.join(" ");
+    assert.match(args, /mcp_servers.shared.args=.*project-shared/);
+    assert.doesNotMatch(args, /mcp_servers\.restricted/);
   }
 });
 
