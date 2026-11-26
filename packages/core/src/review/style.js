@@ -43,7 +43,7 @@ a.row:hover{background:var(--chalk)}
 @media(max-width:81rem){.frame{border-left:0;border-right:0}.bar::before,.bar::after,.foot::before,.foot::after{display:none}}
 @media(max-width:54em){
   main{padding:var(--s-lg) var(--s-md) var(--s-xl)}.foot{padding:var(--s-md)}
-  .fit .frame{height:auto}.strip{padding:var(--s-md)}.fit .problems{margin:0 var(--s-md) var(--s-md)}
+  .fit .frame{height:auto}.strip{padding:var(--s-md)}.strip h1{-webkit-line-clamp:unset}.fit .problems{margin:0 var(--s-md) var(--s-md)}
   .bar>span:not([aria-current]):not(.logo){display:none}
   .rows{margin-left:calc(var(--s-md)*-1);margin-right:calc(var(--s-md)*-1)}.day,.row{padding-left:var(--s-md);padding-right:var(--s-md)}
   .row{grid-template-columns:minmax(0,1fr)}.row .row-meta{grid-column:1;grid-row:auto;flex-direction:row;flex-wrap:wrap;gap:var(--s-xs) var(--s-md)}
