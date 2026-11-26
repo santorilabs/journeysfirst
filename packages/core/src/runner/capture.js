@@ -12,9 +12,9 @@ const CUT = JSON.stringify({ kind: "notice", text: "Capture limit reached. More 
 /**
  * Run a command with its streams connected normally, saving selected text.
  * @param {string[]} argv
- * @param {{out: string, mcp?: boolean, secrets?: string[]}} options
+ * @param {{out: string, mcp?: boolean, secrets?: string[], identity?: {login: string} | {key: string}}} options
  */
-export async function captureCommand(argv, { out, mcp = false, secrets = [] }) {
+export async function captureCommand(argv, { out, mcp = false, secrets = [], identity }) {
   if (!argv[0]) throw new Error("Give a command after --.");
   const fd = openSync(out, "wx", 0o600);
   const redact = makeRedactor(secrets);
@@ -22,7 +22,7 @@ export async function captureCommand(argv, { out, mcp = false, secrets = [] }) {
   /** @param {{kind: string, text: string, request?: number}} entry */
   const add = (entry) => {
     if (truncated) return;
-    const text = JSON.stringify({ ...entry, text: redact(entry.text) }) + "\n";
+    const text = JSON.stringify({ ...entry, text: redact(entry.text), ...(!line ? identity : undefined) }) + "\n";
     if (Buffer.byteLength(text) + saved + Buffer.byteLength(CUT) > CAPTURE_LIMIT) {
       writeFileSync(fd, CUT);
       truncated = true;

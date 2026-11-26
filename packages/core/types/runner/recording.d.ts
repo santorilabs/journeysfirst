@@ -8,7 +8,7 @@ export declare function recording(run: import("./recorder.js").RunRecorder, by: 
      * Attach a private capture the runner has checked for secrets.
      * @param {string} name
      * @param {string} path
-     * @param {{login: string, key?: never} | {key: string, login?: never}} [identity] the session the runner actually used
+     * @param {{login: string, key?: never} | {key: string, login?: never} | "recorded"} [identity] the session the runner actually used
      */
     attach(name: string, path: string, identity?: {
         login: string;
@@ -16,7 +16,7 @@ export declare function recording(run: import("./recorder.js").RunRecorder, by: 
     } | {
         key: string;
         login?: never;
-    }): string;
+    } | "recorded"): string;
     /** @param {Parameters<typeof run.step>[0]} line @param {Omit<NonNullable<Parameters<typeof run.step>[1]>, "by">} [result] */
     step(line: Parameters<typeof run.step>[0], result?: Omit<NonNullable<Parameters<typeof run.step>[1]>, "by">): void;
     /**

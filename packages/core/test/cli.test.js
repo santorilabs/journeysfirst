@@ -6,6 +6,7 @@ import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSyn
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { RunRecorder } from "../src/runner/recorder.js";
 import { DRAFT_0, JOURNEY, findings, recordAllPassed, recorder } from "./helpers.js";
 
 const BIN = new URL("../bin/journeysfirst.js", import.meta.url).pathname;
@@ -260,14 +261,14 @@ console.log("login " + (process.env.JF_TEST_AGENT_LOGIN ?? "missing") + ", env f
 process.exitCode = Number(process.argv[2] ?? 0);
 `;
 
-function agentRun(extra = [], exitCode = 0) {
+function agentRun(extra = [], exitCode = 0, script = fakeAgent) {
   const dir = mkdtempSync(join(tmpdir(), "jf-agent-"));
   mkdirSync(join(dir, "project"));
   writeFileSync(join(dir, "project", ".env.local"), "Private product login");
   writeFileSync(join(dir, "project", ".mcp.json"), JSON.stringify({ mcpServers: {
     example: { command: process.execPath, args: ["-e", "process.stdin.once('data', () => process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:1,result:{}})+'\\n'))"] },
   } }));
-  writeFileSync(join(dir, "agent.mjs"), fakeAgent);
+  writeFileSync(join(dir, "agent.mjs"), script);
   writeFileSync(join(dir, "share.journey.yaml"), JOURNEY.replace("users: [viewer]\n", ""));
   const command = `node ${JSON.stringify(join(dir, "agent.mjs"))} ${exitCode}`;
   const result = spawnSync(process.execPath, [BIN, "run", "share.journey.yaml", "--agent", command, "--project", "project", ...extra],
@@ -304,6 +305,15 @@ test("run --agent saves an aborted attempt when the agent exits with an error, s
   assert.equal(run.result, "not_fully_checked");
 });
 
+test("a custom agent cannot use a service-key capture as its own evidence for a pass", () => {
+  const script = fakeAgent.replace('"command.txt", "--"', '"command.txt", "--key", "SERVICE_ROLE_KEY", "--"');
+  const { result, run, folder } = agentRun([], 0, script);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(run.steps[1].verdict, "not_checked");
+  assert.match(run.tags.result_import_errors[0], /this seat's own session/);
+  assert.equal(JSON.parse(readFileSync(join(folder, "command.txt"), "utf8").trim()).key, "SERVICE_ROLE_KEY");
+});
+
 test("interrupting a custom agent stops its process and saves an aborted attempt", async () => {
   for (const [signal, code] of [["SIGINT", 130], ["SIGTERM", 143]]) {
     const dir = mkdtempSync(join(tmpdir(), "jf-agent-interrupt-"));
@@ -316,7 +326,14 @@ test("interrupting a custom agent stops its process and saves an aborted attempt
       fs.writeFileSync(${JSON.stringify(join(dir, "pid"))}, String(process.pid));
       process.kill(process.ppid, ${JSON.stringify(signal)});
       setTimeout(() => {}, 3000);`);
-    recordAllPassed(recorder({ outputDir: runs, id: "2026-11-08-1802-older000" })).finish();
+    const older = RunRecorder.start({ journey, outputDir: runs, id: "2026-11-08-1802-older000" });
+    for (const line of older.plan.lines) {
+      if (line.kind === "action") older.step(line.n);
+      else older.check(line.id, { verdict: "passed", proof: "Saw the expected state.", evidence: [
+        { source: "log", login: "you", query: "status", got: "Expected state." },
+      ] });
+    }
+    assert.equal(older.finish().run.result, "passed");
     const child = spawn(process.execPath, [BIN, "run", journey, "--agent", `exec "${process.execPath}" "${agent}"`], { cwd: dir });
     assert.deepEqual(await once(child, "exit"), [code, null]);
     const pid = Number(readFileSync(join(dir, "pid"), "utf8"));

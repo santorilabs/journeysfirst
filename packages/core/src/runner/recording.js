@@ -15,17 +15,22 @@ export function recording(run, by) {
      * Attach a private capture the runner has checked for secrets.
      * @param {string} name
      * @param {string} path
-     * @param {{login: string, key?: never} | {key: string, login?: never}} [identity] the session the runner actually used
+     * @param {{login: string, key?: never} | {key: string, login?: never} | "recorded"} [identity] the session the runner actually used
      */
     attach(name, path, identity) {
       if (run.files.has(name)) throw new Error("Choose a different name for this capture.");
+      const rows = readCapture(path).map((row) => ({ ...row, text: run.redact(row.text) }));
+      if (identity === "recorded") {
+        const { key, login } = rows[0];
+        if (key !== undefined && login !== undefined) throw new Error("Give a login or a key name, not both.");
+        identity = key !== undefined ? { key } : login !== undefined ? { login } : undefined;
+      }
       if (identity?.login !== undefined) {
         if (identity.key !== undefined) throw new Error("Give a login or a key name, not both.");
         run.knows(identity.login);
       } else if (identity !== undefined && (typeof identity.key !== "string" || !identity.key.trim())) {
         throw new Error("Give the name of the key used for this capture, not its value.");
       }
-      const rows = readCapture(path).map((row) => ({ ...row, text: run.redact(row.text) }));
       const text = rows.map((row) => JSON.stringify(row)).join("\n") + "\n";
       /** @type {Map<number, string>} */
       const entries = new Map();
@@ -82,7 +87,10 @@ function readCapture(path) {
       if (!row || typeof row.text !== "string" || !["request", "response", "stdout", "stderr", "notice"].includes(row.kind)) {
         throw new Error("Give a file written by capture or mcp-proxy.");
       }
-      return { kind: /** @type {string} */ (row.kind), text: row.text, ...(Number.isSafeInteger(row.request) ? { request: row.request } : {}) };
+      return { kind: /** @type {string} */ (row.kind), text: row.text,
+        ...(Number.isSafeInteger(row.request) ? { request: row.request } : {}),
+        ...(typeof row.login === "string" ? { login: row.login } : {}),
+        ...(typeof row.key === "string" && /^[A-Z_][A-Z0-9_]*$/.test(row.key) ? { key: row.key } : {}) };
     });
   } finally { closeSync(fd); }
 }

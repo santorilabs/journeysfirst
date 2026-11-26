@@ -104,6 +104,7 @@ export function agentPrompt(run) {
     ...run.plan.lines.map((line) => line.kind === "action" ? `${line.n}. ${line.says}` : `${line.n}. Check ${line.id}: ${line.check}`), "",
     "Work only in this folder. It is a fresh copy of the project, without local logins. Do not sign in to the product unless a step says to.",
     "To record selected command output, run node .journeysfirst/capture.mjs capture NAME.txt -- COMMAND ARGS.",
+    "For a command that uses a service key, put --key ENV_NAME before --. Use the variable name, not its value. A key capture cannot prove a pass.",
     "If this project has .mcp.json, use it for MCP calls. Configured servers record calls as NAME.txt.",
     "Use distinct capture names. Every file in .journeysfirst/captures is a capture you can cite.",
     "As you go, write one JSON object per line to .journeysfirst/results.jsonl.",
@@ -133,7 +134,7 @@ export function importResults(seat, base) {
         const refs = Array.isArray(entry.refs) ? entry.refs : [];
         for (const { file } of refs) {
           if (!names.has(file)) continue;
-          if (!attached.has(file)) seat.attach(file, join(captures, file), { login: "you" });
+          if (!attached.has(file)) seat.attach(file, join(captures, file), "recorded");
           attached.add(file);
         }
         seat.check(entry.id, { verdict: entry.verdict, proof: entry.proof, reason: entry.reason, cause: entry.cause, refs });
@@ -145,7 +146,7 @@ export function importResults(seat, base) {
   }
   for (const file of names) {
     if (!attached.has(file)) {
-      try { seat.attach(file, join(captures, file)); } catch {}
+      try { seat.attach(file, join(captures, file), "recorded"); } catch {}
     }
   }
   return errors;
