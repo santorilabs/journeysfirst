@@ -42,6 +42,7 @@ The review page:
 Other changes:
 
 - A declared secret is also hidden when it is used as a key in a recorder error.
+- `journey-onboard` also lists the ways a user says no or backs out, like cancel, turn off, decline and delete, when it lists the journeys that matter most.
 - The skills link to the file where a fact lives, and copy nothing into `journeys/README.md`. `measured` reads no list from the README.
 - The Node requirement now matches the ZIP support the package uses: Node 20.15 or newer on the 20 line, or Node 22.2 or newer.
 - The package includes the journey and run specs, schemas, and usage docs. The published 0.0.6 package did not include `spec/` or `docs/`. Releases check that these files are in the exact tarball sent to npm.
