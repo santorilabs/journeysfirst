@@ -50,7 +50,7 @@ Files:
 
 ## Run it
 
-You need Docker and Node 20 or newer. This example is not part of the repo's `npm test`. Give Docker room: one start here was killed for memory in an 8 GB VM that other containers shared.
+You need Docker and a [supported Node version](../../README.md#install). This example is not part of the repo's `npm test`. Give Docker room: one start here was killed for memory in an 8 GB VM that other containers shared.
 
 From a clone of this repo:
 

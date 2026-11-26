@@ -22,6 +22,12 @@ test("the package entry has what a service needs to take in runs", () => {
   assert.equal(entry.RUN_FORMAT, "journeysfirst-run/v1");
 });
 
+test("the package blocks imports of internal modules", async () => {
+  for (const path of ["runfile", "run-folder", "src/format/runfile.js", "types/format/runfile.d.ts"]) {
+    await assert.rejects(import(`journeysfirst/${path}`), { code: "ERR_PACKAGE_PATH_NOT_EXPORTED" });
+  }
+});
+
 test("the display entry and runAnswer import nothing from Node, so a browser can load them", async () => {
   for (const file of ["src/shared/display.js", "src/review/run-answer.js"]) {
     const imports = [...readFileSync(join(ROOT, file), "utf8").matchAll(/^import .* from "([^"]+)";$/gm)].map((m) => m[1]);
@@ -64,9 +70,15 @@ test("the package ships every skill from the repo's skills/, and only skills the
   cpSync(join(ROOT, "../../spec"), join(repo, "spec"), { recursive: true });
   cpSync(join(ROOT, "../../docs"), join(repo, "docs"), { recursive: true });
   cpSync(join(ROOT, "../../scripts/copy-skills.mjs"), join(repo, "scripts/copy-skills.mjs"));
-  const packed = spawnSync("npm", ["pack", "--dry-run", "--json"], { cwd: core, encoding: "utf8" });
+  const packed = spawnSync("npm", ["pack", "--json", "--pack-destination", repo], { cwd: core, encoding: "utf8" });
   assert.equal(packed.status, 0, packed.stderr);
-  const files = JSON.parse(packed.stdout)[0].files.map((f) => f.path);
+  const manifest = JSON.parse(packed.stdout)[0];
+  assert.ok(existsSync(join(repo, manifest.filename)));
+  const files = manifest.files.map((f) => f.path);
+  const { exports, bin } = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
+  for (const path of [...Object.values(exports).flatMap((item) => [item.types, item.default]), ...Object.values(bin)]) {
+    assert.ok(files.includes(path.slice(2)), `${path} must ship in the package`);
+  }
   const underSkills = files.filter((f) => f.startsWith("skills/"));
   assert.deepEqual(underSkills.sort(), readdirSync(SKILLS).sort().map((name) => `skills/${name}/SKILL.md`));
   for (const file of underSkills) assert.match(file, /^skills\/[a-z-]+\/SKILL\.md$/, file);

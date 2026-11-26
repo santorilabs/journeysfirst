@@ -20,6 +20,7 @@ const DENY = [
   { name: "Santori", pattern: /santori/i },
   { name: "station.site", pattern: /station\.site/i },
   { name: "journeysfirst-cloud", pattern: /journeysfirst-cloud/i },
+  { name: "a private session, attachment, or team message link", pattern: /https?:\/\/(?:app\.devin\.ai\/(?:sessions|attachments)\/|[\w-]+\.slack\.com\/archives\/)/i },
 ];
 const EMAIL = /[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})/g;
 // Test addresses and GitHub's noreply addresses are fine. Any other address may be a real person's.

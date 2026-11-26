@@ -1,5 +1,7 @@
 # Security
 
+Security fixes are released for the latest published version. Upgrade to it before checking whether a problem is still present.
+
 ## Report a problem privately
 
 Use GitHub's private vulnerability reporting. Open this repo's **Security** tab and click **Report a vulnerability**. Only the maintainers see the report.

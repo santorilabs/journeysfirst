@@ -13,14 +13,19 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
+  node:
+    name: Node ${{ matrix.node }}
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22, 24, 26]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 22
+          node-version: ${{ matrix.node }}
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       # The caption tests read video frames with ffmpeg.
@@ -35,3 +40,13 @@ jobs:
         run: |
           long=$(git ls-files 'packages/core/src/*.js' 'packages/core/bin/*.js' | xargs wc -l | awk '$2 != "total" && $1 > 600')
           if [ -n "$long" ]; then echo "Split these files (over 600 lines):"; echo "$long"; exit 1; fi
+
+  test:
+    if: always()
+    needs: node
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          RESULT: ${{ needs.node.result }}
+        run: test "$RESULT" = success

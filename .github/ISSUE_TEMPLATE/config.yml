@@ -1,5 +1,8 @@
 blank_issues_enabled: true
 contact_links:
+  - name: Report a security problem privately
+    url: https://github.com/santorilabs/journeysfirst/security/advisories/new
+    about: Do not post vulnerabilities or private run data in a public issue.
   - name: The spec
     url: https://github.com/santorilabs/journeysfirst/tree/main/spec
     about: The journey format and the run format.

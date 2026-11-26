@@ -2,9 +2,11 @@
 
 This page says how to set up the repo, run the checks, and open a pull request.
 
+Follow the [code of conduct](CODE_OF_CONDUCT.md). Report security problems [privately](SECURITY.md).
+
 ## Set up
 
-You need Node 20 or newer. CI uses Node 22.
+You need Node 20.15 or newer on the 20 line, or Node 22.2 or newer. CI tests Node 20, 22, 24 and 26.
 
 ```bash
 npm install
@@ -52,6 +54,10 @@ Then use these three headings:
 A change to the review page or the dev server needs screenshots at desktop width and at 375px. If nothing a person sees changes, say so.
 
 Keep the description short. Write in plain words.
+
+## Releases
+
+Maintainers follow the [release checklist](docs/releasing.md).
 
 ## Agents
 

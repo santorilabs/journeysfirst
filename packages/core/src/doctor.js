@@ -8,7 +8,7 @@ import { loadJourney, validateJourney } from "./format/format.js";
 import { missingTarget } from "./shared/target.js";
 
 const CONFIGS = ["js", "ts", "mjs", "cjs", "mts", "cts"].map((ext) => `playwright.config.${ext}`);
-const MIN_NODE = 20;
+const NODE_REQUIREMENT = "Node 20.15+ on the 20 line, or Node 22.2 or newer";
 const BROWSER_INSTALL = "npx playwright install --only-shell chromium";
 const PLAYWRIGHT_INSTALL = "npm install --save-dev @playwright/test";
 
@@ -38,9 +38,9 @@ export async function doctor({ root = process.cwd(), node = process.versions.nod
  * @returns {DoctorLine}
  */
 function nodeLine(node) {
-  const major = Number(String(node).split(".")[0]);
-  if (major >= MIN_NODE) return { ok: true, name: "Node", says: `v${node}. This package needs Node ${MIN_NODE} or newer.` };
-  return { ok: false, name: "Node", says: `v${node} is older than ${MIN_NODE}. Install Node ${MIN_NODE} or newer.` };
+  const [major, minor] = node.split(".").map(Number);
+  const ok = major === 20 && minor >= 15 || major === 22 && minor >= 2 || major > 22;
+  return { ok, name: "Node", says: ok ? `v${node}. This package needs ${NODE_REQUIREMENT}.` : `v${node} is not supported. Install ${NODE_REQUIREMENT}.` };
 }
 
 /**

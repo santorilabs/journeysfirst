@@ -32,10 +32,17 @@ test("doctor reports an old Node, a missing browser, a config with no target, an
     playwright: async () => ({ installed: true, browser: false }),
   });
   assert.equal(result.ok, false);
-  assert.match(says(result, "Node").says, /older than 20/);
+  assert.match(says(result, "Node").says, /Install Node 20\.15/);
   assert.match(says(result, "Browser").says, /npx playwright install --only-shell chromium/);
   assert.match(says(result, "Config").says, /npx journeysfirst init/);
   assert.match(says(result, "Journeys").says, /npx journeysfirst init --demo/);
+});
+
+test("doctor checks the minimum minor releases that have ZIP support", async () => {
+  for (const [node, supported] of [["20.14.0", false], ["20.15.0", true], ["21.7.3", false], ["22.1.0", false], ["22.2.0", true], ["24.0.0", true]]) {
+    const report = await doctor({ root: repo(), node, playwright: async () => ({ installed: false, browser: false }) });
+    assert.equal(says(report, "Node").ok, supported, node);
+  }
 });
 
 test("doctor names the install command when Playwright is missing, and does not also ask for the browser", async () => {
@@ -50,7 +57,7 @@ test("a valid journey and a baseURL that answers is ok, and a down address with 
   writeFileSync(join(up, "playwright.config.js"), "export default { use: { baseURL: 'http://127.0.0.1:4321' }, webServer: { command: 'node demo/serve.mjs', url: 'http://127.0.0.1:4321' } };\n");
   const ready = await doctor({
     root: up,
-    node: "20.0.0",
+    node: "20.15.0",
     playwright: async () => ({ installed: true, browser: true, executablePath: "/browsers/chromium" }),
     fetchImpl: async () => ({ status: 200 }),
   });
@@ -63,7 +70,7 @@ test("a valid journey and a baseURL that answers is ok, and a down address with 
   writeFileSync(join(down, "playwright.config.js"), "export default { use: { baseURL: 'http://127.0.0.1:9' }, webServer: { command: 'npm start' } };\n");
   const waiting = await doctor({
     root: down,
-    node: "22.1.0",
+    node: "22.2.0",
     playwright: async () => ({ installed: true, browser: true }),
     fetchImpl: async () => { throw new Error("connect"); },
   });

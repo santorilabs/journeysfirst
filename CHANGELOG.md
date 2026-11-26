@@ -2,6 +2,13 @@
 
 Each released version is on npm (`journeysfirst`). Newest first.
 
+## Unreleased
+
+- The Node requirement now matches the ZIP support the package uses: Node 20.15 or newer on the 20 line, or Node 22.2 or newer.
+
+- The package includes the journey and run specs, schemas, and usage docs. The published 0.0.6 package did not include `spec/` or `docs/`. Releases check that these files are in the exact tarball sent to npm.
+- Removed two internal import paths. Import format helpers from `journeysfirst` instead of `journeysfirst/runfile`. To send or check a run folder, use `journeysfirst/publish` or `journeysfirst validate-run` instead of `journeysfirst/run-folder`. The v1 data formats are unchanged.
+
 ## 0.0.6
 
 - `journeyVideo: false` in the Playwright config's `use` turns video off for every test, so a run that only needs pass or fail records no video and does not pause. A test's own `video` option wins.
