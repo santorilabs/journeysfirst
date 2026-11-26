@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/santorilabs/journeysfirst/main/spec/journey-v1.schema.json
+format: journeysfirst/v1
+title: Let an agent run a journey and keep the proof
+promise: |
+  I can run one of my journeys with the agent CLI I already use.
+  I can see what the agent did through MCP, what it proved, and what it told me at the end.
+  The agent cannot read my home or its login, and an interrupted rerun cannot leave an old pass in charge.
+start: You have a signed-in, supported agent CLI, a journey for a signed-out test project, and a product MCP server with a read-only tool. You have no extra login set up for Journeys First.
+steps:
+  - Route the product MCP server through mcp-proxy and start the journey with journeysfirst run --agent <agent>.
+  - check: You see the agent start the journey using its existing CLI login, without asking for another login or key.
+    id: reuses-cli-login
+  - check: Commands run by the agent cannot read your host home or the agent CLI's login file.
+    id: cannot-read-home-or-login
+  - Have the agent call the read-only MCP tool and submit the recorded response as evidence for a check.
+  - check: You see the MCP call and response recorded, and the saved check cites that response.
+    id: mcp-call-recorded
+  - Submit a passing result for a check without any recorded evidence.
+  - check: You see that the check without recorded evidence did not pass.
+    id: rejects-pass-without-evidence
+  - Open the saved run in review.
+  - check: You can read both the recorded MCP transcript and the agent's final handoff.
+    id: review-shows-transcript-and-handoff
+  - With a passing run already saved for this journey and case, rerun it and make the agent crash or time out.
+  - check: Journeys First saves the rerun as aborted, with the reason and any evidence already recorded.
+    id: keeps-aborted-rerun
+  - Run merge-check for the journey and case.
+  - check: Merge-check rejects the newer aborted rerun instead of accepting the older pass.
+    id: abort-blocks-merge
+  - Run the journey with a custom local command using journeysfirst run --agent "<command>".
+  - check: You see a saved run marked sandbox unverified.
+    id: custom-agent-sandbox-unverified
+  - Start the custom command again and press Ctrl+C while it is still working.
+  - check: You see the command stop and an aborted attempt saved before the launcher exits.
+    id: custom-agent-interrupt-saved
+notes: Use a disposable test project and only read-only tools. Probe a harmless file in the host home and test whether the login file is readable without printing or recording its contents. Repeat the abort check for both a crash and a timeout.

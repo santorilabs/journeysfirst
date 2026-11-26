@@ -30,12 +30,4 @@
 
 **Result.** The journey failed on both changes and passed on both fixes.
 
-- **Immich.** A photo frame app could read a shared album by its link and get each photo's GPS, camera and file name, with "Show metadata" off. CI passed. [Run it](../examples/immich-shared-link).
-
-  ![On the breaking commit the response has the file name, camera and GPS. On the fix it has none of them.](../examples/immich-shared-link/screenshots/break-vs-fix-api.png)
-
-- **Docmost.** Deleted pages went to a trash, but their public link still showed them, and teammates still found them in search. [Run it](../examples/docmost-trash).
-
-  | After the page went to trash | After the fix |
-  |---|---|
-  | ![The public link still shows the page](../examples/docmost-trash/screenshots/break-viewer.png) | ![The public link shows "404 page not found"](../examples/docmost-trash/screenshots/fix-viewer.png) |
+See the [examples](../examples/) for the journeys and evidence.

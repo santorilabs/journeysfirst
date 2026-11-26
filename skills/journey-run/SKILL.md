@@ -22,7 +22,7 @@ Nothing may leave the test environment.
 
 - **Never production.** Use a local app, a preview or a staging environment the app skill names.
 - **Test accounts only.** Check every account against the app skill's rule before you sign in, seed, wipe or send.
-- **Real sends must be impossible:** email, SMS, Slack, payments, any write to a third party. The environment enforces it (a sandbox key, a mail catcher, a fake provider, no provider key). Your own care is not a block.
+- **Real sends must be impossible:** email, SMS, chat messages, payments, any write to a third party. The environment enforces it (a sandbox key, a mail catcher, a fake provider, no provider key). Your own care is not a block.
 - **Show the block before you run.** Show that a real send is refused or caught. If you cannot, the checks it touches are `blocked` with cause `environment`.
 
 No safe environment, no test sign-in, or no sink for a send: the affected checks are `blocked` with cause `environment`, not failed.
@@ -35,6 +35,8 @@ No safe environment, no test sign-in, or no sink for a send: the affected checks
 - Open the app and confirm `start` is really true.
 
 ## 4. Do each line
+
+For a terminal or MCP journey, run `npx journeysfirst run journeys/<name>.journey.yaml` from the trusted test project. This picks a signed-in agent CLI and records the stdio MCP servers in the project's `.mcp.json`. Read the saved run to see what passed. Use `capture` or `mcp-proxy` by hand only when you drive the run yourself.
 
 - Each line is done by the user it starts with, in their own login and their own browser context, the way they would do it.
 - Do exactly what the sentence says. Type quoted input word for word.
@@ -58,7 +60,7 @@ A pass needs evidence from the login of the user in `by`. Without it, code turns
 
 **Filter every read** by the run's start time and the run's own accounts. Shared databases hold other runs' rows.
 
-**Admin or service key reads.** Name the key in `key` instead of `login`: the env var name the product's own code reads, like `SUPABASE_SERVICE_ROLE_KEY`, never its value. It adds to a check and never replaces the user's own evidence.
+**Admin or service key reads.** Name the key in `key` instead of `login`: the env var name the product's own code reads, never its value. It adds to a check and never replaces the user's own evidence.
 
 ### Weak and strong proof
 

@@ -101,11 +101,13 @@ Agree with the person on which journeys to draft first. Then update the file.
 
 ## 7. Draft the top journeys
 
-- No Journeys section in `AGENTS.md` (no `<!-- journeysfirst:start -->`)? Run `npx journeysfirst init`, or `npx journeysfirst upgrade` when the skills are already there. init copies the skills to `.agents/skills` and `.claude/skills`. Pass `--skills <folder>` to use one folder. If that adds `demo/` and an example journey, they are not this product. Delete them before you draft the real journeys.
+- Run `npx journeysfirst init` to install the skills if needed. Use `npx journeysfirst upgrade` if the skills are already there and need updating. Pass `--skills <folder>` to use one folder. If init adds `demo/` and an example journey, they are not this product. Delete them before you draft the real journeys.
+- Show the person the proposed Journeys section and where it will go. Use the project's existing agent instructions, such as `AGENTS.md` or `CLAUDE.md`. If there are none, propose creating `AGENTS.md`. Ask before writing anything to that file.
+- The section should tell agents to write or update the matching journey when a change affects users, and to run it with `npx journeysfirst run journeys/<name>.journey.yaml` before saying it is done. After approval, apply the proposed section with `npx journeysfirst init --agent-instructions` (keep the same `--skills` option), or add it to the custom instructions file the person chose.
 - For each top journey, follow `journey-write`, but write from what you read: skip its "Exploring a product that exists" section, since onboarding starts nothing and signs in to nothing. Each "What good means" line that applies becomes a check. Check each file with `npx journeysfirst validate`.
 - A planned promise gets a journey too. It fails until the feature exists.
 - Set each status to **drafted** in `journeys/README.md`.
 
 ## 8. Stop and ask
 
-Tell the person, short: the journeys you drafted, where to open them, what you would set up first so they can run, and one question: go ahead? Do not run anything until they say so. Then follow `journey-run`.
+Tell the person, short: the journeys you drafted, where to open them, what you would set up first so they can run, and one question: go ahead? Do not run anything until they say so. Then follow `journey-run`. For terminal or MCP journeys, the run command is `npx journeysfirst run journeys/<name>.journey.yaml` in the test project.

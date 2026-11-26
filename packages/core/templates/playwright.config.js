@@ -15,7 +15,7 @@ export default defineConfig({
   // A run that fails keeps Playwright's trace in its run folder. A passing run keeps none.
   use: { baseURL: `http://localhost:${port}`, trace: "retain-on-failure" },
   webServer: {
-    // The app must listen on PORT. For a Vite app: `npm run dev -- --port ${port} --strictPort`.
+    // Configure the app's dev command to listen on PORT.
     command: "npm run dev",
     url: `http://localhost:${port}`,
     // Keep this false. With true, Playwright uses any server already on the port,

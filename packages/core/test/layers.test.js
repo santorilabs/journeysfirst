@@ -15,10 +15,11 @@ const MAY_IMPORT = {
   "src/format": ["src/format/draft0", "src/shared"],
   "src/format/draft0": ["src/format"],
   "src/runner": ["src/format", "src/shared"],
+  "src/runner/agents": ["src/runner"],
   "src/review": ["src/format", "src/shared"],
   "src/publish": ["src/format", "src/review", "src/shared"],
   src: ["src/format", "src/shared"],
-  bin: ["src", "src/format", "src/publish", "src/review", "src/shared", "src/runner"],
+  bin: ["src", "src/format", "src/publish", "src/review", "src/shared", "src/runner", "src/runner/agents"],
 };
 
 const IMPORT = /^\s*(?:import|export)\s[^;"']*?\bfrom\s*["']([^"']+)["']|^\s*import\s*["']([^"']+)["']/gm;

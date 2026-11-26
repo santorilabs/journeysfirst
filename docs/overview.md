@@ -8,7 +8,7 @@ How [Journeys First](../README.md) runs a journey, what a journey and a run look
 - Skills in your agent's skills folder: `.agents/skills/` and `.claude/skills/`.
 - `playwright.config.js`, only if you have none.
 - `.gitignore`: ignores `journey-runs/`.
-- `AGENTS.md` (and `CLAUDE.md`): a short Journeys section.
+- After approval, a short Journeys section in the project's agent instructions.
 - `.github/workflows/journeysfirst-upgrade.yml`: opens a pull request when a new version is out.
 - Later, onboarding adds `journeys/` and your app's own skill.
 
@@ -141,5 +141,4 @@ The two v1 formats, the CLI, `journeysfirst`, `journeysfirst/playwright`, `journ
 ## Upgrades
 
 After installing a new version, `npx journeysfirst upgrade` refreshes the copied skills. To get each new release as a pull request that merges itself when the journeys pass, see [Upgrades that merge themselves](auto-upgrade.md).
-
 

@@ -41,28 +41,40 @@ The full example is [examples/share-by-link/tests/share-by-link.spec.js](../exam
 
 ## Without Playwright
 
-### Let Codex run a journey
+### Let an agent run a journey
 
 ```sh
-npx journeysfirst run journeys/onboarding.journey.yaml --agent codex --project ./signed-out-project -- --model gpt-5.4
+npx journeysfirst run journeys/onboarding.journey.yaml
 ```
 
-Put a recent Codex CLI on PATH and set `OPENAI_API_KEY` for its provider login. Use a trusted, signed-out project. Journeys First copies it to a scratch folder and skips dependency folders, local login files, and prior runs. Codex gets the journey's promise, start, and steps, with a clean home. This launcher only runs the `you` seat. For multi-user journeys, use the recorder directly. A run does not prove what happens with a signed-in product.
+Run this from the trusted test project. Journeys First chooses a supported, signed-in CLI in a fixed order and prints its choice. Pass `--agent <name>` to pick one yourself, or `--project <folder>` to use another test project.
 
-To use Docker, pass `--container <local image>`. The image needs Node and Codex, and it must support Codex's own Linux sandbox. Without an image the Codex process runs on this machine. Its default sandbox denies reads of your home directory, so Node and Codex may need to be installed outside it. Before login, the launcher probes the sandbox to make sure commands can read the project but not the login directory or your host home. It stops if a required probe fails. `--allow-host-read` explicitly permits broader host reads for trusted work; it does not relax the login probe or give the product the provider key.
+For the Codex adapter, put a recent Codex CLI on PATH and run `codex login`. Journeys First uses the existing ChatGPT or API-key login from `$CODEX_HOME/auth.json` (default `~/.codex/auth.json`). If you set `OPENAI_API_KEY`, it takes precedence. Only the login file is copied into the new Codex home for the run, after the sandbox probes pass. The launcher does not copy your Codex config or session history.
 
-For MCP, pass `--mcp <file.json>` with server names and command arrays, such as `{"example":["node","server.js"]}`. List only servers whose tools you trust Codex to call without a prompt. Journeys First approves calls only for those servers, which run through the same permission profile and the MCP proxy. Do not put admin credentials in the project or server config. If a proxied server exits with an error, the launcher reports an environment failure and exits nonzero. A tool response marked as a failure changes a check only if Codex submits it as such, with proof. A missing or invalid submission stays unverified.
+Use a trusted, signed-out project. Journeys First copies it to a scratch folder and skips hidden directories, hidden symlinks, dependency folders, common credential files, and prior runs. Codex gets the journey's promise, start, and steps, with a clean home. This launcher only runs the `you` seat. For multi-user journeys, use the recorder directly. A run does not prove what happens with a signed-in product.
 
-`--timeout <seconds>` sets a limit for Codex. If Codex times out or exits with an error, the launcher saves partial results. If the submitted results would count as a pass, it does not save a run and exits with an error. It keeps only the last delivered agent message as `handoff.txt`, not the model's reasoning. Review the transcript for private data before sharing. The handoff is evidence of what Codex said, not what a human understood.
+To use Docker, pass `--container <local image>`. For Codex, the image needs Node and Codex, and it must support Codex's Linux sandbox. Without an image the agent process runs on this machine. The launcher checks that its commands can read the scratch project but not the login or unrelated files in your home. It stops if a required probe fails. `--allow-host-read` permits broader host reads for trusted work. It does not relax the login probe or give the product the provider key.
+
+Journeys First starts and records the stdio servers listed under `mcpServers` in the test project's `.mcp.json`. Each entry needs a `command` and can include `args`. URL servers and `env` entries are not supported. To override the file, pass `--mcp <file.json>` with server names and command arrays, such as `{"example":["node","server.js"]}`. List only servers whose tools you trust the agent to call without a prompt. These servers run through the sandbox and MCP proxy. Do not put credentials in the test project or server config. If a proxied server exits with an error, the launcher reports the error and exits nonzero. A missing or invalid evidence submission stays unverified.
+
+The sandbox allows outbound network access. If a server needs dependencies from a registry, it can install them in the scratch project or use a sandbox-readable installation.
+
+`--timeout <seconds>` sets a time limit. If the agent times out, is interrupted or exits with an error, the launcher saves an aborted attempt with any results already recorded. An aborted attempt cannot pass merge-check. The runner keeps the last delivered agent message as `handoff.txt`, not the model's reasoning. Review the transcript for private data before sharing.
+
+Exit status `0` means Codex finished and Journeys First saved a run. It does not mean the journey passed. Read the printed run result or use `npx journeysfirst merge-check` when a journey result must stop a merge.
+
+### Run a custom agent command
+
+Pass `--agent "<command>"` for a CLI without a built-in adapter. The command reads the journey from stdin and uses its own login and permissions. Journeys First marks these runs as having an unverified sandbox. Only run trusted commands and use disposable test projects. The runner writes a proxied `.mcp.json` in the scratch project; the command must support reading that file to record MCP.
 
 ### Record a terminal command or MCP exchange
 
 ```sh
 npx journeysfirst capture --out terminal.txt -- npm test
-npx journeysfirst mcp-proxy --out mcp.txt --secret-env CONVEX_ADMIN_KEY -- npx convex mcp start
+npx journeysfirst mcp-proxy --out mcp.txt --secret-env MY_API_KEY -- node ./server.js
 ```
 
-For MCP, configure the client to start the proxy in place of the server. Child input and output are unchanged. The capture file saves bounded terminal output or selected MCP request names and response summaries, not MCP arguments or successful payloads. Declare extra secrets by environment variable name. The wrapper hides common key and token patterns, but redaction cannot find every private value. Check each capture before attaching or sharing it. Use a new file for each command.
+For MCP, configure the client to start the proxy in place of the server. Child input and output are unchanged. The capture saves selected request names and bounded reply text or structured results from tools, resources and prompts. It does not save request arguments. Declare extra secrets by environment variable name. Redaction cannot find every private value. Check each capture before attaching or sharing it. Use a new file for each command.
 
 In the script that owns the run, import `recording` from `journeysfirst/recorder`. Give it the run and the seat doing the work:
 
