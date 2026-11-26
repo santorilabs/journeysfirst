@@ -16,11 +16,11 @@ To undo it, revert those files. Nothing is installed outside your repo except Pl
 
 ## How runs work
 
-- **First run:** your agent runs the journey with its own tools and saves a Playwright script in `e2e/`.
-- **After that:** the script replays with `npx playwright test` and runs in CI like any Playwright test. It needs no model, unless one of the users is an agent.
+- **Browser:** your agent runs the journey with its own tools and saves a Playwright script in `e2e/`. Replay it with `npx playwright test`, locally or in CI. It needs no model unless one of the users is an agent.
+- **Terminal and MCP:** run `npx journeysfirst run journeys/<name>.journey.yaml` to launch a supported agent CLI. Use command output or replies recorded through the MCP proxy as evidence. See [agent runner setup](run-in-code.md#let-an-agent-run-a-journey).
 - **Checks in the saved script are code:** an API read, a database query, the sent message. A model only judges during a live agent run.
 - **When the product changes and a replay breaks:** the `journey-fix` skill tells a stale script from a product bug. The agent updates the script, never the check. The skill says: "Never weaken a check to make a run pass."
-- **When a real agent is one of the users:** its path changes each time, so run it several times (`npx playwright test --repeat-each=5`). The run list shows "4 of 5 runs passed".
+- **When a real agent is one of the users:** its path can change, so run the journey several times. For a browser replay, use `npx playwright test --repeat-each=5`. The run list shows "4 of 5 runs passed".
 - **Logins and test data:** `journey-onboard` lists what your app needs (test accounts, start states) and writes one app skill your agent reads before each run.
 
 ## Two journeys
@@ -141,4 +141,3 @@ The two v1 formats, the CLI, `journeysfirst`, `journeysfirst/playwright`, `journ
 ## Upgrades
 
 After installing a new version, `npx journeysfirst upgrade` refreshes the copied skills. To get each new release as a pull request that merges itself when the journeys pass, see [Upgrades that merge themselves](auto-upgrade.md).
-

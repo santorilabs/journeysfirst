@@ -88,7 +88,7 @@ Strong: The viewer still sees "Q3 plan" after sharing was turned off.
 
 ## 6. Save the script
 
-Save what worked as a Playwright script in `e2e/`, so the next run replays it.
+For a browser journey, save what worked as a Playwright script in `e2e/`, so the next run replays it. For a terminal or MCP run, keep the captures and run file instead.
 
 ```js
 import { test } from "journeysfirst/playwright";
