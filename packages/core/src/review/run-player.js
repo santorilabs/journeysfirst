@@ -1,25 +1,28 @@
-// The run player on the review page: one user's video at a time, with a
-// switch between the users in the run. Under the video, each of that
-// user's steps is a mark on the timeline: a check is a numbered mark in its
-// verdict's color, any other step a small dot. Beside it on a wide screen
-// (under it on a phone), every step in order. Picking a step or a mark shows
-// that user's video and plays it from there. Under the video, the current
-// step: what it says, how it went and how it was checked. The page opens on
-// the first failure, or on ?step=<n>.
+// The run player on the review page. It fits one screen. On the left, one
+// user's video at a time, with a switch between the users in the run. Under
+// the video, each of that user's steps is a mark on the timeline: a check is a
+// numbered mark in its verdict's color, any other step a small dot. A step
+// that is in no video shows its screenshot there. On the right (under it on
+// a phone), every step in order, in a panel that scrolls. Picking a step or a
+// mark plays that user's video from there and opens the step's details under
+// its line: how it went and how it was checked. Tabs beside the steps hold
+// what the page passes in. The page opens on the first failure, or on ?step=<n>.
 import { clock, esc, LABELS, spreadMarks } from "../shared/display.js";
 import { PLAYER_CSS, PLAYER_SCRIPT, playerHtml } from "./player.js";
 
 /**
  * One step as the player shows it.
  * @typedef {{n: number, text: string, isCheck: boolean, state?: string, by?: string,
- *   at?: number, card: string}} PlayerStep at: seconds into the video of `by`. card: the step's details, as HTML.
+ *   at?: number, card: string, shot?: string}} PlayerStep at: seconds into the video of `by`. card: the step's details, as HTML.
+ *   shot: the step's screenshots, as HTML, when the step is in no video.
  * @typedef {{user: string, src: string, captions?: string}} PlayerVideo
+ * @typedef {{name: string, label: string, html: string}} SidePanel one more tab beside the steps
  */
 
 /**
- * @param {{steps: PlayerStep[], videos: PlayerVideo[], openAt: number}} options
+ * @param {{steps: PlayerStep[], videos: PlayerVideo[], openAt: number, panels?: SidePanel[]}} options
  */
-export function runPlayerHtml({ steps, videos, openAt }) {
+export function runPlayerHtml({ steps, videos, openAt, panels = [] }) {
   const open = steps.find((s) => s.n === openAt) ?? steps[steps.length - 1];
   const shown = (open?.by && videos.some((v) => v.user === open.by) ? open.by : videos[0]?.user) ?? "";
   const multipleRoles = new Set(steps.map((s) => s.by).filter(Boolean)).size > 1;
@@ -41,23 +44,26 @@ export function runPlayerHtml({ steps, videos, openAt }) {
       </div>`;
     })
     .join("");
-  const cards = steps
-    .map((s) => `<section class="step-card" data-step="${s.n}" aria-label="Step ${s.n}"${s.n === open?.n ? "" : " hidden"}>
-        <p class="how"><span aria-live="polite">Step ${s.n} of ${steps.length}</span>${multipleRoles && s.by ? ` · ${esc(roleName(s.by))}` : ""}</p>
-        <h2>${s.isCheck ? '<span class="how">Check:</span> ' : ""}${esc(s.text)}</h2>
-        ${s.card}
-      </section>`)
-    .join("");
+  // A step that is in no video shows its screenshot where the video would be.
+  const shots = steps.filter((s) => s.shot).map((s) => `<div class="shot" data-step="${s.n}"${s.n === open?.n ? "" : " hidden"}>${s.shot}</div>`).join("");
   const lines = steps
-    .map((s) => `<li><button type="button" class="line" data-step="${s.n}"${s.by && s.at !== undefined && videos.some((v) => v.user === s.by) ? ` data-user="${esc(s.by)}" data-at="${s.at}"` : ""}${s.n === open?.n ? ' aria-current="step"' : ""}>
+    .map((s) => `<li${s.isCheck ? ' class="check"' : ""}><button type="button" class="line" data-step="${s.n}"${s.by && s.at !== undefined && videos.some((v) => v.user === s.by) ? ` data-user="${esc(s.by)}" data-at="${s.at}"` : ""}${s.n === open?.n ? ' aria-current="step"' : ""}>
         <span class="n">${s.n}</span>
         <span class="text"><span class="line-kind">${s.isCheck ? "Check" : "Action"}${multipleRoles && s.by ? ` · ${esc(roleName(s.by))}` : ""}</span>${esc(s.text)}</span>
         <span class="end"><span class="step-status ${statusTone(s)}">${esc(statusLabel(s))}</span>${showTimes && s.at !== undefined ? `<span class="how">${clock(s.at)}</span>` : ""}</span>
-      </button></li>`)
+      </button>
+      <section class="step-card" data-step="${s.n}" aria-label="Step ${s.n}"${s.n === open?.n ? "" : " hidden"}>${s.card}</section></li>`)
     .join("");
+  const checks = steps.filter((s) => s.isCheck).length;
+  /** @param {string} name @param {string} label @param {boolean} [on] */
+  const tab = (name, label, on = false) => `<button type="button" class="tab" role="tab" data-tab="${name}" aria-selected="${on}">${label}</button>`;
   return `<section class="run-player" aria-label="The run" data-open="${open?.n ?? ""}" id="steps">
-    <div class="rp-main">${users}${screens}${cards}</div>
-    <aside class="steps-panel"><h2>Steps</h2><ol class="rp-steps" aria-label="Every step">${lines}</ol></aside>
+    <div class="rp-main">${users}${screens}${shots}</div>
+    <aside class="steps-panel">
+      <div class="tabs" role="tablist" aria-label="What to show beside the run">${tab("steps", `Steps ${steps.length}`, true)}${checks && checks < steps.length ? tab("checks", `Checks ${checks}`) : ""}${panels.map((p) => tab(p.name, esc(p.label))).join("")}</div>
+      <div class="panel" data-panel="steps"><ol class="rp-steps" aria-label="Every step">${lines}</ol></div>
+      ${panels.map((p) => `<div class="panel" data-panel="${p.name}" hidden>${p.html}</div>`).join("")}
+    </aside>
   </section>`;
 }
 
@@ -72,30 +78,40 @@ const roleName = (user) => user.charAt(0).toUpperCase() + user.slice(1);
 
 /** Styles for runPlayerHtml. */
 export const RUN_PLAYER_CSS = `${PLAYER_CSS}
-.run-player{display:grid;grid-template-columns:minmax(0,1fr) minmax(20rem,36%);gap:var(--s-lg);align-items:start;margin-top:var(--s-md)}
-.rp-main{min-width:0}
-.users{display:inline-flex;gap:var(--s-xs);padding:var(--s-xs);border-radius:var(--r-full);background:var(--line);margin-bottom:var(--s-sm)}
-.users button{background:none;height:var(--control);padding:0 var(--s-md);border-radius:var(--r-full);font-size:var(--fs-sm)}
-.users button[aria-pressed="true"]{background:var(--white);box-shadow:0 1px 2px rgba(0,0,0,.04)}
-.track{position:relative;height:var(--control);margin:var(--s-sm) var(--s-md) 0}
-.track::before{content:"";position:absolute;left:calc(var(--s-md)*-1);right:calc(var(--s-md)*-1);top:50%;height:2px;background:var(--line)}
-.tick{position:absolute;top:50%;transform:translate(-50%,-50%);width:var(--status);height:var(--status);padding:0;border-radius:50%;font:500 var(--fs-xs)/1 var(--mono);background:var(--white);border:2px solid var(--line)}
-.tick.dot{width:var(--s-md);height:var(--s-md)}.tick.good{background:var(--black);border-color:var(--black);color:var(--white)}
-.tick.bad{background:var(--error);border-color:var(--error);color:var(--white)}.tick.wait{background:var(--gray-700);border-color:var(--gray-700);color:var(--white)}
-.tick[aria-current="step"]{outline:2px solid var(--black);outline-offset:2px}
-.step-card{margin-top:var(--s-sm);padding:var(--s-md);border:1px solid var(--line);border-radius:var(--r-md);overflow-wrap:anywhere}
-.step-card h2{font:500 var(--fs-xl)/1.5 var(--body);margin:var(--s-xs) 0 var(--s-sm)}.step-card p{margin:var(--s-xs) 0}
-.steps-panel h2{font:500 var(--fs-lg)/1.4 var(--body);margin:0 0 var(--s-sm)}
-.rp-steps{list-style:none;margin:0;padding:var(--s-xs);border:1px solid var(--line);border-radius:var(--r-md)}
-.line{display:grid;grid-template-columns:var(--s-lg) minmax(0,1fr) auto;gap:var(--s-sm);align-items:start;width:100%;min-height:var(--touch);padding:var(--s-sm);border-radius:var(--r-sm);background:none;text-align:left;font-size:var(--fs-sm);line-height:1.5}
-.line:hover,.line[aria-current="step"]{background:var(--chalk)}
-.line[aria-current="step"]:has(.bad){background:var(--red-50)}
-.line .n,.line-kind{color:var(--text-3);font:400 var(--fs-xs)/1.75 var(--mono);letter-spacing:.01em}.line[aria-current="step"] .n{color:var(--text);font-weight:500}
-.line-kind{display:block}
-.line .end{display:grid;justify-items:end;gap:var(--s-xs)}
-.step-status{border-radius:var(--r-xs);padding:0 var(--s-sm);font:500 var(--fs-xs)/1.75 var(--mono);letter-spacing:.01em;color:var(--text-2);background:var(--chalk)}
-.step-status.good{color:var(--text);background:none;box-shadow:inset 0 0 0 1px var(--line)}.step-status.bad{color:var(--white);background:var(--error)}
-@media(max-width:54em){.run-player{grid-template-columns:1fr}}`;
+.run-player{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 27rem;grid-template-rows:minmax(0,1fr);border-top:1px solid var(--line)}
+.run-player:not(:has(.rp-main>*)){grid-template-columns:minmax(0,1fr)}.rp-main:empty{display:none}
+.rp-main{min-width:0;min-height:0;overflow:hidden;display:flex;flex-direction:column;padding:var(--s-lg);background:var(--black);color:var(--white)}
+.users{display:flex;gap:var(--s-lg);margin:calc(var(--s-lg)*-1) calc(var(--s-lg)*-1) var(--s-lg);padding:0 var(--s-lg);border-bottom:1px solid var(--gray-800)}
+.users button,.tab{height:var(--tab);padding:0;background:none;border-bottom:2px solid transparent;font:400 var(--fs-xs)/1 var(--mono);letter-spacing:.01em}
+.users button{color:var(--gray-500)}.users button[aria-pressed="true"]{color:var(--white);border-bottom-color:var(--yellow-300)}
+.screen,.shot{flex:1;min-height:0;display:flex;flex-direction:column}.screen[hidden],.shot[hidden]{display:none}
+.shot{gap:var(--s-sm)}.shot img{flex:1;min-height:0;width:100%;object-fit:contain;margin:0;border:0}
+.track{position:relative;flex:none;height:var(--control);margin:var(--s-sm) var(--s-md) 0}
+.track::before{content:"";position:absolute;left:calc(var(--s-md)*-1);right:calc(var(--s-md)*-1);top:50%;height:2px;background:var(--gray-800)}
+.tick{position:absolute;top:50%;transform:translate(-50%,-50%);width:var(--status);height:var(--status);padding:0;border-radius:50%;font:500 var(--fs-xs)/1 var(--mono);background:var(--black);color:var(--white);border:2px solid var(--gray-500)}
+.tick.dot{width:var(--s-md);height:var(--s-md)}.tick.good{background:var(--white);border-color:var(--white);color:var(--black)}
+.tick.bad{background:var(--error);border-color:var(--error)}.tick.wait{background:var(--gray-700);border-color:var(--gray-700)}
+.tick[aria-current="step"]{outline:2px solid var(--yellow-300);outline-offset:2px}
+.steps-panel{min-height:0;display:flex;flex-direction:column;border-left:1px solid var(--line)}
+.tabs{flex:none;display:flex;gap:var(--s-lg);padding:0 var(--s-md);border-bottom:1px solid var(--line);overflow-x:auto}
+.tab{flex:none;color:var(--text-3)}.tab[aria-selected="true"]{color:var(--text);border-bottom-color:var(--black)}
+.panel{flex:1;min-height:0;overflow-y:auto;padding:var(--s-sm)}.panel[hidden]{display:none}
+.rp-steps{list-style:none;margin:0;padding:0}.rp-steps[data-only="checks"] li:not(.check){display:none}
+.rp-steps li:has(>.line[aria-current="step"]){background:var(--chalk);border-radius:var(--r-sm)}
+.line{position:relative;display:grid;grid-template-columns:var(--s-lg) minmax(0,1fr) auto;column-gap:var(--s-sm);align-items:start;width:100%;min-height:var(--touch);padding:var(--s-sm);border-radius:var(--r-sm);background:none;text-align:left;font-size:var(--fs-sm);line-height:1.5}
+.line:hover{background:var(--chalk)}.line[aria-current="step"]{font-weight:500}
+.line .n,.line-kind,.line .end .how{color:var(--text-3);font:400 var(--fs-xs)/1.75 var(--mono);letter-spacing:.01em}
+.line .n{text-align:center}.line-kind{display:block}
+.line .end{display:contents}.line .end .how{grid-column:3;grid-row:1}
+.step-status{grid-column:3;grid-row:2;justify-self:end;border-radius:var(--r-xs);padding:0 var(--s-sm);font:500 var(--fs-xs)/1.75 var(--mono);letter-spacing:.01em;color:var(--text-2);box-shadow:inset 0 0 0 1px var(--line)}
+/* A check that passed or failed shows a tick or a cross where its number would be. An action that was done shows only its number. */
+.check .step-status.good,.step-status.bad{grid-column:1;grid-row:1;justify-self:center;width:var(--s-md);height:var(--s-md);margin-top:calc((1.75*var(--fs-xs) - var(--s-md))/2);padding:0;overflow:hidden;color:transparent;box-shadow:none;background:var(--text);-webkit-mask:var(--tick) center/contain no-repeat;mask:var(--tick) center/contain no-repeat}
+.step-status.bad{background:var(--error);-webkit-mask-image:var(--cross);mask-image:var(--cross)}
+li:not(.check) .step-status.good{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.check:has(.step-status.good) .n,li:has(.step-status.bad) .n{display:none}
+.step-card{padding:0 var(--s-sm) var(--s-md) calc(var(--s-lg) + var(--s-md));font-size:var(--fs-sm);overflow-wrap:anywhere}.step-card p{margin:var(--s-xs) 0}
+.step-card pre,.step-card .evidence li{background:var(--white)}
+@media(max-width:54em){.run-player{grid-template-columns:minmax(0,1fr);grid-template-rows:auto}.rp-main{padding:var(--s-md)}.users{margin:calc(var(--s-md)*-1) calc(var(--s-md)*-1) var(--s-md);padding:0 var(--s-md)}.steps-panel{border-left:0}.panel{overflow:visible}.shot img{flex:none}}`;
 
 /** Wires the run player. Runs in the browser. */
 export const RUN_PLAYER_SCRIPT = `${PLAYER_SCRIPT}
@@ -115,12 +131,15 @@ if (root) {
   };
   const pick = (n, play) => {
     for (const el of all("[data-step]")) {
-      if (el.classList.contains("step-card")) el.hidden = el.dataset.step !== String(n);
+      if (el.matches(".step-card, .shot")) el.hidden = el.dataset.step !== String(n);
       else if (el.dataset.step === String(n)) el.setAttribute("aria-current", "step");
       else el.removeAttribute("aria-current");
     }
     const line = root.querySelector('.line[data-step="' + n + '"]');
-    if (line && line.dataset.user) {
+    if (line) line.scrollIntoView({ block: "nearest" });
+    // A step with a screenshot of its own takes the videos' place.
+    if (root.querySelector('.shot[data-step="' + n + '"]')) showUser("");
+    else if (line && line.dataset.user) {
       showUser(line.dataset.user);
       const video = root.querySelector('.screen[data-user="' + line.dataset.user + '"] video');
       video.currentTime = Number(line.dataset.at);
@@ -144,6 +163,16 @@ if (root) {
   root.addEventListener("click", (e) => {
     const user = e.target.closest(".users button");
     if (user) return showUser(user.dataset.user);
+    const tab = e.target.closest(".tab");
+    if (tab) {
+      // "Checks" is the steps panel, with only its checks.
+      const panel = tab.dataset.tab === "checks" ? "steps" : tab.dataset.tab;
+      for (const t of all(".tab")) t.setAttribute("aria-selected", String(t === tab));
+      for (const p of all(".panel")) p.hidden = p.dataset.panel !== panel;
+      const list = root.querySelector(".rp-steps");
+      if (tab.dataset.tab === "checks") list.dataset.only = "checks"; else delete list.dataset.only;
+      return;
+    }
     const step = e.target.closest(".line, .tick");
     if (step) pick(step.dataset.step, true);
   });

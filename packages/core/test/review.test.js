@@ -125,7 +125,7 @@ test("review shows only attached transcripts, escaped and collapsed at their ste
     assert.doesNotMatch(readFileSync(join(omitted, path, "index.html"), "utf8"), /Transcript:/);
     for (const html of [live, exported]) {
       assert.match(html, /class="step-card" data-step="2"[^>]*>(?:(?!<\/section>)[\s\S])*<details class="transcript"><summary>Transcript: terminal\.txt<\/summary><pre>&lt;script&gt;alert\(1\)&lt;\/script&gt; &amp; finished<\/pre>/);
-      assert.match(html, /<\/section>\s*<details class="transcript"><summary>Transcript: handoff\.txt<\/summary><pre>The agent reported back\.<\/pre>/);
+      assert.match(html, /<div class="panel" data-panel="details" hidden>(?:(?!class="step-card")[\s\S])*<details class="transcript"><summary>Transcript: handoff\.txt<\/summary><pre>The agent reported back\.<\/pre>/, "a transcript for the whole run is in the run details tab, in no step");
       assert.doesNotMatch(html, /<script>alert\(1\)<\/script>|Do not render this|Do not follow this link|Transcript: missing\.txt/);
     }
     assert.equal(existsSync(join(out, path, "assets", "terminal.txt")), false);
@@ -224,7 +224,8 @@ test("a run page shows each step, who did it, proof, cause and where it is in th
     assert.doesNotMatch(page, /No screenshot\.|class="badge"|from you&#39;s login/);
     assert.match(page, /class="line" data-step="7" data-user="viewer" data-at="[\d.]+" aria-current="step"/, "the failing check is in the viewer's video, and the page opens on it");
     assert.match(page, /<section class="run-player" aria-label="The run" data-open="7" id="steps">/);
-    assert.match(page, /<details class="run-details"><summary>Run details<\/summary>[\s\S]*<dt>Role: viewer<\/dt><dd>Played by Claude Code 2\.4\.1, opus<\/dd>/, "who played a role is in the folded run details");
+    assert.match(page, /<button type="button" class="tab" role="tab" data-tab="details" aria-selected="false">Run details<\/button>/, "run details are a tab beside the steps");
+    assert.match(page, /<div class="panel" data-panel="details" hidden><div class="run-details">[\s\S]*<dt>Role: viewer<\/dt><dd>Played by Claude Code 2\.4\.1, opus<\/dd>/, "who played a role is in the run details tab");
     assert.match(page, /<h1>Share by link<\/h1>/, "with no journey file to read the promise from, the heading is the title");
     assert.match(page, /src="\/files\/share-by-link\/2026-11-08-1802-7d2e\/step-1.png"/);
     const video = await fetch(`${base}/files/share-by-link/2026-11-08-1802-7d2e/viewer.webm`, { headers: { range: "bytes=1-2" } });

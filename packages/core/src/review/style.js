@@ -19,7 +19,9 @@ export const PAGE_CSS = `:root{
 --fs-xs:12px;--fs-sm:14px;--fs-md:16px;--fs-lg:18px;--fs-xl:20px;--fs-2xl:24px;--fs-3xl:30px;
 --s-xs:4px;--s-sm:8px;--s-md:16px;--s-lg:24px;--s-xl:32px;--s-2xl:48px;
 --r-xs:4px;--r-sm:8px;--r-md:12px;--r-full:9999px;
---control-sm:32px;--control:40px;--touch:44px;--tab:48px;--status:28px}
+--control-sm:32px;--control:40px;--touch:44px;--tab:48px;--status:28px;
+--tick:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 8.5l3.2 3L13 4.5'/%3E%3C/svg%3E");
+--cross:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M4 4l8 8M12 4l-8 8'/%3E%3C/svg%3E")}
 *{box-sizing:border-box}
 body{margin:0;font:400 var(--fs-md)/1.5 var(--body);color:var(--text);background:var(--white);-webkit-font-smoothing:antialiased}
 a{color:inherit}button{font:inherit;color:inherit;border:0;cursor:pointer}
@@ -39,16 +41,24 @@ h1{margin:0 0 var(--s-md);font:500 var(--fs-3xl)/1.3 var(--mono);letter-spacing:
 .rows{margin:var(--s-lg) calc(var(--s-xl)*-1) 0;border-bottom:1px solid var(--line)}
 .day{padding:var(--s-sm) var(--s-xl);background:var(--chalk);border-top:1px solid var(--line);font:400 var(--fs-xs)/1.5 var(--mono);letter-spacing:.01em;color:var(--text-3)}
 .row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--s-xs) var(--s-lg);padding:var(--s-md) var(--s-xl);border-top:1px solid var(--line);text-decoration:none}
-.row>*{grid-column:1}.row .title{font-weight:500}.row .summary{font-size:var(--fs-sm);color:var(--text-2)}
+.row>*{grid-column:1}.row .title{font-weight:500;display:flex;align-items:center;gap:var(--s-sm);flex-wrap:wrap}.row .summary{font-size:var(--fs-sm);color:var(--text-2)}
 .row .row-meta{grid-column:2;grid-row:1/span 3;display:flex;flex-direction:column;align-items:flex-end;font:400 var(--fs-xs)/1.5 var(--mono);letter-spacing:.01em}
 a.row:hover{background:var(--chalk)}
 .runs{display:flex;flex-wrap:wrap;gap:var(--s-xs) var(--s-md);font-size:var(--fs-sm)}.runs a{text-decoration:none}
 .verdict{display:inline-flex;align-items:center;height:var(--s-lg);padding:0 var(--s-sm);border-radius:var(--r-xs);vertical-align:middle;white-space:nowrap;font:500 var(--fs-xs)/1 var(--mono);letter-spacing:.01em;color:var(--text-2);background:var(--chalk)}
 .verdict.passed,.verdict.done{color:var(--text);background:none;box-shadow:inset 0 0 0 1px var(--line)}.verdict.failed{color:var(--white);background:var(--error)}
+/* In a list, passed and failed are a tick and a cross. Their words stay for a screen reader. */
+.row .verdict.passed,.row .verdict.failed{flex:none;width:var(--s-md);height:var(--s-md);padding:0;overflow:hidden;color:transparent;box-shadow:none;border-radius:0;background:var(--text);-webkit-mask:var(--tick) center/contain no-repeat;mask:var(--tick) center/contain no-repeat}
+.row .verdict.failed{background:var(--error);-webkit-mask-image:var(--cross);mask-image:var(--cross)}
 img{width:100%;border:1px solid var(--line);border-radius:var(--r-sm);display:block;margin-top:var(--s-sm)}
 ${RUN_PLAYER_CSS}
 .error{color:var(--error);font-size:var(--fs-sm)}
-.verdict-row{display:flex;gap:var(--s-sm);align-items:center;flex-wrap:wrap;margin:0 0 var(--s-md)}.summary{font-weight:500}
+.verdict-row{display:flex;gap:var(--s-sm);align-items:center;flex-wrap:wrap;margin:0 0 var(--s-sm)}.summary{font-weight:500}
+.facts{font:400 var(--fs-xs)/1.5 var(--mono);letter-spacing:.01em;color:var(--text-3)}
+/* A run fits one screen: the strip, then the player. Only the player's side panel scrolls. */
+.fit .frame{height:100vh;min-height:40rem}.fit main{display:flex;flex-direction:column;min-height:0;padding:0}
+.strip{flex:none;padding:var(--s-md) var(--s-xl)}.strip h1{margin:0;font-size:var(--fs-2xl);line-height:1.4;max-width:none;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.fit .problems{flex:none;max-height:9rem;overflow-y:auto;margin:0 var(--s-xl) var(--s-md)}.fit .foot{padding-top:var(--s-sm);padding-bottom:var(--s-sm)}
 .problems{border:1px solid var(--error);border-radius:var(--r-sm);padding:var(--s-xs) var(--s-md);margin:var(--s-md) 0;font-size:var(--fs-sm)}.problems ul{padding-left:var(--s-lg)}
 details{margin-top:var(--s-sm);font-size:var(--fs-sm)}summary{cursor:pointer;color:var(--text-3)}
 pre{background:var(--chalk);border:1px solid var(--line);border-radius:var(--r-sm);padding:var(--s-sm) var(--s-md);font:400 var(--fs-xs)/1.5 var(--mono);overflow-x:auto;white-space:pre-wrap;word-break:break-word;margin:var(--s-sm) 0}
@@ -57,7 +67,7 @@ pre{background:var(--chalk);border:1px solid var(--line);border-radius:var(--r-s
 .evidence dl,.run-details dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--s-xs) var(--s-md);margin:var(--s-sm) 0}
 .evidence dt,.run-details dt{color:var(--text-3)}.evidence dd,.run-details dd{margin:0;overflow-wrap:anywhere;white-space:pre-wrap}
 .evidence dd dl{margin:0}.evidence ul.evidence-values{margin:0;padding-left:var(--s-md)}.evidence-values li{padding:0;border:0}
-.run-details{border-top:1px solid var(--line);margin-top:var(--s-lg);padding-top:var(--s-sm)}.run-details dl{max-width:40rem}
+.run-details{margin:0}.panel>*{margin-left:var(--s-sm);margin-right:var(--s-sm)}.panel>.start:first-child{border-top:0}
 .start{border-top:1px solid var(--line);padding:var(--s-sm) 0}.start ul{margin:var(--s-xs) 0;padding-left:var(--s-lg)}
 .start h2{font:500 var(--fs-lg)/1.4 var(--body);margin:var(--s-xs) 0}.found{font-weight:400}
 .start .findings{list-style:none;padding:0;margin:var(--s-xs) 0 var(--s-sm)}.findings li{padding:var(--s-sm) 0;border-top:1px solid var(--line)}.findings li:first-child{border-top:0}
@@ -67,6 +77,7 @@ pre{background:var(--chalk);border:1px solid var(--line);border-radius:var(--r-s
 @media(max-width:81rem){.frame{border-left:0;border-right:0}.bar::before,.bar::after,.foot::before,.foot::after{display:none}}
 @media(max-width:54em){
   main{padding:var(--s-lg) var(--s-md) var(--s-xl)}.foot{padding:var(--s-md)}
+  .fit .frame{height:auto}.strip{padding:var(--s-md)}.fit .problems{margin:0 var(--s-md) var(--s-md)}
   .bar>span:not([aria-current]):not(.logo){display:none}
   .rows{margin-left:calc(var(--s-md)*-1);margin-right:calc(var(--s-md)*-1)}.day,.row{padding-left:var(--s-md);padding-right:var(--s-md)}
   .row{grid-template-columns:minmax(0,1fr)}.row .row-meta{grid-column:1;grid-row:auto;flex-direction:row;flex-wrap:wrap;gap:var(--s-xs) var(--s-md)}
