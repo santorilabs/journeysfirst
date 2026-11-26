@@ -125,13 +125,38 @@ function milliseconds(duration) {
  */
 function stepRecorded(command, steps) {
   if (!command.includes("results.jsonl")) return undefined;
-  const plain = command.replaceAll("\\", "");
   let last;
-  for (const m of plain.matchAll(/"line"\s*:\s*(\d+)|"id"\s*:\s*"([^"]+)"/g)) {
-    const n = m[1] ? Number(m[1]) : steps.findIndex((s) => s?.id === m[2]) + 1;
+  for (const record of records(command)) {
+    // As the runner reads a result: a check by its id, an action by its line. A line inside a check's refs is a line of a kept file.
+    const n = typeof record.id === "string" ? steps.findIndex((s) => s?.id === record.id) + 1 : Number.isInteger(record.line) ? record.line : 0;
     if (n >= 1 && n <= steps.length) last = Math.max(last ?? 0, n);
   }
   return last;
+}
+
+/**
+ * Each whole JSON object written out in a command's text.
+ * @param {string} command
+ * @returns {Array<Record<string, any>>}
+ */
+function records(command) {
+  const found = [];
+  let depth = 0, start = -1, inText = false;
+  for (let i = 0; i < command.length; i++) {
+    const c = command[i];
+    if (inText) {
+      if (c === "\\") i++;
+      else if (c === '"') inText = false;
+    } else if (c === '"' && depth) inText = true;
+    else if (c === "{" && depth++ === 0) start = i;
+    else if (c === "}" && depth && --depth === 0) {
+      try {
+        const record = JSON.parse(command.slice(start, i + 1));
+        if (record && typeof record === "object") found.push(record);
+      } catch {}
+    }
+  }
+  return found;
 }
 
 /** @param {number} ms */

@@ -10,7 +10,7 @@ import { recordAllPassed, recorder } from "./helpers.js";
 const STARTED = "2026-11-26T06:08:20.000Z";
 /** One line of a Codex session record. */
 const saved = (seconds, item) => JSON.stringify({ timestamp: new Date(Date.parse(STARTED) + seconds * 1000).toISOString(), type: "event_msg", payload: { type: "item_completed", item } });
-const STEPS = [{ says: "Find the free slots." }, { says: "Book the meeting." }, { check: "The meeting is saved.", id: "saved-meeting" }];
+const STEPS = [{ says: "Find the free slots." }, { says: "Book the meeting." }, { check: "The meeting is saved.", id: "saved-meeting" }, { says: "Cancel it." }, { says: "Say so." }];
 const RECORD = [
   JSON.stringify({ timestamp: STARTED, type: "response_item", payload: { type: "message", role: "developer", content: [{ type: "input_text", text: "PRIVATE SYSTEM PROMPT" }] } }),
   saved(5, { type: "UserMessage", content: [{ type: "text", text: "THE PROMPT" }] }),
@@ -19,7 +19,7 @@ const RECORD = [
   saved(12.4, { type: "McpToolCall", server: "calendar", tool: "find_free_slots", arguments: { day: "2026-11-26" }, status: "completed", result: { content: [{ type: "text", text: '{"slots":[1,2]}' }] }, duration: { secs: 0, nanos: 6112958 } }),
   saved(14.5, { type: "CommandExecution", command: ["/bin/zsh", "-lc", `printf '%s\\n' '{"line":1,"status":"done"}' >> .journeysfirst/results.jsonl`], aggregated_output: "", exit_code: 0 }),
   saved(14.6, { type: "McpToolCall", server: "calendar", tool: "create_event", arguments: {}, status: "failed", error: { message: "The slot is taken." } }),
-  saved(16, { type: "CommandExecution", command: ["/bin/zsh", "-lc", `printf '%s\\n' '{"line":2,"status":"done"}' '{"id":"saved-meeting","verdict":"passed"}' >> .journeysfirst/results.jsonl`], exit_code: 0 }),
+  saved(16, { type: "CommandExecution", command: ["/bin/zsh", "-lc", `printf '%s\\n' '{"line":2,"status":"done"}' '{"id":"saved-meeting","verdict":"passed","proof":"It says \\"saved\\" {once}.","refs":[{"file":"calendar.txt","line":5}]}' >> .journeysfirst/results.jsonl`], exit_code: 0 }),
   saved(20, { type: "AgentMessage", content: [{ type: "Text", text: "Done." }] }),
   "{ half a line",
 ].join("\n");
@@ -39,6 +39,7 @@ test("a session record becomes rows: what was said, commands and tool calls, wit
   assert.equal(items[2].parts[1].text, '{\n  "slots": [\n    1,\n    2\n  ]\n}', "JSON that came back as text is laid out");
   assert.deepEqual(items[4].parts.at(-1), { label: "Error", text: "The slot is taken." });
   assert.deepEqual(items[3].parts, [], "a command with no output has nothing to open");
+  assert.equal(items[5].step, 3, "a line number in a check's refs is a line of a kept file, not a step");
 });
 
 test("the events Codex prints are read too, without times", () => {
