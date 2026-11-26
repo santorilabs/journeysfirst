@@ -1,7 +1,7 @@
 import { accessSync, chmodSync, closeSync, constants, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
-import { processResult, readSmall, warnIfMissingMcp, withAgentRun } from "../agent.js";
+import { noteMissingMcp, processResult, readSmall, withAgentRun } from "../agent.js";
 import { forwardedSecrets } from "../capture.js";
 import { maskText } from "../mask.js";
 
@@ -79,7 +79,7 @@ async function start({ mcp = {}, mcpOverride, container, allowHostRead = false, 
       const config = { ...Object.fromEntries(native.map(({ name, argv }) => [name, argv])), ...mcp };
       const envByServer = Object.fromEntries(native.map(({ name, envNames, login }) => [name, { envNames, login }]));
       const servers = mcpConfig(config, sandbox, state, work, runtime ?? "codex", node, envByServer);
-      warnIfMissingMcp(run, servers.names);
+      noteMissingMcp(servers.names);
       const sources = [["agent config.toml", native.map(({ name }) => name)],
         [mcpOverride ? "--mcp" : ".mcp.json", Object.keys(mcp)]];
       for (const [source, names] of sources) {

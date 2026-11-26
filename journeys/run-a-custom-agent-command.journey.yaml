@@ -13,4 +13,9 @@ steps:
   - Run the fixture again with a command that stays running. Send SIGINT only to the child launcher after the fixture command starts.
   - check: You see the command stop and the child launcher save an aborted attempt before returning the interrupt exit status.
     id: custom-agent-interrupt-saved
-notes: Put the fixture's TMPDIR outside its project but inside the outer workspace. Capture the fixture result, review output and interrupt outcome as evidence in this journey.
+  - Run the fixture again, from a project with no .mcp.json, with a command that submits no results and prints a handoff saying every check passed.
+  - check: You see the launcher say that no MCP servers are configured for the agent.
+    id: custom-agent-no-mcp-stated
+  - check: You see the launcher name the fixture check that was not checked, and the saved fixture run did not pass.
+    id: custom-agent-unchecked-named
+notes: Put the fixture's TMPDIR outside its project but inside the outer workspace. Capture the fixture result, review output, interrupt outcome and launcher messages as evidence in this journey.
