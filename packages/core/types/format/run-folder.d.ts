@@ -20,6 +20,15 @@ export declare function findJourney(run: {
  */
 export declare function readRunJson(folder: string): any;
 /**
+ * The runs before this one, of the same journey and case, newest first.
+ * @param {string} folder a run folder
+ * @returns {Array<{folder: string, raw: any}>} raw: the run.json as stored
+ */
+export declare function earlierRuns(folder: string): Array<{
+    folder: string;
+    raw: any;
+}>;
+/**
  * The newest run folder in one journey's folder of runs, or null when it
  * has none. Prefer a non-pass when start and finish times are tied.
  * @param {string} dir

@@ -47,6 +47,8 @@ fact  foundation-values  step 3  New since the earlier run: radius 4 px on butto
 - **No earlier reviewed run.** `measured` lists the values the run uses. Open the design system the Foundation links to and compare. A value it does not have is a question, quoting the file. No design system linked: say so in the report, and that is not a finding. Never copy the values into `journeys/README.md`. A new build skips this.
 - **No measure files** (a run driven by hand): every criterion that reads `measured` is "not measured". Never guess a pixel value from a screenshot.
 
+For a run with an MCP transcript, `measured` also prints the agent's tool calls: how many, how many returned an error, the wait, and the average of up to 10 earlier passed runs. An error is a `fact` line. The counts are not: an agent takes a different path each run, so one high count proves nothing. "More tool calls than any of those runs" is worth one sentence in the report, with the tools named.
+
 `foundation-loading` needs a slow replay, which holds each data request for 2 seconds and prints each click's time. With no saved script or a new build, it is "not measured".
 
 ```bash
@@ -65,6 +67,7 @@ JOURNEYS_DELAY_MS=2000 npx playwright test --grep "<journey title>"
 | | `file-request` | Each thing the request or `promise` names is done in a step the way a user would do it. No step does less than the words. |
 | 2. Intuitive | `intuitive-words` | No control the journey uses names a result other than the one the next check proved. Each thing has one name on every walked screen. If Brand points to a file for the name, the name is written that way. |
 | | `intuitive-feedback` | The page changes after every click. `measured` is quiet. |
+| | `intuitive-tools` | No tool call an agent made returned an error. `measured` is quiet. A run with no MCP transcript: "not measured". |
 | | `intuitive-refusal` | Each refusal, empty or error screen the journey reaches says what happened and names a next step. |
 | 3. Simple | `simple-no-longer` | No more clicks or fields than the earlier reviewed run, or than a Product principle allows. `measured` is quiet. |
 | | `simple-confirm` | Each "are you sure" comes before a delete, a send, a payment or another action with no undo. |

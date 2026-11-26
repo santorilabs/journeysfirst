@@ -33,6 +33,7 @@ packages/core/
  captions.js                                         player.js
  measure.js                                          run-player.js
                                                      measured.js
+                                                     tool-calls.js
         │                       │                          │
         └───────────────────────┼──────────────────────────┘
                                 ▼
@@ -130,6 +131,8 @@ Files, in `src/review/`:
 - `export.js`: `journeysfirst review <runs folder> --out <new folder>` writes the same index and run pages with relative links. Open `index.html` or host the folder on GitHub Pages or another static host. The export includes the screenshots, videos, and captions the pages use. It leaves out raw run files, traces, and other attachments. Add `--include-transcripts` to include the transcript text in the pages after checking it for private data. Check the exported pages and recordings before posting them.
 - `report.js`: `writeReport` writes `report.html` into a run folder, and `summaryMarkdown` is the pull request summary. Neither copies a video or a trace.
 - `measured.js`: `measuredReport`, what a run's `measure-<step>.txt` files show against the earlier reviewed run. The `journey-review` skill has the criteria. This file settles only the ones a number can.
+- `tool-calls.js`: the tool calls an agent made through an MCP proxy, read from a run's transcripts. Each call's start and wait, the errors and whether the agent recovered, and the average of earlier passed runs. `measured.js` prints them.
+- `session.js`: an agent's saved session as rows on the run page, where the video would be: what it said, each command and each tool call, under the step each was done for. The files the run kept are tabs beside it.
 - `run-player.js`: the run player on the review page: one user's video at a time, a switch between users, and each step as a mark on the timeline.
 - `player.js`: the review page's video player. Its controls sit under the video, so they never cover the captions.
 

@@ -1,7 +1,11 @@
 // The facts a review reads from a run's measure files.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { measuredFacts, valuesUsed } from "../src/review/measured.js";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { measuredFacts, measuredReport, valuesUsed } from "../src/review/measured.js";
+import { readToolCalls, toolCallAverage, toolCallLine } from "../src/review/tool-calls.js";
 
 const tally = (...values) => Object.fromEntries(values.map((v) => [v, { n: 1, on: 'button "Share"' }]));
 /** A measured screen with the example app's values, changed by `over`. */
@@ -68,4 +72,66 @@ test("at 375 px: a page that scrolls sideways, a dialog cut off, and a small con
   ]);
   const wideOnly = measuredFacts({ lines: new Map([[1, measure({ phone: undefined })]]) });
   assert.deepEqual(wideOnly.notMeasured, ["foundation-phone on step 1: the run did not measure at 375 px"]);
+});
+
+/** A run folder with one MCP transcript, as the proxy saves it. */
+function toolRun(dir, id, started_at, rows, over = {}) {
+  const folder = join(dir, id);
+  mkdirSync(folder);
+  writeFileSync(join(folder, "run.json"), JSON.stringify({ id, started_at, journey: { name: "book" }, media: [{ file: "calendar.txt", kind: "transcript" }], ...over }));
+  writeFileSync(join(folder, "calendar.txt"), rows.map((row) => JSON.stringify(row)).join("\n") + "\n");
+  return folder;
+}
+const call = (tool) => ({ kind: "request", text: `client tools/call ${tool}` });
+
+test("a run's tool calls are counted and listed, with errors, recovery, the wait and the check each reply proves", () => {
+  const dir = mkdtempSync(join(tmpdir(), "measured-"));
+  const folder = toolRun(dir, "b", "2026-11-25T10:00:00Z", [
+    { kind: "request", at: 2, text: "client tools/list" }, { kind: "response", request: 1, ms: 5, text: "Result returned" },
+    { ...call("find_slot"), at: 4000 }, { kind: "response", request: 3, ms: 400, text: "10:00 is free" },
+    { ...call("book"), at: 9000 }, { kind: "response", request: 5, ms: 2100, error: true, text: "Not Authorized" },
+    { ...call("delete"), at: 12000 }, { kind: "response", request: 7, ms: 10, error: true, text: "No such meeting" },
+    { ...call("book"), at: 15000 }, { kind: "response", request: 9, ms: 600, text: "Booked" },
+    { ...call("list"), at: 18000 },
+  ], { steps: [{ says: "You ask." }, { id: "booked", evidence: [{ source: "log", query: "calendar.txt, line 10", got: "Booked" }] }] });
+  const calls = readToolCalls(folder).get("calendar.txt") ?? [];
+  assert.deepEqual(calls[1], { tool: "book", at: 9000, reply: 6, ms: 2100, error: true, says: "Not Authorized", recovered: true });
+  assert.equal(toolCallLine(calls), "5 tool calls, 2 errors, 3.1 s waiting, slowest book 2.1 s");
+  assert.equal(toolCallLine([{ tool: "book" }]), "1 tool call, 0 errors, wait not measured", "a transcript from an older proxy has no times");
+  assert.deepEqual(measuredReport(folder).split("\n").slice(1), [
+    "",
+    "fact  intuitive-tools  book returned an error: Not Authorized The agent recovered: a later book call worked.  (calendar.txt)",
+    "fact  intuitive-tools  delete returned an error: No such meeting No later delete call worked.  (calendar.txt)",
+    "",
+    "Tool calls:",
+    "  calendar.txt: 5 tool calls, 2 errors, 3.1 s waiting, slowest book 2.1 s.",
+    "    1. find_slot  at 4.0 s  took 0.4 s",
+    "    2. book       at 9.0 s  took 2.1 s  error: Not Authorized The agent recovered: a later book call worked.",
+    "    3. delete     at 12.0 s  took 10 ms  error: No such meeting No later delete call worked.",
+    "    4. book       at 15.0 s  took 0.6 s  proof for booked",
+    "    5. list       at 18.0 s  no reply",
+    "  No earlier passed run with tool calls to compare with.",
+  ]);
+  assert.equal(readToolCalls(toolRun(dir, "none", "2026-11-25T12:00:00Z", [{ kind: "stdout", text: "<b>hi</b>" }])).size, 0, "a transcript with no tool call is left out");
+});
+
+test("tool calls are shown beside the average of earlier passed runs", () => {
+  const dir = mkdtempSync(join(tmpdir(), "measured-"));
+  const booked = (ms) => [call("book"), { kind: "response", request: 1, ms, text: "Booked" }];
+  toolRun(dir, "a", "2026-11-21T10:00:00Z", booked(300), { result: "passed" });
+  toolRun(dir, "b", "2026-11-22T10:00:00Z", [...booked(500), call("book"), { kind: "response", request: 3, ms: 400, text: "Booked" }], { result: "passed" });
+  toolRun(dir, "c", "2026-11-23T10:00:00Z", booked(100), { result: "passed" });
+  toolRun(dir, "failed", "2026-11-24T10:00:00Z", [call("book"), call("book"), call("book"), call("book")], { result: "failed" });
+  toolRun(dir, "other-case", "2026-11-24T11:00:00Z", [call("book"), call("book"), call("book"), call("book")], { result: "passed", journey: { name: "book", case: "two" } });
+  const two = [call("find_slot"), { kind: "response", request: 1, ms: 100, text: "Free" }, call("book"), { kind: "response", request: 3, ms: 200, text: "Booked" }];
+  assert.deepEqual(measuredReport(toolRun(dir, "d", "2026-11-25T10:00:00Z", two)).split("\n").slice(2), [
+    "Tool calls:",
+    "  calendar.txt: 2 tool calls, 0 errors, 0.3 s waiting, slowest book 0.2 s.",
+    "    Earlier, on average over 3 runs: 1.3 tool calls (1 to 2), 0.0 errors, 0.4 s waiting.",
+    "    1. find_slot  took 0.1 s",
+    "    2. book       took 0.2 s",
+  ]);
+  const three = [...two, call("book")];
+  assert.ok(measuredReport(toolRun(dir, "e", "2026-11-25T11:00:00Z", three)).split("\n").includes("    More tool calls than any of those runs."));
+  assert.deepEqual(toolCallAverage([{ tool: "book" }, { tool: "book" }], [[{ tool: "book" }]]), ["Earlier, on average over 1 run: 1.0 tool calls (1 to 1), 0.0 errors."], "one or two earlier runs are too few to say more than any");
 });
