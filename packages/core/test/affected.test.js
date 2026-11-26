@@ -16,7 +16,10 @@ const JOURNEYS = [
   "run-the-journeys-a-change-covers",
   "see-why-a-run-failed",
   "let-an-agent-run-a-journey",
+  "keep-an-aborted-agent-rerun",
+  "run-a-custom-agent-command",
 ];
+const TERMINAL_JOURNEYS = JOURNEYS.slice(-3);
 
 test("a path selects the journeys that list it, and leaves the others", () => {
   assert.equal(pathCovers("skills/**", "skills/journey-write/SKILL.md"), true);
@@ -27,12 +30,17 @@ test("a path selects the journeys that list it, and leaves the others", () => {
   assert.ok(doctor.skipped.includes("journeys/run-the-journeys-a-change-covers.journey.yaml"));
   const setup = affectedJourneys(REPO, ["packages/core/src/setup.js"]);
   assert.equal(setup.selected.length, 3);
-  assert.deepEqual(setup.skipped, ["journeys/let-an-agent-run-a-journey.journey.yaml", "journeys/run-the-journeys-a-change-covers.journey.yaml", "journeys/see-why-a-run-failed.journey.yaml"]);
+  assert.deepEqual(setup.skipped, [
+    "journeys/keep-an-aborted-agent-rerun.journey.yaml", "journeys/let-an-agent-run-a-journey.journey.yaml",
+    "journeys/run-a-custom-agent-command.journey.yaml", "journeys/run-the-journeys-a-change-covers.journey.yaml", "journeys/see-why-a-run-failed.journey.yaml",
+  ]);
   const readme = affectedLines(REPO, ["README.md"]);
   assert.deepEqual(readme.filter((line) => line.startsWith("run ")), ["run journeys/start-from-an-empty-project.journey.yaml"]);
-  assert.equal(readme.filter((line) => line.startsWith("skip ")).length, 5);
+  assert.equal(readme.filter((line) => line.startsWith("skip ")).length, JOURNEYS.length - 1);
   const merge = affectedJourneys(REPO, ["packages/core/src/format/merge-check.js"]);
-  assert.deepEqual(merge.selected, ["journeys/let-an-agent-run-a-journey.journey.yaml"]);
+  assert.deepEqual(merge.selected, ["journeys/keep-an-aborted-agent-rerun.journey.yaml"]);
+  const review = affectedJourneys(REPO, ["packages/core/src/review/review.js"]);
+  assert.ok(review.selected.includes("journeys/run-a-custom-agent-command.journey.yaml"));
 });
 
 test("the self journeys are valid and each one is in the path map", () => {
@@ -40,7 +48,7 @@ test("the self journeys are valid and each one is in the path map", () => {
     const journey = loadJourney(join(REPO, "journeys", `${name}.journey.yaml`));
     assert.deepEqual(validateJourney(journey), [], name);
     assert.equal(journey.format, "journeysfirst/v1");
-    if (name === "let-an-agent-run-a-journey") assert.deepEqual(journeyPlan(journey).everyone, ["you"]);
+    if (TERMINAL_JOURNEYS.includes(name)) assert.deepEqual(journeyPlan(journey).everyone, ["you"]);
     else assert.ok(journey.users?.length, name);
   }
   const lines = affectedLines(REPO, ["packages/core/src/format/affected.js"]);

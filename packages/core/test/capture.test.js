@@ -477,7 +477,7 @@ test("timeout saves completed steps and leaves missing checks unverified", () =>
   assert.match(result.stderr, /time limit/);
   assert.equal(run.steps[0].status, "done");
   assert.equal(run.steps[1].verdict, "not_checked");
-  assert.equal(run.media, undefined);
+  assert.deepEqual(run.media, [{ file: "launcher-preflight.txt", kind: "transcript" }]);
 });
 
 test("a crashed MCP server leaves an environment failure even if Codex exits cleanly", () => {
