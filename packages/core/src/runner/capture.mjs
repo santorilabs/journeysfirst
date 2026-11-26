@@ -36,7 +36,7 @@ if (!["capture", "mcp-proxy"].includes(mode) || !/^[A-Za-z0-9][A-Za-z0-9._-]*\.t
     const identity = actorKey ? { key: actorKey } : { login: "you" };
     const secrets = forwardedSecrets(passed.map((name) => process.env[name] ?? ""));
     if (key && process.env[key]) secrets.push(process.env[key]);
-    process.exitCode = await captureCommand(argv, { out: join(state, "captures", name), mcp, identity, secrets,
+    process.exitCode = await captureCommand(argv, { out: join(state, "captures", name), mcp, identity, secrets, maskOutput: !mcp && key !== undefined,
       diagnostic: mcp ? join(state, name + ".stderr") : undefined });
   } catch {
     console.error("Could not record the command. Choose a new capture name and check the command.");

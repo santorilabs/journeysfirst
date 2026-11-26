@@ -234,6 +234,8 @@ if (args[0] === "sandbox") {
     if (fs.existsSync("leaky-home.txt")) process.exit(1);
   }
   console.log("journeysfirst: workspace readable, auth directory denied");
+} else if (args[0] === "--version") {
+  console.log("codex-cli 0.172.0");
 } else if (args[0] === "login") {
   assert.equal(input.trim(), "synthetic-fixture-key");
   assert.ok(!fs.existsSync(auth));
@@ -300,6 +302,14 @@ if (args[0] === "sandbox") {
     const cmd = spawnSync(process.execPath, [".journeysfirst/capture.mjs", "capture", "command.txt", "--",
       process.execPath, "-e", "console.log('Sharing is on')"], { encoding: "utf8" });
     assert.equal(cmd.status, 0);
+    if (fs.existsSync("key-output.txt")) {
+      const key = "fixture-capture-value";
+      const keyed = spawnSync(process.execPath, [".journeysfirst/capture.mjs", "capture", "keyed.txt", "--key", "FIXTURE_SERVICE_KEY", "--",
+        process.execPath, "-e", "const k=process.env.FIXTURE_SERVICE_KEY;process.stdout.write(k.slice(0,8));setTimeout(()=>{process.stdout.write(k.slice(8));process.stderr.write(k)},50)"],
+      { encoding: "utf8", env: { ...process.env, FIXTURE_SERVICE_KEY: key } });
+      assert.equal(keyed.status, 0, keyed.stderr);
+      console.log(JSON.stringify({ type: "item.completed", item: { type: "command_execution", aggregated_output: keyed.stdout + " / " + keyed.stderr } }));
+    }
     const outcomes = [
       { line: 1, status: "done" },
       { id: "link-on", verdict: "passed", proof: "The command showed it.", refs: [{ file: "command.txt", line: 1 }] },
@@ -419,6 +429,15 @@ test("Codex reuses only the existing login from CODEX_HOME or the default home",
     assert.equal(run.steps[1].verdict, "passed");
     assert.doesNotMatch(JSON.stringify(run), /synthetic-refresh/);
   }
+});
+
+test("Codex session never receives a key echoed by a keyed terminal capture", () => {
+  const { result, folder } = codexFixture("key-output");
+  assert.equal(result.status, 0, result.stderr);
+  assert.doesNotMatch(readFileSync(join(folder, "keyed.txt"), "utf8"), /fixture-capture-value/);
+  const events = rows(join(folder, "codex-session.jsonl"));
+  const event = events.find(({ item }) => item.type === "command_execution");
+  assert.equal(event.item.aggregated_output, "•••••••• / ••••••••");
 });
 
 test("Codex prefers an explicit API key to an existing CLI login", () => {
