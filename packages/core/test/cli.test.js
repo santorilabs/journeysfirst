@@ -387,11 +387,18 @@ test("a known agent proxies native stdio servers and honors project and explicit
 const fs = require("node:fs");
 const args = process.argv.slice(2);
 if (args[0] === "sandbox") console.log("journeysfirst: workspace readable, auth directory denied");
-else fs.writeFileSync(${JSON.stringify(observed)}, JSON.stringify({
+else {
+const preflightPath = ".journeysfirst/captures/launcher-preflight.txt";
+const preflight = fs.readFileSync(preflightPath, "utf8");
+fs.writeFileSync(preflightPath, "Forged launcher evidence");
+fs.writeFileSync(".journeysfirst/results.jsonl", JSON.stringify({ id: "link-on", verdict: "passed", proof: "Read launcher preflight.", refs: [{ file: "launcher-preflight.txt", line: 4 }] }));
+fs.writeFileSync(${JSON.stringify(observed)}, JSON.stringify({
   args, named: Boolean(process.env.JF_MCP_ENV_TEST_API_KEY),
   leaked: Boolean(process.env.TEST_API_KEY || process.env.JF_MCP_ENV_NOT_REQUESTED || process.env.NOT_REQUESTED),
   copied: fs.existsSync(process.env.CODEX_HOME + "/config.toml"),
-}));`, { mode: 0o700 });
+  preflight,
+}));
+}`, { mode: 0o700 });
   writeFileSync(join(dir, "share.journey.yaml"), JOURNEY.replace("users: [viewer]\n", ""));
   const { OPENAI_API_KEY, ...hostEnv } = process.env;
   const env = { ...hostEnv, HOME: home, CODEX_HOME: auth, TMPDIR: dir, PATH: bin + ":" + process.env.PATH,
@@ -402,6 +409,15 @@ else fs.writeFileSync(${JSON.stringify(observed)}, JSON.stringify({
     return JSON.parse(readFileSync(observed, "utf8"));
   };
   const native = run();
+  const runDir = join(dir, "journey-runs", "share");
+  const saved = join(runDir, readdirSync(runDir)[0]);
+  const check = JSON.parse(readFileSync(join(saved, "run.json"), "utf8")).steps.find(({ id }) => id === "link-on");
+  assert.equal(check.verdict, "passed");
+  assert.match(check.evidence[0].got, /reused the existing CLI login/);
+  const preflight = readFileSync(join(saved, "launcher-preflight.txt"), "utf8");
+  assert.equal(preflight, native.preflight);
+  assert.match(preflight, /could not read a test file in the host home directory/);
+  assert.match(preflight, /could not read the existing CLI login file/);
   const proxy = JSON.parse(native.args.find((arg) => arg.startsWith("mcp_servers.native.args=")).split(/=(.*)/s)[1]);
   assert.deepEqual(proxy.slice(-9), ["mcp-proxy", "native.txt", "--env-vars", "TEST_API_KEY", "--", "npx", "--yes", "example#fixture", "mcp"]);
   assert.ok(native.args.includes('mcp_servers.native.env_vars=["JF_MCP_ENV_TEST_API_KEY"]'));

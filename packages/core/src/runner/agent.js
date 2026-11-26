@@ -11,13 +11,14 @@ import { maskText } from "./mask.js";
 // Local logins, installed packages and earlier runs stay out of the copy, so the agent starts as a new user.
 const OMIT = new Set([".git", ".mcp.json", ".aws", ".config", ".docker", ".env", ".npmrc", ".netrc", "node_modules", "journey-runs", ".journeysfirst"]);
 const HANDOFF_FILE = "handoff.txt";
+const PREFLIGHT_FILE = "launcher-preflight.txt";
 
 /** @typedef {{journey: string, caseId?: string, project?: string, mcp?: Record<string, string[]>, timeoutMs?: number}} RunOptions */
 /** @typedef {RunOptions & {container?: string, allowHostRead?: boolean, mcpOverride?: boolean, agentArgs: string[]}} AdapterOptions */
 /** @typedef {{folder: string, run: import("../format/runfile.js").Run, problem?: string, exitCode: number}} AgentResult */
 /** @typedef {{work: string, home: string, auth: string, container?: string, hostHome?: string, loginFile?: string, runtime?: string, node: string}} SandboxOptions */
 /** @typedef {{name: string, setup: string, detect(container?: string): boolean, authProbe(): boolean, sandboxArgs(options: SandboxOptions): string[], mcpConfig(config: Record<string,string[]>, sandbox: string[], state: string, work: string, runtime: string, node: string): {args: string[], names: string[]}, start(options: AdapterOptions): Promise<AgentResult>}} AgentAdapter */
-/** @typedef {{base: string, work: string, state: string, run: RunRecorder, signal: AbortSignal, prompt: string}} RunContext */
+/** @typedef {{base: string, work: string, state: string, run: RunRecorder, signal: AbortSignal, prompt: string, recordPreflight(lines: string[]): void}} RunContext */
 
 /** @param {RunOptions & {command: string}} options */
 export async function runAgent({ command, mcp = {}, timeoutMs = 1800000, ...options }) {
@@ -56,12 +57,24 @@ export async function withAgentRun({ journey, caseId, project, agent, label, log
   const onTerm = () => interrupt.abort("SIGTERM");
   let handoff;
   let problem;
+  let preflight = "";
   process.on("SIGINT", onInt);
   process.on("SIGTERM", onTerm);
   try {
     prepareProject(project, base, work, loginFile);
-    const result = await execute({ base, work, state, run, signal: interrupt.signal, prompt: agentPrompt(run) });
-    const errors = importResults(recording(run, "you"), base);
+    const result = await execute({ base, work, state, run, signal: interrupt.signal, prompt: agentPrompt(run),
+      recordPreflight(lines) {
+        preflight = lines.map((text) => JSON.stringify({ kind: "stdout", text, login: "you" })).join("\n") + "\n";
+        writeFileSync(join(state, "captures", PREFLIGHT_FILE), preflight, { flag: "wx", mode: 0o600 });
+      },
+    });
+    const seat = recording(run, "you");
+    if (preflight) {
+      const trusted = join(base, PREFLIGHT_FILE);
+      writeFileSync(trusted, preflight, { flag: "wx", mode: 0o600 });
+      seat.attach(PREFLIGHT_FILE, trusted, "recorded");
+    }
+    const errors = importResults(seat, base);
     if (errors.length) run.tag("result_import_errors", errors.map((error) => maskText(run.redact(error))));
     if (result.handoff) {
       handoff = maskText(run.redact(result.handoff));
@@ -127,7 +140,9 @@ export function agentPrompt(run) {
     "To record selected command output, run node .journeysfirst/capture.mjs capture NAME.txt -- COMMAND ARGS.",
     "For a command that uses a service key, put --key ENV_NAME before --. Use the variable name, not its value. A key capture cannot prove a pass.",
     "If this project has .mcp.json, use it for MCP calls. Configured servers record calls as NAME.txt.",
-    `Use distinct capture names other than ${HANDOFF_FILE}. Cite files from .journeysfirst/captures.`,
+    `Use distinct capture names other than ${HANDOFF_FILE} and ${PREFLIGHT_FILE}. Cite files from .journeysfirst/captures.`,
+    `If ${PREFLIGHT_FILE} exists, it contains the launcher's own preflight evidence. Read and cite the lines you need without editing it.`,
+    "You own every check in this journey. Do not leave checks to the launcher or another runner. If you cannot prove a check, record what stopped you.",
     "As you go, write one JSON object per line to .journeysfirst/results.jsonl.",
     'Actions: {"line":1,"status":"done"}. Checks: {"id":"check-id","verdict":"passed","proof":"what you observed","refs":[{"file":"NAME.txt","line":1}]}.',
     `For a failed or blocked line include a reason and a cause: ${CAUSES.join(", ")}. A failed check also needs proof.`,
@@ -142,7 +157,7 @@ export function importResults(seat, base) {
   const captures = join(state, "captures");
   if (realpathSync(captures) !== captures) throw new Error("Capture folders must stay inside the scratch project and cannot be links.");
   const output = readSmall(join(state, "results.jsonl"));
-  const names = new Set(readdirSync(captures, { withFileTypes: true }).filter((item) => item.isFile() && item.name !== HANDOFF_FILE).map((item) => item.name));
+  const names = new Set(readdirSync(captures, { withFileTypes: true }).filter((item) => item.isFile() && ![HANDOFF_FILE, PREFLIGHT_FILE].includes(item.name)).map((item) => item.name));
   const attached = new Set();
   const errors = [];
   for (const [index, line] of output.split("\n").entries()) {

@@ -48,13 +48,14 @@ export type RunContext = {
     run: RunRecorder;
     signal: AbortSignal;
     prompt: string;
+    recordPreflight(lines: string[]): void;
 };
 /** @typedef {{journey: string, caseId?: string, project?: string, mcp?: Record<string, string[]>, timeoutMs?: number}} RunOptions */
 /** @typedef {RunOptions & {container?: string, allowHostRead?: boolean, mcpOverride?: boolean, agentArgs: string[]}} AdapterOptions */
 /** @typedef {{folder: string, run: import("../format/runfile.js").Run, problem?: string, exitCode: number}} AgentResult */
 /** @typedef {{work: string, home: string, auth: string, container?: string, hostHome?: string, loginFile?: string, runtime?: string, node: string}} SandboxOptions */
 /** @typedef {{name: string, setup: string, detect(container?: string): boolean, authProbe(): boolean, sandboxArgs(options: SandboxOptions): string[], mcpConfig(config: Record<string,string[]>, sandbox: string[], state: string, work: string, runtime: string, node: string): {args: string[], names: string[]}, start(options: AdapterOptions): Promise<AgentResult>}} AgentAdapter */
-/** @typedef {{base: string, work: string, state: string, run: RunRecorder, signal: AbortSignal, prompt: string}} RunContext */
+/** @typedef {{base: string, work: string, state: string, run: RunRecorder, signal: AbortSignal, prompt: string, recordPreflight(lines: string[]): void}} RunContext */
 /** @param {RunOptions & {command: string}} options */
 export declare function runAgent({ command, mcp, timeoutMs, ...options }: RunOptions & {
     command: string;

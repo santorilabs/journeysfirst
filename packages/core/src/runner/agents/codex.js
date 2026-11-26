@@ -17,7 +17,7 @@ async function start({ mcp = {}, mcpOverride, container, allowHostRead = false, 
   if (!key && !loginFile) throw new Error("No Codex login found. Run `codex login`.");
   const runtime = container ? undefined : codexExecutable();
   const node = container ? "node" : realpathSync(process.execPath);
-  return withAgentRun({ ...options, agent: "codex", label: "Codex", loginFile }, async ({ base, work, state, run, signal, prompt }) => {
+  return withAgentRun({ ...options, agent: "codex", label: "Codex", loginFile }, async ({ base, work, state, run, signal, prompt, recordPreflight }) => {
     if (key) run.value("OPENAI_API_KEY", key, { secret: true });
     const home = join(base, "home"), auth = join(base, "codex");
     const authFile = join(auth, "auth.json");
@@ -39,6 +39,7 @@ async function start({ mcp = {}, mcpOverride, container, allowHostRead = false, 
       if (checked.code !== 0 || checked.stdout.trim() !== PROBE) {
         throw new Error(`Codex failed the scratch login probe: ${scratchProbeError(checked)}`);
       }
+      const preflight = ["The sandbox command read the scratch workspace but could not read the scratch login file."];
       if (hostHome) {
         probeDir = mkdtempSync(join(hostHome, ".journeysfirst-probe-"));
         const canary = join(probeDir, "host.txt");
@@ -47,12 +48,14 @@ async function start({ mcp = {}, mcpOverride, container, allowHostRead = false, 
         if (homeCheck.code !== 0 || homeCheck.stdout.trim() !== PROBE) {
           throw new Error("Codex could not prove that its sandbox blocks your home directory. Use a container or explicitly pass --allow-host-read.");
         }
+        preflight.push("The sandbox command could not read a test file in the host home directory.");
       }
       if (loginFile && !container) {
         const original = await launcher([...sandbox, "--", node, "-e", probeCode(), work, loginFile, String(process.pid)], "", 15000);
         if (original.code !== 0 || original.stdout.trim() !== PROBE) {
           throw new Error("Codex could not prove that its sandbox blocks the existing login file. Use a compatible container.");
         }
+        preflight.push("The sandbox command could not read the existing CLI login file.");
       }
       if (key) {
         const login = await launcher(["login", "--with-api-key"], key + "\n", 15000);
@@ -61,10 +64,12 @@ async function start({ mcp = {}, mcpOverride, container, allowHostRead = false, 
         try {
           reusedLogin = readFileSync(loginFile);
           writeFileSync(authFile, reusedLogin, { mode: 0o600, flag: "wx" });
+          preflight.push("The launcher reused the existing CLI login without requesting another login or key.");
         } catch {
           throw new Error("Could not reuse the Codex login. Run `codex login`.");
         }
       }
+      recordPreflight(preflight);
       const native = mcpOverride ? [] : nativeMcpServers(mcp);
       const config = { ...Object.fromEntries(native.map(({ name, argv }) => [name, argv])), ...mcp };
       const envNames = Object.fromEntries(native.map(({ name, envNames }) => [name, envNames]));
