@@ -64,12 +64,14 @@ test("large terminal output is forwarded but not saved as an unsafe partial exce
   assert.deepEqual(rows(out), [{ kind: "notice", text: "stdout was too large to save safely." }]);
 });
 
-test("MCP proxy preserves bytes and pairs out-of-order responses without saving arguments or results", () => {
+test("MCP proxy preserves bytes, pairs responses, and saves redacted tool output but not arguments", () => {
   const out = join(dir(), "mcp.txt");
   const input = '{ "jsonrpc": "2.0", "id": 1, "method":"tools/call","params":{"name":"status","arguments":{"data":"private argument"}} }\r\n'
-    + '{"jsonrpc":"2.0","id":"1","method":"tools/list"}\n';
+    + '{"jsonrpc":"2.0","id":"1","method":"tools/list"}\n'
+    + '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"status"}}\n';
   const replies = '{"jsonrpc":"2.0","id":"1","result":{"data":"private result"}}\n'
-    + '{"jsonrpc":"2.0","id":1,"result":{"isError":true,"content":[{"type":"text","text":"Not Authorized; MCP_ADMIN_KEY=local|sample-admin-key"}]}}\r\n';
+    + '{"jsonrpc":"2.0","id":1,"result":{"isError":true,"content":[{"type":"text","text":"Not Authorized; MCP_ADMIN_KEY=local|sample-admin-key"}]}}\r\n'
+    + '{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"Sharing is on; API_KEY=secret-fixture"}]}}\n';
   const server = `const blocks=[];
     process.stdin.on('data', (chunk) => blocks.push(chunk));
     process.stdin.on('end', () => {
@@ -83,11 +85,13 @@ test("MCP proxy preserves bytes and pairs out-of-order responses without saving 
   assert.equal(result.stdout, replies);
   assert.equal(result.stderr, "");
   assert.deepEqual(rows(out).map(({ kind, request }) => [kind, request]), [
-    ["request", undefined], ["request", undefined], ["response", 2], ["response", 1],
+    ["request", undefined], ["request", undefined], ["request", undefined], ["response", 2], ["response", 1], ["response", 3],
   ]);
   const transcript = readFileSync(out, "utf8");
   assert.match(transcript, /tools\/call status/);
   assert.match(transcript, /Not Authorized/);
+  assert.match(rows(out)[5].text, /Sharing is on/);
+  assert.doesNotMatch(transcript, /secret-fixture/);
   assert.doesNotMatch(transcript, /private argument|private result|sample-admin-key/);
 });
 
