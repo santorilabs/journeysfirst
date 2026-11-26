@@ -484,3 +484,30 @@ test("MCP replies from a forwarded database credential cannot prove a pass for t
   assert.equal(JSON.parse(first).key, "DATABASE_URL");
   assert.throws(() => seat.check("link-on", { verdict: "passed", proof: "Read the setting.", refs: [{ file, line: 2 }] }), /own session/);
 });
+
+test("a relative npm archive outside the project installs from its scratch copy", () => {
+  const dir = mkdtempSync(join(tmpdir(), "jf-run-archive-"));
+  try {
+    const project = join(dir, "project"), fixture = join(dir, "fixture");
+    mkdirSync(project);
+    mkdirSync(fixture);
+    writeFileSync(join(fixture, "package.json"), JSON.stringify({ name: "fixture-dep", version: "1.0.0", main: "index.js" }));
+    writeFileSync(join(fixture, "index.js"), "module.exports = 'installed fixture';\n");
+    const npm = (...args) => spawnSync("npm", args, { cwd: dir, encoding: "utf8", timeout: 30000 });
+    const packed = npm("pack", fixture, "--ignore-scripts", "--pack-destination", dir);
+    assert.equal(packed.status, 0, packed.stderr);
+    const manifest = join(project, "package.json");
+    writeFileSync(manifest, JSON.stringify({ dependencies: { "fixture-dep": "file:../fixture-dep-1.0.0.tgz" } }));
+    const installed = npm("--prefix", project, "install", "--package-lock-only", "--ignore-scripts", "--no-audit", "--no-fund");
+    assert.equal(installed.status, 0, installed.stderr);
+    writeFileSync(join(dir, "share.journey.yaml"), JOURNEY.replace("users: [viewer]\n", ""));
+    const command = `npm ci --ignore-scripts --no-audit --no-fund && node -p 'require("fixture-dep")'`;
+    const result = cli(["run", "share.journey.yaml", "--project", project, "--agent", command], dir);
+    assert.equal(result.status, 0, result.stderr);
+    const runDir = join(dir, "journey-runs", "share");
+    assert.match(readFileSync(join(runDir, readdirSync(runDir)[0], "handoff.txt"), "utf8"), /installed fixture/);
+    assert.equal(JSON.parse(readFileSync(manifest, "utf8")).dependencies["fixture-dep"], "file:../fixture-dep-1.0.0.tgz");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

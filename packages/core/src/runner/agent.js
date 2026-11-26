@@ -1,7 +1,7 @@
 import { execFile, spawn } from "node:child_process";
 import { closeSync, constants, copyFileSync, cpSync, fstatSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, isAbsolute, join, relative, win32 } from "node:path";
+import { basename, isAbsolute, join, relative, resolve, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CAUSES } from "../format/runfile.js";
 import { RunRecorder, recording } from "./recorder.js";
@@ -128,10 +128,47 @@ export function prepareProject(project, base, work, loginFile) {
   }
   const state = join(work, ".journeysfirst");
   mkdirSync(join(state, "captures"), { recursive: true });
+  if (project) stagePackageArchives(realpathSync(project), work);
   for (const file of ["capture.js", "mask.js", "capture.mjs"]) {
     copyFileSync(fileURLToPath(new URL(file, import.meta.url)), join(state, file));
   }
   writeFileSync(join(state, "package.json"), '{"type":"module"}\n');
+}
+
+/** @param {string} project @param {string} work */
+function stagePackageArchives(project, work) {
+  const manifest = join(work, "package.json");
+  if (!lstatSync(manifest, { throwIfNoEntry: false })?.isFile()) return;
+  let pkg;
+  try { pkg = JSON.parse(readFileSync(manifest, "utf8")); } catch { return; }
+  const specs = new Map();
+  for (const group of ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"]) {
+    for (const [name, spec] of Object.entries(pkg?.[group] ?? {})) {
+      if (typeof spec !== "string" || !/^file:.+\.(?:tgz|tar\.gz)$/i.test(spec)) continue;
+      const path = spec.slice(5);
+      if (isAbsolute(path)) continue;
+      const source = resolve(project, path);
+      const rel = relative(project, source);
+      if (rel !== ".." && !rel.startsWith("../") && !rel.startsWith("..\\")) continue;
+      if (!lstatSync(source, { throwIfNoEntry: false })?.isFile()) continue;
+      if (!specs.has(spec)) {
+        const local = `.journeysfirst/local-packages/${specs.size}-${basename(source)}`;
+        mkdirSync(join(work, ".journeysfirst/local-packages"), { recursive: true });
+        copyFileSync(source, join(work, local), constants.COPYFILE_EXCL);
+        specs.set(spec, `file:${local}`);
+      }
+      pkg[group][name] = specs.get(spec);
+    }
+  }
+  if (!specs.size) return;
+  writeFileSync(manifest, JSON.stringify(pkg, null, 2) + "\n");
+  for (const name of ["npm-shrinkwrap.json", "package-lock.json"]) {
+    const lockPath = join(work, name);
+    if (!lstatSync(lockPath, { throwIfNoEntry: false })?.isFile()) continue;
+    let lock;
+    try { lock = JSON.parse(readFileSync(lockPath, "utf8"), (key, value) => specs.get(value) ?? value); } catch { continue; }
+    writeFileSync(lockPath, JSON.stringify(lock, null, 2) + "\n");
+  }
 }
 
 /** @param {RunRecorder} run */
