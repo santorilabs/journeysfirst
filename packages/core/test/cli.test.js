@@ -406,7 +406,8 @@ if (requestedModel === "fixture-session") {
   const sessions = path.join(process.env.CODEX_HOME, "sessions", "2026", "11", "26");
   fs.mkdirSync(sessions, { recursive: true });
   fs.writeFileSync(path.join(sessions, "rollout-2026-11-26T00-00-00-" + threadId + ".jsonl"), [
-    { type: "session_meta", payload: { id: threadId, cli_version: "0.172.0" }},
+    { type: "session_meta", payload: { id: threadId, cli_version: "0.172.0",
+      creator_user_id: "fixture-user-id", creator_account_id: "fixture-account-id", base_instructions: { text: "Fixture instructions" } }},
     { type: "turn_context", payload: { model: "resolved-model-2026-11-26" }},
     { type: "response_item", payload: { output: echoed.join(", "), password: 'fake"password' }},
     { type: "response_item", payload: { text: "x".repeat(2 * 1024 * 1024) }},
@@ -496,6 +497,8 @@ fs.writeFileSync(${JSON.stringify(observed)}, JSON.stringify({
   assert.doesNotMatch(log, /qZ7x|wX3zRt7Y|fake|Wrong thread|Forged session/);
   const rows = log.trimEnd().split("\n").map(JSON.parse);
   assert.deepEqual(rows.map(({ type }) => type), ["session_meta", "turn_context", "response_item", "response_item"]);
+  assert.deepEqual(rows[0].payload, { id: "72c25044-3306-424e-be12-ed09e6c7f822",
+    cli_version: "0.172.0", base_instructions: { text: "Fixture instructions" } });
   assert.deepEqual(rows[2].payload, { output: "1, ••••••••, ••••••••", password: "••••••••" });
   assert.equal(rows[3].payload.text.length, 2 * 1024 * 1024);
   const aborted = run("--", "--model", "fixture-exit");

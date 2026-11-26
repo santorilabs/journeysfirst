@@ -104,9 +104,9 @@ async function start({ mcp = {}, mcpOverride, container, allowHostRead = false, 
       }
       const rollout = readRollout(auth, events.threadId);
       if (rollout) {
-        recording.session = { name: "codex-session.jsonl", body: rollout };
+        const { body, model, version } = rolloutDetails(rollout);
+        recording.session = { name: "codex-session.jsonl", body };
         recording.tags.agent_session_source = "rollout";
-        const { model, version } = rolloutDetails(rollout);
         recording.model = model;
         if (version) recording.tags.agent_cli_version = version;
       }
@@ -519,14 +519,20 @@ function readRollout(home, threadId) {
 /** @param {string} text */
 function rolloutDetails(text) {
   let model, version;
-  for (const line of text.split("\n")) {
+  const body = text.split("\n").map((line) => {
     try {
       const event = JSON.parse(line);
-      if (event.type === "session_meta" && typeof event.payload?.cli_version === "string") version = event.payload.cli_version;
+      if (event.type === "session_meta" && event.payload && typeof event.payload === "object") {
+        if (typeof event.payload.cli_version === "string") version = event.payload.cli_version;
+        delete event.payload.creator_user_id;
+        delete event.payload.creator_account_id;
+        return JSON.stringify(event);
+      }
       if (event.type === "turn_context" && typeof event.payload?.model === "string") model = event.payload.model;
       if (event.type === "event_msg" && event.payload?.type === "model_reroute" &&
         typeof event.payload.to_model === "string") model = event.payload.to_model;
     } catch {}
-  }
-  return { model, version };
+    return line;
+  }).join("\n");
+  return { body, model, version };
 }
