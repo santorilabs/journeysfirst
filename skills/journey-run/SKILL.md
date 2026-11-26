@@ -16,6 +16,11 @@ The first thing you do is find out who you are playing. Then you run the journey
 - A saved script, if any (`e2e/<name>.spec.js`). Replay it first. Drive live only when it breaks (see `journey-fix`).
 - If the journey has `cases`, one run is one case. Run each case you were asked for.
 
+Choose the runner before writing any recording code:
+
+- If the journey calls for an agent CLI and `you` is the only seat, start with `npx journeysfirst run journeys/<name>.journey.yaml`. This includes terminal and MCP journeys, journeys that test the launcher, and reruns after an abort. Do not replace this top-level run with `RunRecorder`.
+- If the journey has more than one seat, do not use the agent launcher. Replay the saved Playwright script if there is one. Otherwise, drive the journey as each user and use Playwright for browser runs or the recorder directly for other runs.
+
 ## 2. Get a safe environment
 
 Nothing may leave the test environment.
@@ -36,9 +41,17 @@ No safe environment, no test sign-in, or no sink for a send: the affected checks
 
 ## 4. Do each line
 
-For a terminal or MCP journey, run `npx journeysfirst run journeys/<name>.journey.yaml` from the trusted test project. This picks a signed-in agent CLI and records configured stdio MCP servers. Use `--mcp <file.json>` to select only the test servers in that file. Read the saved run to see what passed. Use `capture` or `mcp-proxy` by hand only when you drive the run yourself.
+### With the agent launcher
+
+Run the agent launcher from the trusted test project. By default it picks a supported, signed-in agent CLI and records configured stdio MCP servers. Use `--mcp <file.json>` to select only the test servers in that file. If you are writing a custom command, see "Record from inside an agent run" in `node_modules/journeysfirst/docs/run-in-code.md`. Use the scratch capture helper and write `.journeysfirst/results.jsonl`; the launcher saves the run.
+
+Use `--agent "<command>"` on the invocation that needs to run your command. If the parent journey tests built-in adapter selection, launch it without `--agent` and put the custom command on the disposable child fixture's invocation.
+
+When the journey asks you to prove an aborted rerun, use the launcher for both attempts. Keep both printed run folder paths and check the newer attempt with `validate-run` and `merge-check`. If these are child attempts inside a launcher journey, capture their output as evidence and submit the parent checks through the parent's results file.
 
 Leave `TMPDIR` unset or point it to a writable folder outside the test project. If another agent's sandbox stops the launcher from starting its own sandbox, run the same command from a regular host terminal or a compatible container. Do not turn off a safety check to get a passing run.
+
+### When you drive the journey yourself
 
 - Each line is done by the user it starts with, in their own login and their own browser context, the way they would do it.
 - Do exactly what the sentence says. Type quoted input word for word.
@@ -119,7 +132,8 @@ test.journey("journeys/share-by-link.journey.yaml", async ({ journey }) => {
 ## 7. Write the run folder
 
 - With Playwright, the reporter writes `journey-runs/<name>/<run id>/`: `run.json`, `step-<n>.png`, `<user>.webm`.
-- Without Playwright, use `RunRecorder` from `journeysfirst/recorder` (`start`, `user`, `step`, `check`, `blocked`, `finish`; example in `docs/run-in-code.md`). Pass `at` and `took` (seconds from the run's start) on each step and check, and `starts_at` on each video in `attach`, so a person can jump to a step in the video.
+- With `journeysfirst run`, the launcher writes the folder and prints its path. Read the saved result, even if the command exits with status `0`.
+- For a run you drive yourself without the launcher or Playwright, use `RunRecorder` from `journeysfirst/recorder` (`start`, `user`, `step`, `check`, `blocked`, `finish`; example in `docs/run-in-code.md`). Pass `at` and `took` (seconds from the run's start) on each step and check, and `starts_at` on each video in `attach`, so a person can jump to a step in the video.
 
 - Check it: `npx journeysfirst validate-run journey-runs/<name>/<run id>`. It prints `ok`, the result, how many checks passed, and `Steps match journeys/<name>.journey.yaml.` Fix any other message before you report.
 - Look at it: `npx journeysfirst review journey-runs` serves the runs at `http://127.0.0.1:4400`, on this machine only (`--port`, `--host`).

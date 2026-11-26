@@ -117,6 +117,8 @@ npx journeysfirst init
 
 For terminal or MCP journeys, install `journeysfirst` and run `npx journeysfirst init --terminal` instead. This sets up the skills without a browser, Playwright config, or web server. Keep `.journeysfirst-terminal` in the repo so upgrades skip browser setup too.
 
+Run `npx journeysfirst doctor` to check the project setup. In terminal mode it skips browser and Playwright config checks.
+
 Or only the skills: `npx skills add santorilabs/journeysfirst --skill '*' --agent claude-code codex -y`
 
 ## How journeys run
@@ -127,7 +129,7 @@ Or only the skills: `npx skills add santorilabs/journeysfirst --skill '*' --agen
 | Terminal | The agent runs commands. Use `journeysfirst capture` to save their output for checks. |
 | MCP | The agent calls tools through a proxy. Review the recorded calls and selected replies as evidence. |
 
-For terminal or MCP journeys, run `npx journeysfirst run journeys/<name>.journey.yaml` from a trusted test project. Journeys First picks an adapter for a supported, signed-in agent CLI. The adapter launches the agent; the run keeps its submitted checks, captures, and final message.
+For journeys that call for an agent CLI and have only the `you` seat, run `npx journeysfirst run journeys/<name>.journey.yaml` from a trusted test project. Journeys First picks an adapter for a supported, signed-in agent CLI. The run keeps the agent's submitted checks, captures, and final message. Use the same command when rerunning after an abort, or add [`--agent "<command>"`](docs/run-in-code.md#run-a-custom-agent-command) to launch a custom command.
 
 ### Set up MCP
 

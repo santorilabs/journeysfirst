@@ -43,11 +43,13 @@ The full example is [examples/share-by-link/tests/share-by-link.spec.js](../exam
 
 ### Let an agent run a journey
 
+Start with `journeysfirst run` when the journey calls for an agent CLI and `you` is the only seat. Use it even if the journey is testing the launcher itself, a custom command, or what happens after an interrupted run. Do not write the top-level run with `RunRecorder` instead: that does not exercise the launcher.
+
 ```sh
 npx journeysfirst run journeys/onboarding.journey.yaml
 ```
 
-Run this from the trusted test project. Journeys First chooses a supported, signed-in CLI in a fixed order and prints its choice. Pass `--agent <name>` to pick one yourself, or `--project <folder>` to use another test project.
+Run this from the trusted test project. Journeys First chooses a supported, signed-in CLI in a fixed order and prints its choice. Pass `--agent <name>` to pick one yourself. Pass `--project <folder>` to choose which test project to copy into scratch. The run still goes under `journey-runs/` in the directory where you invoked the command, not under `--project`. Use the path printed by the launcher.
 
 For the Codex adapter, put a recent Codex CLI on PATH and run `codex login`. Journeys First uses the existing ChatGPT or API-key login from `$CODEX_HOME/auth.json` (default `~/.codex/auth.json`). If you set `OPENAI_API_KEY`, it takes precedence. Only the login file is copied into the new Codex home for the run, after the sandbox probes pass. The launcher does not copy your Codex config or session history.
 
@@ -69,11 +71,50 @@ The sandbox allows outbound network access. If a server needs dependencies from 
 
 `--timeout <seconds>` sets a time limit. If the agent times out, is interrupted or exits with an error, the launcher saves an aborted attempt with any results already recorded. An aborted attempt cannot pass merge-check. The runner keeps the last delivered agent message as `handoff.txt`, not the model's reasoning. Review the transcript for private data before sharing.
 
-Exit status `0` means Codex finished and Journeys First saved a run. It does not mean the journey passed. Read the printed run result or use `npx journeysfirst merge-check` when a journey result must stop a merge.
+An interrupted run with no failed product checks can print:
+
+```text
+Saved not_fully_checked run to journey-runs/onboarding/2026-11-26-0126-1e30fb28.
+```
+
+`not_fully_checked` is the result, not the attempt status. Read `attempt.status` in that folder's `run.json` to confirm it is `aborted`, and `attempt.reason` to see why.
+
+To check a rerun after an abort, run the same journey again with `journeysfirst run` and save the folder path printed by each invocation. Use `validate-run` on each folder to check the attempts separately. Use `merge-check` to check that the newer aborted attempt blocks a merge even if an older attempt passed. When testing this inside another journey, use a disposable child project and capture its launcher and merge-check output as evidence in the parent run.
+
+Exit status `0` means the agent finished and Journeys First saved a run. It does not mean the journey passed. Read the printed run result or use `npx journeysfirst merge-check` when a journey result must stop a merge.
 
 ### Run a custom agent command
 
-Pass `--agent "<command>"` for a CLI without a built-in adapter. The command reads the journey from stdin and uses its own login and permissions. Journeys First marks these runs as having an unverified sandbox. Only run trusted commands and use disposable test projects. The runner writes a proxied `.mcp.json` in the scratch project; the command must support reading that file to record MCP.
+Pass `--agent "<command>"` for a CLI without a built-in adapter, or to run a fixture command:
+
+```sh
+npx journeysfirst run journeys/onboarding.journey.yaml --agent "node ./fixture-agent.mjs"
+```
+
+If the parent journey tests whether Journeys First picks a built-in adapter, launch the parent without `--agent`. Put `--agent "<command>"` on the disposable child fixture's invocation, not on the parent.
+
+The command runs from the scratch copy of the test project and reads the journey prompt from stdin. Use a script in the test project, since paths in the command are relative to that copy. The command uses its own login and permissions. Journeys First marks the run as having an unverified sandbox. Only run trusted commands in disposable test projects. If MCP servers are configured, the runner writes a proxied `.mcp.json` in the copy. The command must read that file to use the proxies.
+
+### Record from inside an agent run
+
+From the scratch project, use the helper that the launcher provides:
+
+```sh
+node .journeysfirst/capture.mjs capture status.txt -- node ./check-status.mjs
+```
+
+This saves selected output to `.journeysfirst/captures/status.txt`. Choose a new `.txt` name for each capture. The launcher reserves `handoff.txt` and `launcher-preflight.txt`. If a command uses a service key, add `--key ENV_NAME` before `--`. Use the variable name, not its value. Key evidence cannot prove a pass for the user's login. The MCP proxy records configured servers as `<server-name>.txt` in the same captures folder.
+
+Append one JSON object per line to `.journeysfirst/results.jsonl` as you go. The prompt on stdin gives you the action line numbers and check IDs. For example:
+
+```jsonl
+{"line":1,"status":"done"}
+{"id":"status-ready","verdict":"passed","proof":"The command reported that the service is ready.","refs":[{"file":"status.txt","line":1}]}
+```
+
+Check the actual capture before citing it. Use the capture filename and a one-based line number for an output or reply, not a request. A pass without matching evidence does not count. If you cannot prove a check, record it as `not_checked`. For a failed or blocked line, give a `reason` and a `cause` of `product`, `test`, or `environment`. A failed check also needs `proof`.
+
+For a custom command, print the message for the person who asked for the run to stdout. The launcher saves it as `handoff.txt`. Refer to captures by filename and line because the scratch copy is deleted. The launcher imports the results and saves the run folder, even if the command aborts. Do not write `run.json` yourself.
 
 ### Record a terminal command or MCP exchange
 
@@ -101,7 +142,7 @@ Pick a line that actually proves the check. References are one-based lines of ou
 
 ### Record with your own tools
 
-An agent that drives the app with its own tools writes the same run folder:
+For a run you drive yourself, such as a multi-user journey the agent launcher cannot play, use `RunRecorder` to write the same run folder:
 
 ```js
 import { RunRecorder } from "journeysfirst/recorder";
