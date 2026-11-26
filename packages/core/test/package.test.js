@@ -2,7 +2,7 @@
 // type declarations shipped in types/.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -25,6 +25,15 @@ test("the package entry has what a service needs to take in runs", () => {
 test("the package blocks imports of internal modules", async () => {
   for (const path of ["runfile", "run-folder", "src/format/runfile.js", "types/format/runfile.d.ts"]) {
     await assert.rejects(import(`journeysfirst/${path}`), { code: "ERR_PACKAGE_PATH_NOT_EXPORTED" });
+  }
+});
+
+test("each example uses the local package being tested, not a published release", () => {
+  const repo = join(ROOT, "../..");
+  const { workspaces } = JSON.parse(readFileSync(join(repo, "package.json"), "utf8"));
+  for (const workspace of workspaces.filter((name) => name.startsWith("examples/"))) {
+    const resolve = createRequire(join(repo, workspace, "package.json")).resolve;
+    assert.equal(realpathSync(resolve("journeysfirst")), realpathSync(join(ROOT, "src/index.js")), workspace);
   }
 });
 
