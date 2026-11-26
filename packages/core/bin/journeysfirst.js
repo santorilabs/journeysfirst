@@ -56,7 +56,7 @@ const USAGE = `Usage:
   journeysfirst capture --out <new file> [--secret-env <NAME,NAME>] -- <command> [args...]
       Run a terminal command and save bounded, redacted output.
   journeysfirst mcp-proxy --out <new file> [--secret-env <NAME,NAME>] -- <server command> [args...]
-      Relay an MCP server's stdio and save request labels and response summaries.
+      Relay an MCP server's stdio and save request names and redacted reply text.
   journeysfirst run <journey.yaml> [--agent <name-or-command>] [--project <folder>] [--case <id>] [--mcp <json>] [--container <image> | --allow-host-read] [--timeout <seconds>] -- [--model <name>]
       Use a signed-in agent CLI to run in a scratch copy of the project. Records stdio servers from .mcp.json by default.
   journeysfirst publish <run folder> [--to <url>] [--journey <file>]   (default JOURNEYSFIRST_URL; token from JOURNEYSFIRST_TOKEN)

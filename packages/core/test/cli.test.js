@@ -325,27 +325,30 @@ test("the final handoff cannot overwrite cited evidence", () => {
 test("interrupting a custom agent stops its process and saves an aborted attempt", async () => {
   for (const [signal, code] of [["SIGINT", 130], ["SIGTERM", 143]]) {
     const dir = mkdtempSync(join(tmpdir(), "jf-agent-interrupt-"));
-    const journey = join(dir, "share.journey.yaml");
+    mkdirSync(join(dir, "journeys"));
+    const journey = join(dir, "journeys", "share.journey.yaml");
     const runs = join(dir, "journey-runs");
     writeFileSync(journey, JOURNEY.replace("users: [viewer]\n", ""));
     const agent = join(dir, "agent.mjs");
     writeFileSync(agent, `import fs from "node:fs";
       fs.readFileSync(0);
-      fs.writeFileSync(${JSON.stringify(join(dir, "pid"))}, String(process.pid));
+      fs.writeFileSync(${JSON.stringify(join(dir, "agent-state.json"))}, JSON.stringify({ pid: process.pid, scratch: process.cwd() }));
       process.kill(process.ppid, ${JSON.stringify(signal)});
       setTimeout(() => {}, 3000);`);
     const older = RunRecorder.start({ journey, outputDir: runs, id: "2026-11-08-1802-older000" });
     for (const line of older.plan.lines) {
-      if (line.kind === "action") older.step(line.n);
-      else older.check(line.id, { verdict: "passed", proof: "Saw the expected state.", evidence: [
+      if (line.kind === "action") older.step(line.n, { by: "you" });
+      else older.check(line.id, { by: "you", verdict: "passed", proof: "Saw the expected state.", evidence: [
         { source: "log", login: "you", query: "status", got: "Expected state." },
       ] });
     }
     assert.equal(older.finish().run.result, "passed");
+    assert.equal(cli(["merge-check", runs], dir).status, 0);
     const child = spawn(process.execPath, [BIN, "run", journey, "--agent", `exec "${process.execPath}" "${agent}"`], { cwd: dir });
     assert.deepEqual(await once(child, "exit"), [code, null]);
-    const pid = Number(readFileSync(join(dir, "pid"), "utf8"));
+    const { pid, scratch } = JSON.parse(readFileSync(join(dir, "agent-state.json"), "utf8"));
     assert.throws(() => process.kill(pid, 0), { code: "ESRCH" });
+    assert.throws(() => readFileSync(join(scratch, ".journeysfirst", "package.json")), { code: "ENOENT" });
     const folders = readdirSync(join(runs, "share")).filter((name) => !name.endsWith("older000"));
     assert.equal(folders.length, 1);
     const run = JSON.parse(readFileSync(join(runs, "share", folders[0], "run.json"), "utf8"));
