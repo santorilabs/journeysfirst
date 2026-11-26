@@ -72,7 +72,7 @@ async function start({ mcp = {}, mcpOverride, container, allowHostRead = false, 
       warnIfMissingMcp(run, servers.names);
       const serverEnv = Object.fromEntries(Object.values(envNames).flat().flatMap((name) => {
         const value = process.env[name];
-        if (value) run.value(`JF_MCP_ENV_${name}`, value, { secret: true });
+        if (value && value.length >= 8) run.value(`JF_MCP_ENV_${name}`, value, { secret: true });
         return value === undefined ? [] : [[`JF_MCP_ENV_${name}`, value]];
       }));
       const result = await launcher(["-a", "never", ...permissions, ...servers.args, "exec", "--json", "--ephemeral",

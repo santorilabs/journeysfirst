@@ -395,7 +395,7 @@ else fs.writeFileSync(${JSON.stringify(observed)}, JSON.stringify({
   writeFileSync(join(dir, "share.journey.yaml"), JOURNEY.replace("users: [viewer]\n", ""));
   const { OPENAI_API_KEY, ...hostEnv } = process.env;
   const env = { ...hostEnv, HOME: home, CODEX_HOME: auth, TMPDIR: dir, PATH: bin + ":" + process.env.PATH,
-    TEST_API_KEY: "named-test-value", NOT_REQUESTED: "unselected-test-value" };
+    TEST_API_KEY: "named-test-value", NOT_REQUESTED: "unselected-test-value", CI: "1" };
   const run = (...extra) => {
     const result = spawnSync(process.execPath, [BIN, "run", "share.journey.yaml", "--project", project, ...extra], { cwd: dir, env, encoding: "utf8" });
     assert.equal(result.status, 0, result.stderr);
@@ -417,6 +417,8 @@ else fs.writeFileSync(${JSON.stringify(observed)}, JSON.stringify({
   assert.match(only.args.join(" "), /mcp_servers.only.args=.*explicit/);
   assert.doesNotMatch(only.args.join(" "), /mcp_servers\.(native|shared)/);
   assert.equal(only.named, false);
+  writeFileSync(join(auth, "config.toml"), '[mcp_servers.ci_fixture]\ncommand = "npx"\nenv_vars = ["CI"]\n');
+  assert.ok(run().args.includes('mcp_servers.ci_fixture.env_vars=["JF_MCP_ENV_CI"]'));
   for (const key of ['"disabled_tools"', "'enabled_tools'"]) {
     writeFileSync(join(auth, "config.toml"), `[mcp_servers.restricted]\ncommand = "npx"\n${key} = ["read-only"]\n`);
     const restricted = spawnSync(process.execPath, [BIN, "run", "share.journey.yaml", "--project", project], { cwd: dir, env, encoding: "utf8" });
