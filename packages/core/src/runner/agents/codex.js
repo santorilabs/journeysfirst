@@ -396,9 +396,17 @@ function nativeMcpServers(project) {
       else table = entries;
       continue;
     }
-    const assignment = /^(command|args|enabled|url|env_vars|env|enabled_tools|disabled_tools)\s*=\s*(.*)$/.exec(line);
+    const assignment = TOML_ASSIGNMENT.exec(line);
     if (!table || !assignment) continue;
-    const [, key, value] = assignment;
+    const [, writtenKey, value] = assignment;
+    let key;
+    try {
+      key = /^[\w-]+$/.test(writtenKey) ? writtenKey : tomlString(writtenKey);
+    } catch {
+      table.set("nested", true);
+      continue;
+    }
+    if (!["command", "args", "enabled", "url", "env_vars", "env", "enabled_tools", "disabled_tools"].includes(key)) continue;
     table.set(key, value);
     if (value.startsWith("[") && !value.endsWith("]")) pending = key;
   }
@@ -420,6 +428,7 @@ function nativeMcpServers(project) {
 }
 
 const TOML_STRING = /"(?:[^"\\]|\\.)*"|'[^']*'/g;
+const TOML_ASSIGNMENT = new RegExp("^(" + TOML_STRING.source + "|[\\w-]+)\\s*=\\s*(.*)$");
 
 /** @param {string} line */
 function tomlCode(line) {

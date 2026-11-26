@@ -416,6 +416,12 @@ else fs.writeFileSync(${JSON.stringify(observed)}, JSON.stringify({
   assert.match(only.args.join(" "), /mcp_servers.only.args=.*explicit/);
   assert.doesNotMatch(only.args.join(" "), /mcp_servers\.(native|shared)/);
   assert.equal(only.named, false);
+  for (const key of ['"disabled_tools"', "'enabled_tools'"]) {
+    writeFileSync(join(auth, "config.toml"), `[mcp_servers.restricted]\ncommand = "npx"\n${key} = ["read-only"]\n`);
+    const restricted = spawnSync(process.execPath, [BIN, "run", "share.journey.yaml", "--project", project], { cwd: dir, env, encoding: "utf8" });
+    assert.equal(restricted.status, 1, restricted.stderr);
+    assert.match(restricted.stderr, /MCP server "restricted".*tool restrictions/);
+  }
 });
 
 test("run warns when a journey has no MCP server and the handoff contradicts the saved checks", () => {
