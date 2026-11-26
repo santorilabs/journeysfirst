@@ -204,6 +204,10 @@ if (args[0] === "sandbox") {
       console.error("bwrap: creating namespace: Operation not permitted");
       process.exit(1);
     }
+    if (fs.existsSync("node-blocked.txt")) {
+      console.error("dyld[1]: Library not loaded: /opt/homebrew/opt/libuv/lib/libuv.1.dylib\\n  Reason: tried: '/opt/homebrew/opt/libuv/lib/libuv.1.dylib' (blocked by sandbox)");
+      process.exit(134);
+    }
   } else if (path.basename(probe) === "auth.json") {
     assert.deepEqual(JSON.parse(fs.readFileSync(probe, "utf8")), ${JSON.stringify(fixtureSession)});
     const denied = path.basename(path.dirname(probe)) === ".codex" ? path.dirname(path.dirname(probe)) : probe;
@@ -534,6 +538,38 @@ test("a failed sandbox probe never sends the API key to login", () => {
   assert.equal(result.status, 1);
   assert.match(result.stderr, /failed the scratch login probe/);
   assert.equal(run.steps[1].verdict, "not_checked");
+});
+
+test("a Node that cannot start in the sandbox is named as the cause", () => {
+  const { result, run } = codexFixture("node-blocked");
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /scratch login probe: Node could not start inside the sandbox.*Node from nodejs\.org or Homebrew.*container/);
+  assert.equal(run.attempt.status, "aborted");
+});
+
+test("on macOS the sandbox can read what Node needs to start, and no more of Homebrew", () => {
+  const root = realpathSync(dir());
+  const hostHome = join(root, "home"), prefix = join(root, "homebrew");
+  const brewNode = join(prefix, "Cellar/node@20/20.19.4/bin/node");
+  for (const folder of ["Cellar/node@20/20.19.4/bin", "opt", "etc/openssl@3", "etc/ca-certificates", "etc/postgresql", "var/postgres"]) mkdirSync(join(prefix, folder), { recursive: true });
+  mkdirSync(hostHome);
+  const paths = (/** @type {object} */ over) => {
+    const args = /** @type {any} */ (selectAdapter("codex")).sandboxArgs({ work: join(root, "work"), home: join(root, "scratch-home"), auth: join(root, "auth"), hostHome, ...over });
+    const fs = args.find((arg) => arg.includes(".filesystem=")) ?? "";
+    return Object.fromEntries([...fs.matchAll(/"([^"]+)"="(read|write|deny)"/g)].map(([, path, mode]) => [path, mode]));
+  };
+  const brew = paths({ node: brewNode, platform: "darwin" });
+  for (const folder of ["opt", "Cellar", "etc/openssl@3", "etc/ca-certificates"]) assert.equal(brew[join(prefix, folder)], "read", folder);
+  for (const folder of ["", "etc", "etc/postgresql", "var", "var/postgres"]) assert.equal(brew[join(prefix, folder).replace(/\/$/, "")], undefined, `Homebrew's ${folder || "prefix"} stays closed`);
+  assert.equal(brew[hostHome], "deny");
+  assert.equal(brew[":minimal"], "read");
+  // Any other Node on macOS reads the system OpenSSL config. The folder is only on a Mac.
+  const other = paths({ node: join(root, "node/bin/node"), platform: "darwin" });
+  assert.equal(other["/System/Library/OpenSSL"], existsSync("/System/Library/OpenSSL") ? "read" : undefined);
+  assert.ok(!Object.keys(other).some((path) => path.startsWith(prefix)));
+  // Linux is unchanged: nothing is added for Node there.
+  const linux = paths({ node: brewNode, platform: "linux" });
+  assert.ok(!Object.keys(linux).some((path) => path.startsWith(prefix + "/") && path !== brewNode) && linux["/System/Library/OpenSSL"] === undefined);
 });
 
 test("a nested sandbox startup refusal tells the user to run from the host", () => {

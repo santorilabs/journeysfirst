@@ -4,6 +4,8 @@ Each released version is on npm (`journeysfirst`). Newest first.
 
 ## Unreleased
 
+- `npx journeysfirst run` with Codex works on macOS with the default host read protections. Before, Node could not start inside the sandbox, and the run stopped with "the sandbox did not return a result". The sandbox can now read what Node needs to start: for a Homebrew Node, Homebrew's `opt` and `Cellar` folders and its OpenSSL config and certificates, and for any other Node, `/System/Library/OpenSSL`. Your home folder and your login stay closed.
+- When Node cannot start inside the sandbox, the error says so.
 - `mcp-proxy` saves times with each MCP exchange. A request row has `at`, the ms since the proxy started. A reply row has `ms`, how long its request waited, and `error: true` when the server answered with an error. Transcripts saved before this have none of these and still attach to a run.
 - The Node requirement now matches the ZIP support the package uses: Node 20.15 or newer on the 20 line, or Node 22.2 or newer.
 
