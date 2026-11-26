@@ -84,7 +84,7 @@ export function makeRedactor(secrets) {
   const variants = [...new Set(secrets.filter(Boolean).flatMap((value) =>
     [value, JSON.stringify(value).slice(1, -1), encodeURIComponent(value)]))].sort((a, b) => b.length - a.length);
   const pattern = variants.length ? new RegExp(variants.map((text) => text.replace(/[.*+?^$${}()|[\]\\]/g, "\\$&")).join("|"), "g") : null;
-  const credential = /((?:[-\w]*(?:admin[-_]?key|deploy[-_]?key|api[-_]?key|password|secret|token|authorization))["']?(?:\s*[:=]\s*|(?<=key)\s+))("(?:[^"\\]|\\.)*"|'[^']*'|(?:bearer\s+)?[^\s,"';}]+)/gi;
+  const credential = /(?<![-\w])([-\w]*(?:admin[-_]?key|deploy[-_]?key|api[-_]?key|password|secret|token|authorization)["']?(?:\s*[:=]\s*|(?<=key)\s+))("(?:[^"\\]|\\.)*"|'[^']*'|(?:bearer\s+)?[^\s,"';}]+)/gi;
   return (/** @type {string} */ text) => maskText((pattern ? text.replace(pattern, MASK) : text)
     .replace(credential, (_, name) => name + MASK));
 }

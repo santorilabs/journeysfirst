@@ -388,6 +388,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const args = process.argv.slice(2);
 if (args[0] === "sandbox") console.log("journeysfirst: workspace readable, auth directory denied");
+else if (args[0] === "--version") console.log("codex-cli 0.172.0");
 else {
 const preflightPath = ".journeysfirst/captures/launcher-preflight.txt";
 const preflight = fs.readFileSync(preflightPath, "utf8");
@@ -397,7 +398,28 @@ fs.writeFileSync(".journeysfirst/results.jsonl", [
   outcome("link-on", 3), outcome("launcher-login", 3), outcome("launcher-protected", 2),
 ].map(JSON.stringify).join("\\n"));
 const echoed = ["CI", "FIXTURE_SHORT", "FIXTURE_LONG"].map((name) => process.env["JF_MCP_ENV_" + name]).filter(Boolean);
+const threadId = "72c25044-3306-424e-be12-ed09e6c7f822";
+console.log(JSON.stringify({ type: "thread.started", thread_id: threadId }));
+const requestedModel = args[args.indexOf("--model") + 1];
+if (requestedModel === "fixture-session") {
+  if (args.includes("--ephemeral")) throw new Error("Rollouts are disabled");
+  const sessions = path.join(process.env.CODEX_HOME, "sessions", "2026", "11", "26");
+  fs.mkdirSync(sessions, { recursive: true });
+  fs.writeFileSync(path.join(sessions, "rollout-2026-11-26T00-00-00-" + threadId + ".jsonl"), [
+    { type: "session_meta", payload: { id: threadId, cli_version: "0.172.0" }},
+    { type: "turn_context", payload: { model: "resolved-model-2026-11-26" }},
+    { type: "response_item", payload: { output: echoed.join(", "), password: 'fake"password' }},
+    { type: "response_item", payload: { text: "x".repeat(2 * 1024 * 1024) }},
+  ].map(JSON.stringify).join("\\n") + "\\n");
+  fs.writeFileSync(path.join(sessions, "rollout-2026-11-26T00-00-00-other.jsonl"), "Wrong thread");
+  fs.writeFileSync(".journeysfirst/captures/codex-session.jsonl", "Forged session");
+}
 console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "Evidence: " + path.resolve(preflightPath) + (echoed.length ? "; server returned " + echoed.join(", ") : "") } }));
+if (requestedModel === "fixture-exit") {
+  console.log(JSON.stringify({ type: "item.updated", item: { text: "x".repeat(2 * 1024 * 1024) } }));
+  process.stdout.write('{"type":"partial');
+  process.exitCode = 7;
+}
 fs.writeFileSync(${JSON.stringify(observed)}, JSON.stringify({
   args, named: Boolean(process.env.JF_MCP_ENV_TEST_API_KEY),
   leaked: Boolean(process.env.TEST_API_KEY || process.env.JF_MCP_ENV_NOT_REQUESTED || process.env.NOT_REQUESTED),
@@ -413,7 +435,7 @@ fs.writeFileSync(${JSON.stringify(observed)}, JSON.stringify({
     TEST_API_KEY: "named-test-value", NOT_REQUESTED: "unselected-test-value", CI: "1", FIXTURE_SHORT: "qZ7x", FIXTURE_LONG: "wX3zRt7Y" };
   const run = (...extra) => {
     const result = spawnSync(process.execPath, [BIN, "run", "share.journey.yaml", "--project", project, ...extra], { cwd: dir, env, encoding: "utf8" });
-    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.status, extra.includes("fixture-exit") ? 1 : 0, result.stderr);
     assert.match(result.stdout, /Next: npx journeysfirst validate-run .*\nThen follow journey-review\./);
     const folder = /^Saved .* run to (.+)\.$/m.exec(result.stdout)[1];
     return { ...JSON.parse(readFileSync(observed, "utf8")), stderr: result.stderr, folder: join(dir, folder) };
@@ -462,6 +484,31 @@ fs.writeFileSync(${JSON.stringify(observed)}, JSON.stringify({
   const handoff = readFileSync(join(ci.folder, "handoff.txt"), "utf8");
   assert.match(handoff, /server returned 1, •+, •+/);
   assert.doesNotMatch(handoff, /qZ7x|wX3zRt7Y/);
+  const session = run("--", "--model", "fixture-session");
+  const sessionRun = JSON.parse(readFileSync(join(session.folder, "run.json"), "utf8"));
+  assert.equal(sessionRun.ran_by.model, "resolved-model-2026-11-26");
+  assert.equal(sessionRun.tags.agent_cli_version, "0.172.0");
+  assert.equal(sessionRun.tags.agent_session_source, "rollout");
+  assert.deepEqual(sessionRun.media.filter(({ file }) => file === "codex-session.jsonl"), [
+    { file: "codex-session.jsonl", kind: "transcript" },
+  ]);
+  const log = readFileSync(join(session.folder, "codex-session.jsonl"), "utf8");
+  assert.doesNotMatch(log, /qZ7x|wX3zRt7Y|fake|Wrong thread|Forged session/);
+  const rows = log.trimEnd().split("\n").map(JSON.parse);
+  assert.deepEqual(rows.map(({ type }) => type), ["session_meta", "turn_context", "response_item", "response_item"]);
+  assert.deepEqual(rows[2].payload, { output: "1, ••••••••, ••••••••", password: "••••••••" });
+  assert.equal(rows[3].payload.text.length, 2 * 1024 * 1024);
+  const aborted = run("--", "--model", "fixture-exit");
+  const abortedRun = JSON.parse(readFileSync(join(aborted.folder, "run.json"), "utf8"));
+  assert.equal(abortedRun.attempt.status, "aborted");
+  assert.equal(abortedRun.ran_by.model, undefined);
+  assert.equal(abortedRun.tags.agent_cli_version, "0.172.0");
+  assert.equal(abortedRun.tags.agent_session_source, "exec-events");
+  const events = readFileSync(join(aborted.folder, "codex-session.jsonl"), "utf8").split("\n").map(JSON.parse);
+  assert.equal(events[0].type, "thread.started");
+  assert.equal(events[2].item.text.length, 2 * 1024 * 1024);
+  assert.equal(events.at(-1).redacted, "Incomplete or invalid session record.");
+  assert.equal(readdirSync(dir).some((name) => name.startsWith("journeysfirst-run-")), false);
   for (const setting of ['"disabled_tools" = ["write"]', "'enabled_tools' = ['read']", 'env = { FIXTURE = "not-used" }']) {
     writeFileSync(join(auth, "config.toml"), `[mcp_servers.restricted]\ncommand = "npx"\n${setting}\n`);
     const restricted = spawnSync(process.execPath, [BIN, "run", "share.journey.yaml", "--project", project], { cwd: dir, env, encoding: "utf8" });

@@ -234,6 +234,8 @@ if (args[0] === "sandbox") {
     if (fs.existsSync("leaky-home.txt")) process.exit(1);
   }
   console.log("journeysfirst: workspace readable, auth directory denied");
+} else if (args[0] === "--version") {
+  console.log("codex-cli 0.172.0");
 } else if (args[0] === "login") {
   assert.equal(input.trim(), "synthetic-fixture-key");
   assert.ok(!fs.existsSync(auth));

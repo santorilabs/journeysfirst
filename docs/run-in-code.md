@@ -69,7 +69,9 @@ The local sandbox can run `npm` and `npx` bundled with the Node installation. Ot
 
 The sandbox allows outbound network access. If a server needs dependencies from a registry, it can install them in the scratch project or use a sandbox-readable installation.
 
-`--timeout <seconds>` sets a time limit. If the agent times out, is interrupted or exits with an error, the launcher saves an aborted attempt with any results already recorded. An aborted attempt cannot pass merge-check. The runner keeps the last delivered agent message as `handoff.txt`, not the model's reasoning. Review the transcript for private data before sharing.
+`--timeout <seconds>` sets a time limit. If the agent times out, is interrupted or exits with an error, the launcher saves an aborted attempt with any results already recorded. An aborted attempt cannot pass merge-check. The runner keeps the last delivered agent message as `handoff.txt`.
+
+Codex runs also save `codex-session.jsonl`. This is the main session log from the scratch Codex home, or the Codex JSON events if no session log was written. `run.json` records the source in `tags.agent_session_source`, the CLI version in `tags.agent_cli_version`, and the observed model in `ran_by.model` when Codex reports one. A launch that stops before Codex emits any session data has no session file. The runner masks known secrets and replaces incomplete JSON lines. The session can still contain prompts, reasoning summaries, tool calls, and private project data. Check it for private data before sharing the run.
 
 An interrupted run with no failed product checks can print:
 

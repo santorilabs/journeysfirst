@@ -7,7 +7,7 @@ import { CAUSES } from "../format/runfile.js";
 import { RunRecorder, recording } from "./recorder.js";
 import { preflightTranscript } from "./recording.js";
 import { CAPTURE_LIMIT } from "./capture.js";
-import { maskText } from "./mask.js";
+import { maskRun, maskText } from "./mask.js";
 
 // Local logins, installed packages and earlier runs stay out of the copy, so the agent starts as a new user.
 const OMIT = new Set([".git", ".mcp.json", ".aws", ".config", ".docker", ".env", ".npmrc", ".netrc", "node_modules", "journey-runs", ".journeysfirst"]);
@@ -20,6 +20,7 @@ const PREFLIGHT_FILE = "launcher-preflight.txt";
 /** @typedef {{work: string, home: string, auth: string, container?: string, hostHome?: string, loginFile?: string, runtime?: string, node: string}} SandboxOptions */
 /** @typedef {{name: string, setup: string, detect(container?: string): boolean, authProbe(): boolean, sandboxArgs(options: SandboxOptions): string[], mcpConfig(config: Record<string,string[]>, sandbox: string[], state: string, work: string, runtime: string, node: string): {args: string[], names: string[]}, start(options: AdapterOptions): Promise<AgentResult>}} AgentAdapter */
 /** @typedef {{base: string, work: string, state: string, run: RunRecorder, signal: AbortSignal, prompt: string, recordPreflight(rows: import("./recording.js").PreflightRow[]): void}} RunContext */
+/** @typedef {{model?: string, tags: Record<string, string|null>, session?: {name: string, body: string}}} AdapterRecording */
 
 /** @param {RunOptions & {command: string}} options */
 export async function runAgent({ command, mcp = {}, timeoutMs = 1800000, ...options }) {
@@ -43,7 +44,7 @@ export async function runAgent({ command, mcp = {}, timeoutMs = 1800000, ...opti
 
 /**
  * @param {RunOptions & {agent: string, label: string, loginFile?: string, unverified?: boolean}} options
- * @param {(context: RunContext) => Promise<{problem?: string, handoff?: string}>} execute
+ * @param {(context: RunContext) => Promise<{problem?: string, handoff?: string, recording?: AdapterRecording}>} execute
  * @returns {Promise<AgentResult>}
  */
 export async function withAgentRun({ journey, caseId, project, agent, label, loginFile, unverified }, execute) {
@@ -70,9 +71,21 @@ export async function withAgentRun({ journey, caseId, project, agent, label, log
         writeFileSync(join(state, "captures", PREFLIGHT_FILE), preflightTranscript(rows), { flag: "wx", mode: 0o600 });
       },
     });
+    const evidence = result.recording;
+    if (evidence) {
+      if (evidence.model) run.ranBy.model = maskText(run.redact(evidence.model));
+      else delete run.ranBy.model;
+      for (const [key, value] of Object.entries(evidence.tags)) {
+        run.tag(key, value === null ? null : maskText(run.redact(value)));
+      }
+      if (evidence.session) {
+        const { name, body } = evidence.session;
+        run.attach({ name, body: redactSession(body, run), kind: "transcript" });
+      }
+    }
     const seat = recording(run, "you");
     if (preflight.length) seat.attachPreflight(PREFLIGHT_FILE, preflight);
-    const errors = importResults(seat, base);
+    const errors = importResults(seat, base, evidence?.session?.name);
     if (errors.length) run.tag("result_import_errors", errors.map((error) => maskText(run.redact(error))));
     if (result.handoff) {
       handoff = result.handoff;
@@ -98,6 +111,29 @@ export async function withAgentRun({ journey, caseId, project, agent, label, log
     console.error(`Check the agent's claims in handoff.txt against the saved run. These checks were not checked: ${unchecked.join(", ")}.`);
   }
   return { ...saved, problem, exitCode: signal === "SIGINT" ? 130 : signal === "SIGTERM" ? 143 : problem ? 1 : 0 };
+}
+
+/** @param {string} body @param {RunRecorder} run */
+function redactSession(body, run) {
+  return body.split("\n").map((line) => {
+    if (!line.trim()) return "";
+    try {
+      const event = JSON.parse(line, (_, value) => {
+        if (typeof value === "string") return run.redact(value);
+        if (typeof value === "number") {
+          const redacted = run.redact(String(value));
+          return redacted === String(value) ? value : redacted;
+        }
+        if (value && typeof value === "object" && !Array.isArray(value)) {
+          return Object.fromEntries(Object.entries(value).map(([key, item]) => [maskText(run.redact(key)), item]));
+        }
+        return value;
+      });
+      return JSON.stringify(maskRun(event));
+    } catch {
+      return JSON.stringify({ redacted: "Incomplete or invalid session record." });
+    }
+  }).join("\n");
 }
 
 /** @param {RunRecorder} run @param {string[]} names */
@@ -191,13 +227,13 @@ export function agentPrompt(run) {
   ].filter((line) => line !== undefined).join("\n");
 }
 
-/** @param {ReturnType<typeof recording>} seat @param {string} base */
-export function importResults(seat, base) {
+/** @param {ReturnType<typeof recording>} seat @param {string} base @param {string} [sessionFile] */
+export function importResults(seat, base, sessionFile) {
   const state = join(base, "work", ".journeysfirst");
   const captures = join(state, "captures");
   if (realpathSync(captures) !== captures) throw new Error("Capture folders must stay inside the scratch project and cannot be links.");
   const output = readSmall(join(state, "results.jsonl"));
-  const names = new Set(readdirSync(captures, { withFileTypes: true }).filter((item) => item.isFile() && ![HANDOFF_FILE, PREFLIGHT_FILE].includes(item.name)).map((item) => item.name));
+  const names = new Set(readdirSync(captures, { withFileTypes: true }).filter((item) => item.isFile() && ![HANDOFF_FILE, PREFLIGHT_FILE, sessionFile].includes(item.name)).map((item) => item.name));
   const attached = new Set();
   const errors = [];
   for (const [index, line] of output.split("\n").entries()) {
@@ -251,14 +287,16 @@ export function readSmall(path) {
 /**
  * @param {string} command
  * @param {string[]} args
- * @param {{cwd: string, env?: NodeJS.ProcessEnv, stdin: string, timeout: number, signal?: AbortSignal, shell?: boolean}} options
+ * @param {{cwd: string, env?: NodeJS.ProcessEnv, stdin: string, timeout: number, signal?: AbortSignal, shell?: boolean, fullStdout?: boolean}} options
  * @returns {Promise<{code: number | null, stdout: string, stderr: string, timedOut: boolean}>}
  */
-export function processResult(command, args, { cwd, env, stdin, timeout, signal, shell = false }) {
+export function processResult(command, args, { cwd, env, stdin, timeout, signal, shell = false, fullStdout = false }) {
   return new Promise((done) => {
     if (signal?.aborted) { done({ code: null, stdout: "", stderr: "", timedOut: false }); return; }
     const child = spawn(command, args, { cwd, env, shell, detached: true, stdio: ["pipe", "pipe", shell ? "inherit" : "pipe"] });
     let stdout = "", stderr = "", timedOut = false, stopping = false;
+    /** @type {string[]} */
+    const chunks = [];
     const stop = () => {
       if (stopping) return;
       stopping = true;
@@ -272,14 +310,17 @@ export function processResult(command, args, { cwd, env, stdin, timeout, signal,
     child.stdin?.on("error", () => {});
     child.stdin?.end(stdin);
     child.stdout?.setEncoding("utf8");
-    child.stdout?.on("data", (chunk) => { stdout = (stdout + chunk).slice(-2 * 1024 * 1024); });
+    child.stdout?.on("data", (chunk) => {
+      if (fullStdout) chunks.push(chunk);
+      else stdout = (stdout + chunk).slice(-2 * 1024 * 1024);
+    });
     child.stderr?.setEncoding("utf8");
     child.stderr?.on("data", (chunk) => { stderr = (stderr + chunk).slice(-4096); });
     /** @param {number | null} code */
     const finish = (code) => {
       clearTimeout(timer);
       signal?.removeEventListener("abort", stop);
-      done({ code, stdout, stderr, timedOut });
+      done({ code, stdout: fullStdout ? chunks.join("") : stdout, stderr, timedOut });
     };
     child.once("error", () => finish(null));
     child.once("close", finish);

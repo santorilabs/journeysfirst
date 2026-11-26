@@ -28,9 +28,13 @@ async function start({ mcp = {}, mcpOverride, container, allowHostRead = false, 
     let reusedLogin;
     let problem;
     let handoff;
+    /** @type {import("../agent.js").AdapterRecording} */
+    const recording = { tags: { agent_cli_version: null } };
     try {
       mkdirSync(home);
       mkdirSync(auth);
+      const version = await launcher(["--version"], "", 15000);
+      if (version.code === 0) recording.tags.agent_cli_version = /^codex-cli\s+(\S+)$/m.exec(version.stdout.trim())?.[1] ?? null;
       const hostHome = !container && !allowHostRead ? realpathSync(homedir()) : undefined;
       const permissions = sandboxArgs({ work, home, auth, container, hostHome, loginFile, runtime, node });
       const sandbox = ["sandbox", "-P", PROFILE, ...permissions];
@@ -90,9 +94,22 @@ async function start({ mcp = {}, mcpOverride, container, allowHostRead = false, 
         return value === undefined ? [] : [[`JF_MCP_ENV_${name}`, value]];
       }));
       run.redactOutputValues(forwardedSecrets(Object.values(serverEnv)));
-      const result = await launcher(["-a", "never", ...permissions, ...servers.args, "exec", "--json", "--ephemeral",
-        "--skip-git-repo-check", ...selected, "-"], prompt, timeoutMs, serverEnv);
-      handoff = finalMessage(result.stdout);
+      const result = await launcher(["-a", "never", ...permissions, ...servers.args, "exec", "--json",
+        "--skip-git-repo-check", ...selected, "-"], prompt, timeoutMs, serverEnv, true);
+      const events = execEvents(result.stdout);
+      handoff = events.handoff;
+      if (result.stdout.trim()) {
+        recording.session = { name: "codex-session.jsonl", body: result.stdout };
+        recording.tags.agent_session_source = "exec-events";
+      }
+      const rollout = readRollout(auth, events.threadId);
+      if (rollout) {
+        recording.session = { name: "codex-session.jsonl", body: rollout };
+        recording.tags.agent_session_source = "rollout";
+        const { model, version } = rolloutDetails(rollout);
+        recording.model = model;
+        if (version) recording.tags.agent_cli_version = version;
+      }
       if (result.timedOut) problem = "Codex reached the time limit.";
       else if (result.code !== 0) problem = "Codex exited before completing the journey.";
       const failedServers = realpathSync(state) === state ? servers.names.flatMap((name) => {
@@ -122,7 +139,7 @@ async function start({ mcp = {}, mcpOverride, container, allowHostRead = false, 
         if (probeDir) rmSync(probeDir, { recursive: true, force: true });
       }
     }
-    return { problem, handoff };
+    return { problem, handoff, recording };
   });
 }
 
@@ -162,9 +179,9 @@ function launcherFor({ base, work, home, auth, container, runtime, node, signal 
     PATH: container ? "/usr/local/bin:/usr/bin:/bin" : [dirname(node), ...(process.env.PATH ?? "").split(":")].join(":"),
     HOME: home, CODEX_HOME: auth, LANG: "C.UTF-8",
   };
-  /** @param {string[]} args @param {string} stdin @param {number} timeout @param {Record<string,string>} [serverEnv] */
-  return async (args, stdin, timeout, serverEnv = {}) => {
-    if (!container) return processResult(runtime ?? "codex", args, { cwd: work, env: { ...env, ...serverEnv }, stdin, timeout, signal });
+  /** @param {string[]} args @param {string} stdin @param {number} timeout @param {Record<string,string>} [serverEnv] @param {boolean} [fullStdout] */
+  return async (args, stdin, timeout, serverEnv = {}, fullStdout = false) => {
+    if (!container) return processResult(runtime ?? "codex", args, { cwd: work, env: { ...env, ...serverEnv }, stdin, timeout, signal, fullStdout });
     if (!/^[\w][\w./:@-]*$/.test(container)) throw new Error("Give a local container image name.");
     const name = basename(base);
     try {
@@ -173,7 +190,7 @@ function launcherFor({ base, work, home, auth, container, runtime, node, signal 
         "--mount", `type=bind,src=${base},dst=${base}`, "--workdir", work,
         ...Object.entries(env).flatMap(([k, v]) => ["--env", `${k}=${v}`]),
         ...Object.keys(serverEnv).flatMap((name) => ["--env", name]), container, "codex", ...args],
-      { cwd: work, env: { ...process.env, ...serverEnv }, stdin, timeout, signal });
+      { cwd: work, env: { ...process.env, ...serverEnv }, stdin, timeout, signal, fullStdout });
     } finally {
       await processResult("docker", ["rm", "-f", name], { cwd: work, stdin: "", timeout: 10000 });
     }
@@ -466,15 +483,50 @@ function tomlStringArray(value) {
 }
 
 /** @param {string} text */
-function finalMessage(text) {
-  let final = "";
+function execEvents(text) {
+  let handoff = "", threadId;
   for (const line of text.split("\n")) {
     try {
       const event = JSON.parse(line);
+      if (event.type === "thread.started" && typeof event.thread_id === "string") threadId ??= event.thread_id;
       if (event.type === "item.completed" && event.item?.type === "agent_message" && typeof event.item.text === "string") {
-        final = event.item.text;
+        handoff = event.item.text;
       }
     } catch {}
   }
-  return final;
+  return { handoff, threadId };
+}
+
+/** @param {string} home @param {string | undefined} threadId */
+function readRollout(home, threadId) {
+  const sessions = join(home, "sessions");
+  if (!lstatSync(sessions, { throwIfNoEntry: false })?.isDirectory() || realpathSync(sessions) !== sessions) return "";
+  /** @type {string[]} */
+  const candidates = [];
+  /** @param {string} folder @param {number} depth */
+  function collect(folder, depth) {
+    for (const entry of readdirSync(folder, { withFileTypes: true })) {
+      const path = join(folder, entry.name);
+      if (depth && entry.isDirectory() && /^\d{2,4}$/.test(entry.name)) collect(path, depth - 1);
+      else if (entry.isFile() && /^rollout-.*\.jsonl$/.test(entry.name) &&
+        (!threadId || entry.name.endsWith(`-${threadId}.jsonl`))) candidates.push(path);
+    }
+  }
+  collect(sessions, 3);
+  return candidates.length === 1 ? readFileSync(candidates[0], "utf8") : "";
+}
+
+/** @param {string} text */
+function rolloutDetails(text) {
+  let model, version;
+  for (const line of text.split("\n")) {
+    try {
+      const event = JSON.parse(line);
+      if (event.type === "session_meta" && typeof event.payload?.cli_version === "string") version = event.payload.cli_version;
+      if (event.type === "turn_context" && typeof event.payload?.model === "string") model = event.payload.model;
+      if (event.type === "event_msg" && event.payload?.type === "model_reroute" &&
+        typeof event.payload.to_model === "string") model = event.payload.to_model;
+    } catch {}
+  }
+  return { model, version };
 }
