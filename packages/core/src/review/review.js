@@ -13,7 +13,9 @@ import { LABELS, REVIEW_PASSES, batchResult, esc, isCheck, reviewCountText, runT
 import { FILE_NAME, runResult } from "../format/runfile.js";
 import { VERSION } from "../shared/version.js";
 import { RUN_PLAYER_SCRIPT, runPlayerHtml } from "./run-player.js";
-import { FONTS, MARK, PAGE_CSS } from "./style.js";
+import { badge } from "./primitives.js";
+import { PAGE_CSS } from "./style.js";
+import { FONTS, MARK } from "./tokens.js";
 import { transcriptPanels } from "./transcripts.js";
 
 /**
@@ -506,11 +508,6 @@ function reviewsSection(run) {
 }
 
 const title = (/** @type {ShownRun} */ run) => runTitle(run);
-
-/** @param {string | undefined} state */
-function badge(state) {
-  return state ? `<span class="verdict ${esc(state)}">${esc(LABELS[/** @type {keyof typeof LABELS} */ (state)] ?? state)}</span>` : "";
-}
 
 /** @param {string} text */
 const lowerFirst = (text) => text.charAt(0).toLowerCase() + text.slice(1);
