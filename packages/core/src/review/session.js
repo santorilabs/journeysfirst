@@ -282,7 +282,9 @@ export const SESSION_CSS = `.rp-log{min-width:0;min-height:0;display:flex;flex-d
 .act-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:400 var(--fs-xs)/1.75 var(--mono);letter-spacing:.01em}
 .act-name b{font-weight:500;font-size:var(--fs-sm)}
 .act details[open] .act-name{white-space:pre-wrap;overflow-wrap:anywhere}
-.act-end{flex:none;display:flex;gap:var(--s-sm);white-space:nowrap}.act-note{color:var(--error)}
+.act-end{flex:none;display:flex;gap:var(--s-sm);white-space:nowrap}
+/* Red is for a call to the product that failed. A command of the agent's own that exits with an error is gray: the agent was finding its way. */
+.command .act-mark.bad{background:var(--text-3)}
 .act-parts{display:grid;grid-template-columns:minmax(0,1fr);margin:0 0 var(--s-md)}
 .act-parts dd{margin:0 0 var(--s-sm)}.act-parts pre{margin:0;max-height:24rem;overflow:auto}
 @media(max-width:54em){.rp-log{order:1;border-top:1px solid var(--line)}.kinds,.at-step,.rp-log .meta{padding-left:var(--s-md);padding-right:var(--s-md)}.kept{padding:var(--s-md)}.kept-lines{padding-right:var(--s-md)}.kind{height:var(--touch)}
