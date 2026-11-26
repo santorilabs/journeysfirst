@@ -166,7 +166,7 @@ const THING = /^(["'“]|(is|are|was|were|has|have|had|stays|stay|still)$)/i;
 
 /** @param {string} sentence */
 function openingSubject(sentence) {
-  const [, word, next] = sentence.trim().match(/^the ([a-z][a-z0-9_-]*)\s+(\S+)/i) ?? [];
+  const [, word, next] = sentence.trim().match(/^the\s+([a-z][a-z0-9_-]*)(?:['’]s)?\s+(\S+)/i) ?? [];
   return { word: word?.toLowerCase(), next };
 }
 

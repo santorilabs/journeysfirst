@@ -319,6 +319,18 @@ test("the launcher points journeys with named human or multiple seats to other r
   }
 });
 
+test("the launcher treats a leading possessive role as the owner", () => {
+  for (const apostrophe of ["'", "’"]) {
+    const journey = AGENT_JOURNEY.replace("The agent sees that link sharing is still on after a reload.",
+      `The agent${apostrophe}s terminal shows the service is ready.`);
+    const { result, run } = agentRun([], 0, fakeAgent, "", journey);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(run.steps[1].by, "agent");
+    assert.equal(run.steps[1].verdict, "passed");
+    assert.equal(run.steps[1].evidence[0].login, "agent");
+  }
+});
+
 test("the launcher refuses to play a line owned by you as the agent seat", () => {
   for (const [line, journey] of [
     [1, AGENT_JOURNEY.replace("The agent turns", "You turn")],
