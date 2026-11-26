@@ -1,4 +1,5 @@
 export declare const ID: RegExp;
+export declare const LAUNCHER_CHECKS: string[];
 export type Say = (path: Array<string | number>, message: string) => void;
 /**
  * Adds a problem at a path.

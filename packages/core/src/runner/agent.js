@@ -5,6 +5,7 @@ import { basename, isAbsolute, join, relative, resolve, win32 } from "node:path"
 import { fileURLToPath } from "node:url";
 import { CAUSES } from "../format/runfile.js";
 import { RunRecorder, recording } from "./recorder.js";
+import { preflightTranscript } from "./recording.js";
 import { CAPTURE_LIMIT } from "./capture.js";
 import { maskText } from "./mask.js";
 
@@ -18,7 +19,7 @@ const PREFLIGHT_FILE = "launcher-preflight.txt";
 /** @typedef {{folder: string, run: import("../format/runfile.js").Run, problem?: string, exitCode: number}} AgentResult */
 /** @typedef {{work: string, home: string, auth: string, container?: string, hostHome?: string, loginFile?: string, runtime?: string, node: string}} SandboxOptions */
 /** @typedef {{name: string, setup: string, detect(container?: string): boolean, authProbe(): boolean, sandboxArgs(options: SandboxOptions): string[], mcpConfig(config: Record<string,string[]>, sandbox: string[], state: string, work: string, runtime: string, node: string): {args: string[], names: string[]}, start(options: AdapterOptions): Promise<AgentResult>}} AgentAdapter */
-/** @typedef {{base: string, work: string, state: string, run: RunRecorder, signal: AbortSignal, prompt: string, recordPreflight(lines: string[]): void}} RunContext */
+/** @typedef {{base: string, work: string, state: string, run: RunRecorder, signal: AbortSignal, prompt: string, recordPreflight(rows: import("./recording.js").PreflightRow[]): void}} RunContext */
 
 /** @param {RunOptions & {command: string}} options */
 export async function runAgent({ command, mcp = {}, timeoutMs = 1800000, ...options }) {
@@ -57,23 +58,20 @@ export async function withAgentRun({ journey, caseId, project, agent, label, log
   const onTerm = () => interrupt.abort("SIGTERM");
   let handoff;
   let problem;
-  let preflight = "";
+  /** @type {import("./recording.js").PreflightRow[]} */
+  let preflight = [];
   process.on("SIGINT", onInt);
   process.on("SIGTERM", onTerm);
   try {
     prepareProject(project, base, work, loginFile);
     const result = await execute({ base, work, state, run, signal: interrupt.signal, prompt: agentPrompt(run),
-      recordPreflight(lines) {
-        preflight = lines.map((text) => JSON.stringify({ kind: "stdout", text, login: "you" })).join("\n") + "\n";
-        writeFileSync(join(state, "captures", PREFLIGHT_FILE), preflight, { flag: "wx", mode: 0o600 });
+      recordPreflight(rows) {
+        preflight = rows;
+        writeFileSync(join(state, "captures", PREFLIGHT_FILE), preflightTranscript(rows), { flag: "wx", mode: 0o600 });
       },
     });
     const seat = recording(run, "you");
-    if (preflight) {
-      const trusted = join(base, PREFLIGHT_FILE);
-      writeFileSync(trusted, preflight, { flag: "wx", mode: 0o600 });
-      seat.attach(PREFLIGHT_FILE, trusted, "recorded");
-    }
+    if (preflight.length) seat.attachPreflight(PREFLIGHT_FILE, preflight);
     const errors = importResults(seat, base);
     if (errors.length) run.tag("result_import_errors", errors.map((error) => maskText(run.redact(error))));
     if (result.handoff) {
@@ -176,13 +174,14 @@ export function agentPrompt(run) {
   const start = run.journey.cases?.find((item) => item.id === run.plan.case)?.start ?? run.journey.start;
   return [
     run.journey.promise, start, "",
-    ...run.plan.lines.map((line) => line.kind === "action" ? `${line.n}. ${line.says}` : `${line.n}. Check ${line.id}: ${line.check}`), "",
+    ...run.plan.lines.map((line) => line.kind === "action" ? `${line.n}. ${line.says}`
+      : `${line.n}. Check ${line.id}: ${line.check}${line.launcher ? ` (cite launcher probe: ${line.launcher})` : ""}`), "",
     "Work only in this folder. It is a fresh copy of the project, without local logins. Do not sign in to the product unless a step says to.",
     "To record selected command output, run node .journeysfirst/capture.mjs capture NAME.txt -- COMMAND ARGS.",
     "For a command that uses a service key, put --key ENV_NAME before --. Use the variable name, not its value. A key capture cannot prove a pass.",
     "If this project has .mcp.json, use it for MCP calls. Configured servers record calls as NAME.txt.",
     `Use distinct capture names other than ${HANDOFF_FILE} and ${PREFLIGHT_FILE}. Cite files from .journeysfirst/captures.`,
-    `If ${PREFLIGHT_FILE} exists, it contains the launcher's own preflight evidence. Read and cite the lines you need without editing it.`,
+    `If ${PREFLIGHT_FILE} exists, read it without editing it. Only cite it for checks that name a launcher probe.`,
     "You own every check in this journey. Do not leave checks to the launcher or another runner. If you cannot prove a check, record what stopped you.",
     "As you go, write one JSON object per line to .journeysfirst/results.jsonl.",
     'Actions: {"line":1,"status":"done"}. Checks: {"id":"check-id","verdict":"passed","proof":"what you observed","refs":[{"file":"NAME.txt","line":1}]}.',

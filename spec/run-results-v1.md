@@ -24,6 +24,7 @@ journey-runs/share-by-link/2026-11-08-1802-7d2e91fa/
 ## Rules a reader applies
 
 - **A pass needs proof.** A check that says `passed` needs evidence, and some of it from the login of the user in `by`. Without that, readers count it as `not_checked` and keep the claim as `claimed: "passed"`. Evidence read with an admin or service `key` never counts as the user's own.
+- **A launcher check** copies `launcher` from the journey and requires a matching probe. Its evidence uses `source: "launcher"`, a `probe` of `login-reuse` or `protected-files`, and a `query` pointing to the captured line. It has no `login` or `key`. Other checks cannot cite launcher evidence.
 - **An aborted attempt cannot pass.** Set `attempt: {status: "aborted", reason: "The runner timed out."}` when execution ends early or uncleanly. Keep each step, verdict, and its evidence as recorded. A failed check or an action that failed because of the product still gives `failed`. Otherwise an aborted attempt gives `not_fully_checked`. Readers apply the usual result rules when `attempt` is omitted or its status is `complete`.
 - **The newest attempt counts.** If the newest run for a journey and case was aborted, `merge-check` stops the merge. It does not fall back to an older pass or make an exception for checks that were also blocked on main.
 - **Findings and reviews never change a verdict or the result.** A review page shows both. When they disagree, the review wins.

@@ -213,7 +213,7 @@ export class RunRecorder {
   check(id, { by, verdict = "not_checked", proof, evidence = [], cause, ...rest } = {}) {
     const plan = this.checkLine(id);
     if (verdict === "failed") cause ??= "product";
-    this.#record(plan, compact({ check: plan.check, id, by, verdict, proof, evidence }), { cause, ...rest });
+    this.#record(plan, compact({ check: plan.check, id, by, verdict, proof, evidence, launcher: plan.launcher }), { cause, ...rest });
   }
 
   /**
@@ -381,7 +381,7 @@ export function runId(ms) {
  */
 function unrecorded(line, blockedBy) {
   if (line.kind === "action") return { says: line.says, status: "not_run" };
-  const check = { check: line.check, id: line.id };
+  const check = { check: line.check, id: line.id, ...(line.launcher ? { launcher: line.launcher } : {}) };
   if (blockedBy) return { ...check, verdict: "blocked", cause: blockedBy.cause, reason: `Step ${blockedBy.n} was blocked: ${blockedBy.reason}` };
   return { ...check, verdict: "not_checked", reason: "No check ran." };
 }

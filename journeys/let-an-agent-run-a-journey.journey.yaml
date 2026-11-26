@@ -10,8 +10,10 @@ steps:
   - Read the launcher-preflight.txt capture written by the launcher.
   - check: You see the agent start the journey using its existing CLI login, without asking for another login or key.
     id: reuses-cli-login
+    launcher: login-reuse
   - check: Commands run by the agent cannot read your host home or the agent CLI's login file.
     id: cannot-read-home-or-login
+    launcher: protected-files
   - Have the agent call the read-only MCP tool and submit the recorded response as evidence for a check.
   - check: You see the MCP call and response recorded, and the saved check cites that response.
     id: mcp-call-recorded

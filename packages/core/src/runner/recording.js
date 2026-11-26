@@ -1,6 +1,13 @@
 import { closeSync, constants, fstatSync, openSync, readSync } from "node:fs";
 import { CAPTURE_LIMIT } from "./capture.js";
 
+/** @typedef {{text: string, probe?: string}} PreflightRow */
+
+/** @param {PreflightRow[]} rows */
+export function preflightTranscript(rows) {
+  return rows.map(({ text, probe }) => JSON.stringify({ kind: "stdout", source: "launcher", text, probe })).join("\n") + "\n";
+}
+
 /**
  * Record steps and checks for one seat, using files selected by the runner.
  * @param {import("./recorder.js").RunRecorder} run
@@ -10,7 +17,15 @@ export function recording(run, by) {
   run.knows(by);
   /** @type {Map<string, {entries: Map<number, string>, login?: string, key?: string}>} */
   const captures = new Map();
+  /** @type {Map<string, PreflightRow[]>} */
+  const preflight = new Map();
   return {
+    /** @param {string} name @param {PreflightRow[]} rows */
+    attachPreflight(name, rows) {
+      const safe = rows.map((row) => ({ ...row, text: run.redact(row.text) }));
+      const file = run.attach({ name, body: preflightTranscript(safe), kind: "transcript" });
+      preflight.set(file, safe);
+    },
     /**
      * Attach a private capture the runner has checked for secrets.
      * @param {string} name
@@ -54,6 +69,11 @@ export function recording(run, by) {
     check(id, { refs = [], ...result } = {}) {
       if (result.verdict === "passed" && !refs.length) throw new Error("A passed check needs at least one captured evidence reference.");
       const evidence = refs.map(({ file, line }) => {
+        if (preflight.has(file)) {
+          const row = preflight.get(file)?.[line - 1];
+          if (!row?.probe) throw new Error("Use a launcher preflight line that reports a completed probe.");
+          return { source: "launcher", probe: row.probe, query: `${file}, line ${line}`, got: row.text };
+        }
         const capture = captures.get(file);
         const got = capture?.entries.get(line);
         if (!got) throw new Error("Use an output or response line from a capture attached to this seat.");

@@ -18,6 +18,7 @@ What happened when a journey ran is a different file: [run results](run-results-
 
 - **Who acts:** whoever the sentence starts with. "The viewer opens the link" is the viewer. A sentence that names no one first is you.
 - **Whose view a check is about:** whoever it starts with. It is checked in that user's own login.
+- **Launcher checks** test the runner, not the product. Set `launcher: login-reuse` or `launcher: protected-files` on a check to require that specific launcher probe instead of evidence from a product login.
 - **What the user does and sees,** not clicks or page elements. "Invite the teammate as an editor," not "click the Invite button."
 - **Quotes mean exact.** `"Q3 plan"` is matched word for word. Unquoted words can vary.
 - **Say counts.** "1 invite email is sent to ${teammate_email}," not "an email is sent."

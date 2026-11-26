@@ -392,7 +392,10 @@ else {
 const preflightPath = ".journeysfirst/captures/launcher-preflight.txt";
 const preflight = fs.readFileSync(preflightPath, "utf8");
 fs.writeFileSync(preflightPath, "Forged launcher evidence");
-fs.writeFileSync(".journeysfirst/results.jsonl", JSON.stringify({ id: "link-on", verdict: "passed", proof: "Read launcher preflight.", refs: [{ file: "launcher-preflight.txt", line: 4 }] }));
+const outcome = (id, line) => ({ id, verdict: "passed", proof: "Read launcher preflight.", refs: [{ file: "launcher-preflight.txt", line }] });
+fs.writeFileSync(".journeysfirst/results.jsonl", [
+  outcome("link-on", 3), outcome("launcher-login", 3), outcome("launcher-protected", 2),
+].map(JSON.stringify).join("\\n"));
 const echoed = process.env.JF_MCP_ENV_FIXTURE_VALUE;
 console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "Evidence: " + path.resolve(preflightPath) + (echoed ? "; server returned " + echoed : "") } }));
 fs.writeFileSync(${JSON.stringify(observed)}, JSON.stringify({
@@ -402,7 +405,9 @@ fs.writeFileSync(${JSON.stringify(observed)}, JSON.stringify({
   preflight,
 }));
 }`, { mode: 0o700 });
-  writeFileSync(join(dir, "share.journey.yaml"), JOURNEY.replace("users: [viewer]\n", ""));
+  writeFileSync(join(dir, "share.journey.yaml"), JOURNEY.replace("users: [viewer]\n", "") +
+    "  - check: You see the launcher reuse its login.\n    id: launcher-login\n    launcher: login-reuse\n" +
+    "  - check: You see the launcher verify protected files.\n    id: launcher-protected\n    launcher: protected-files\n");
   const { OPENAI_API_KEY, ...hostEnv } = process.env;
   const env = { ...hostEnv, HOME: home, CODEX_HOME: auth, TMPDIR: dir, PATH: bin + ":" + process.env.PATH,
     TEST_API_KEY: "named-test-value", NOT_REQUESTED: "unselected-test-value", CI: "1", FIXTURE_VALUE: "qZ7xQ" };
@@ -415,16 +420,21 @@ fs.writeFileSync(${JSON.stringify(observed)}, JSON.stringify({
   };
   const native = run();
   assert.match(native.stderr, /Proxying MCP servers from agent config\.toml: native/);
-  const runDir = join(dir, "journey-runs", "share");
-  const saved = join(runDir, readdirSync(runDir)[0]);
-  const check = JSON.parse(readFileSync(join(saved, "run.json"), "utf8")).steps.find(({ id }) => id === "link-on");
-  assert.equal(check.verdict, "passed");
-  assert.match(check.evidence[0].got, /reused the existing CLI login/);
-  const preflight = readFileSync(join(saved, "launcher-preflight.txt"), "utf8");
-  assert.equal(readFileSync(join(saved, "handoff.txt"), "utf8"), "Evidence: launcher-preflight.txt");
+  const saved = JSON.parse(readFileSync(join(native.folder, "run.json"), "utf8"));
+  const check = (id) => saved.steps.find((step) => step.id === id);
+  assert.equal(check("link-on").verdict, "not_checked");
+  assert.match(saved.tags.result_import_errors[0], /only for its declared probe/);
+  for (const [id, probe] of [["launcher-login", "login-reuse"], ["launcher-protected", "protected-files"]]) {
+    assert.equal(check(id).verdict, "passed");
+    assert.deepEqual({ ...check(id).evidence[0], got: undefined, query: undefined },
+      { source: "launcher", probe, got: undefined, query: undefined });
+  }
+  assert.match(check("launcher-login").evidence[0].got, /reused the existing CLI login/);
+  const preflight = readFileSync(join(native.folder, "launcher-preflight.txt"), "utf8");
+  assert.equal(readFileSync(join(native.folder, "handoff.txt"), "utf8"), "Evidence: launcher-preflight.txt");
   assert.equal(preflight, native.preflight);
   assert.match(preflight, /could not read a test file in the host home directory/);
-  assert.match(preflight, /could not read the existing CLI login file/);
+  assert.match(preflight, /the existing CLI login file, or the scratch login file/);
   const proxy = JSON.parse(native.args.find((arg) => arg.startsWith("mcp_servers.native.args=")).split(/=(.*)/s)[1]);
   assert.deepEqual(proxy.slice(-9), ["mcp-proxy", "native.txt", "--env-vars", "TEST_API_KEY", "--", "npx", "--yes", "example#fixture", "mcp"]);
   assert.ok(native.args.includes('mcp_servers.native.env_vars=["JF_MCP_ENV_TEST_API_KEY"]'));
