@@ -3,7 +3,7 @@
 // folders out of git, and add the workflow that upgrades Journeys First.
 // Init adds agent instructions only when asked. With no app to start,
 // init also adds an example page, journey and script that pass. init does it once;
-// upgrade refreshes the skills and the workflow.
+// upgrade refreshes the skills, workflow and existing managed sections.
 // Each returns one line per skill and per change, for the CLI to print.
 import { execFileSync } from "node:child_process";
 import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
@@ -125,7 +125,12 @@ export function upgrade({ root = process.cwd(), skillsDir } = {}) {
   }));
   const cited = skillsDir ?? DEFAULT_SKILLS_DIR;
   const config = existsSync(join(root, TERMINAL_MODE)) ? [] : addConfig(root);
-  return [...dirs.flatMap((dir) => copySkills(root, dir)), ...removed, ...config, ...ignoreRuns(root), ...writeWorkflow(root, cited)];
+  const section = journeysSection(cited);
+  return [...dirs.flatMap((dir) => copySkills(root, dir)), ...removed, ...config, ...ignoreRuns(root), ...writeWorkflow(root, cited),
+    ...INSTRUCTIONS.flatMap((name) => {
+      const text = instructionText(root, name);
+      return text.includes(SECTION_START) ? writeSection(root, name, text, section) : [];
+    })];
 }
 
 /**
@@ -300,13 +305,18 @@ function writeWorkflow(root, skillsDir) {
 
 /** @param {string} skillsDir */
 export function journeysSection(skillsDir) {
+  const skill = (/** @type {string} */ name) => `${skillsDir}/${name}/SKILL.md`;
   return `${SECTION_START}
 ## Journeys
 
-When a change affects something users see or do, write or update its journey in \`journeys/\`.
-Before saying the change is done, run it with \`npx journeysfirst run journeys/<name>.journey.yaml\`.
-Follow \`${skillsDir}/journey-run/SKILL.md\` for browser replays or journeys with more than one user.
-Check the saved result. Report failed or unchecked steps instead of calling them passed.
+The promises users rely on are listed in \`journeys/README.md\`. Its Foundation section says who the users are, what good means to them, and the product's UX rules, brand and design system. Each promise has a journey in \`journeys/\`. Journeys First manages this section after you approve it.
+
+- Before you say a change a user can see is done, run the journeys it touches and check each run with \`npx journeysfirst validate-run\`. How: \`${skill("journey-run")}\`.
+- Then review each run with \`${skill("journey-review")}\`. The change is done when the run passed and the review found nothing, or a person has seen the findings. Nobody to ask: fix them, or list them in your report.
+- When a change affects something users see or do, write or update its journey in \`journeys/\` in the same change. Run it with \`npx journeysfirst run journeys/<name>.journey.yaml\` for a terminal or MCP journey, or follow \`${skill("journey-run")}\` for browser replays or multiple users.
+- If a journey fails, or a review has a finding, follow \`${skill("journey-fix")}\`. Never edit a check to make it pass, and never delete a finding.
+- If the product changed, update \`journeys/README.md\`.
+- No \`journeys/README.md\` yet: follow \`${skill("journey-onboard")}\`. You can run an existing journey first. No product yet, only a request: follow \`${skill("journey-build")}\`.
 ${SECTION_END}
 `;
 }
@@ -314,17 +324,35 @@ ${SECTION_END}
 /** @param {{root?: string, skillsDir?: string}} [options] */
 export function instructionProposal({ root = process.cwd(), skillsDir } = {}) {
   const name = INSTRUCTIONS.find((path) => existsSync(join(root, path))) ?? "AGENTS.md";
+  const text = instructionText(root, name);
+  const files = [{ name, text }];
+  if (name === "AGENTS.md") {
+    for (const name of ["CLAUDE.md", ".claude/CLAUDE.md"]) {
+      if (!existsSync(join(root, name))) continue;
+      const text = instructionText(root, name);
+      if (!text.includes("@AGENTS.md")) files.push({ name, text });
+    }
+  }
+  return { name, text, files, section: journeysSection(citedSkillsDir(root, skillsDir)) };
+}
+
+/** @param {string} root @param {string} name */
+function instructionText(root, name) {
   const file = join(root, name);
-  const text = existsSync(file) ? readFileSync(file, "utf8") : "";
-  return { name, text, section: journeysSection(citedSkillsDir(root, skillsDir)) };
+  return existsSync(file) ? readFileSync(file, "utf8") : "";
 }
 
 /** @param {string} root @param {string} skillsDir */
 function addSection(root, skillsDir) {
-  const { name, text, section } = instructionProposal({ root, skillsDir });
+  const { files, section } = instructionProposal({ root, skillsDir });
+  return files.flatMap(({ name, text }) => writeSection(root, name, text, section));
+}
+
+/** @param {string} root @param {string} name @param {string} text @param {string} section */
+function writeSection(root, name, text, section) {
   const start = text.indexOf(SECTION_START);
   const end = text.indexOf(SECTION_END);
-  if (start !== -1 && end <= start) throw new Error(`Fix the unfinished Journeys section in ${name} before running init again.`);
+  if (start !== -1 && end <= start) throw new Error(`Fix the unfinished Journeys section in ${name} before running init or upgrade again.`);
   const replace = start !== -1;
   const next = replace ? text.slice(0, start) + section + text.slice(end + SECTION_END.length).replace(/^\r?\n/, "")
     : `${text}${text && !text.endsWith("\n") ? "\n" : ""}${text ? "\n" : ""}${section}`;
@@ -334,9 +362,8 @@ function addSection(root, skillsDir) {
 }
 
 /**
- * What the agent does after init or upgrade. A repo with no journeys/README.md
- * is not onboarded yet, even if it was set up before that file existed, so both
- * go to journey-onboard. A repo with no journeys and no scripts in e2e/ is a
+ * What the agent does after init or upgrade. Existing journeys can run before
+ * adding Foundation notes. A repo with no journeys and no scripts in e2e/ is a
  * first install: there is nothing to re-check or re-run, but Playwright and its
  * browser may be missing. Setup never edits package.json: a dependency added
  * there is not installed until npm install runs, so it prints the command.
@@ -354,7 +381,7 @@ export function nextSteps(command, { root = process.cwd(), skillsDir } = {}) {
   if (browser && command === "upgrade" && !firstInstall) {
     steps.push(`Check each saved script in e2e/ against the evidence rules in ${skill("journey-run")}. A read made with a service or admin key must say key, with the env var name the product's own code reads for that key, not login.`);
     if (existsSync(readme) && !/^## Foundation\b/m.test(readFileSync(readme, "utf8"))) {
-      steps.push(`journeys/README.md has no Foundation section. Add it before you run the journeys: follow "Find the foundation" in ${skill("journey-onboard")}.`);
+      steps.push(`To add a Foundation for review, follow "Find the foundation" in ${skill("journey-onboard")}.`);
     }
     steps.push(`Run the journeys again with ${skill("journey-run")} and compare each result with the run from before the upgrade.`);
   }
@@ -364,7 +391,10 @@ export function nextSteps(command, { root = process.cwd(), skillsDir } = {}) {
   if (browser && firstInstall && !chromiumInstalled(root)) {
     steps.push("Install the browser the journeys use: npx playwright install --only-shell chromium");
   }
-  if (!existsSync(readme)) steps.push(`No journeys/README.md yet: follow ${skill("journey-onboard")}.`);
+  if (!existsSync(readme)) {
+    if (firstInstall && browser) steps.push(`No journeys/README.md yet: follow ${skill("journey-onboard")}.`);
+    else steps.push(`Run an existing journey with ${skill("journey-run")}. Use ${skill("journey-onboard")} when you want to add a Foundation or draft the product's journeys.`);
+  }
   else if (command === "init") steps.push(`Follow ${skill("journey-write")} and ${skill("journey-run")}.`);
   return steps;
 }

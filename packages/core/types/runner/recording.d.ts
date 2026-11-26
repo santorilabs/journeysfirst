@@ -1,9 +1,18 @@
+export type PreflightRow = {
+    text: string;
+    probe?: string;
+};
+/** @typedef {{text: string, probe?: string}} PreflightRow */
+/** @param {PreflightRow[]} rows */
+export declare function preflightTranscript(rows: PreflightRow[]): string;
 /**
  * Record steps and checks for one seat, using files selected by the runner.
  * @param {import("./recorder.js").RunRecorder} run
  * @param {string} by
  */
 export declare function recording(run: import("./recorder.js").RunRecorder, by: string): {
+    /** @param {string} name @param {PreflightRow[]} rows */
+    attachPreflight(name: string, rows: PreflightRow[]): void;
     /**
      * Attach a private capture the runner has checked for secrets.
      * @param {string} name

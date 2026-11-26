@@ -1,29 +1,32 @@
 import { execFile, spawn } from "node:child_process";
 import { closeSync, constants, copyFileSync, cpSync, fstatSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, isAbsolute, join, relative, win32 } from "node:path";
+import { basename, isAbsolute, join, relative, resolve, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CAUSES } from "../format/runfile.js";
 import { RunRecorder, recording } from "./recorder.js";
+import { preflightTranscript } from "./recording.js";
 import { CAPTURE_LIMIT } from "./capture.js";
 import { maskText } from "./mask.js";
 
 // Local logins, installed packages and earlier runs stay out of the copy, so the agent starts as a new user.
 const OMIT = new Set([".git", ".mcp.json", ".aws", ".config", ".docker", ".env", ".npmrc", ".netrc", "node_modules", "journey-runs", ".journeysfirst"]);
 const HANDOFF_FILE = "handoff.txt";
+const PREFLIGHT_FILE = "launcher-preflight.txt";
 
 /** @typedef {{journey: string, caseId?: string, project?: string, mcp?: Record<string, string[]>, timeoutMs?: number}} RunOptions */
-/** @typedef {RunOptions & {container?: string, allowHostRead?: boolean, agentArgs: string[]}} AdapterOptions */
+/** @typedef {RunOptions & {container?: string, allowHostRead?: boolean, mcpOverride?: boolean, agentArgs: string[]}} AdapterOptions */
 /** @typedef {{folder: string, run: import("../format/runfile.js").Run, problem?: string, exitCode: number}} AgentResult */
 /** @typedef {{work: string, home: string, auth: string, container?: string, hostHome?: string, loginFile?: string, runtime?: string, node: string}} SandboxOptions */
 /** @typedef {{name: string, setup: string, detect(container?: string): boolean, authProbe(): boolean, sandboxArgs(options: SandboxOptions): string[], mcpConfig(config: Record<string,string[]>, sandbox: string[], state: string, work: string, runtime: string, node: string): {args: string[], names: string[]}, start(options: AdapterOptions): Promise<AgentResult>}} AgentAdapter */
-/** @typedef {{base: string, work: string, state: string, run: RunRecorder, signal: AbortSignal, prompt: string}} RunContext */
+/** @typedef {{base: string, work: string, state: string, run: RunRecorder, signal: AbortSignal, prompt: string, recordPreflight(rows: import("./recording.js").PreflightRow[]): void}} RunContext */
 
 /** @param {RunOptions & {command: string}} options */
 export async function runAgent({ command, mcp = {}, timeoutMs = 1800000, ...options }) {
   const name = basename(command.trim().split(/\s+/)[0] ?? "");
   const agent = /^[\w.-]+$/.test(name) ? name : "agent";
-  return withAgentRun({ ...options, agent, label: agent, unverified: true }, async ({ work, prompt, signal }) => {
+  return withAgentRun({ ...options, agent, label: agent, unverified: true }, async ({ work, prompt, signal, run }) => {
+    warnIfMissingMcp(run, Object.keys(mcp));
     if (Object.keys(mcp).length) {
       const mcpServers = Object.fromEntries(Object.entries(mcp).map(([name, argv]) => [name, {
         command: process.execPath, args: [".journeysfirst/capture.mjs", "mcp-proxy", name + ".txt", "--", ...argv],
@@ -53,15 +56,32 @@ export async function withAgentRun({ journey, caseId, project, agent, label, log
   const interrupt = new AbortController();
   const onInt = () => interrupt.abort("SIGINT");
   const onTerm = () => interrupt.abort("SIGTERM");
+  let handoff;
   let problem;
+  /** @type {import("./recording.js").PreflightRow[]} */
+  let preflight = [];
   process.on("SIGINT", onInt);
   process.on("SIGTERM", onTerm);
   try {
     prepareProject(project, base, work, loginFile);
-    const result = await execute({ base, work, state, run, signal: interrupt.signal, prompt: agentPrompt(run) });
-    const errors = importResults(recording(run, "you"), base);
+    const result = await execute({ base, work, state, run, signal: interrupt.signal, prompt: agentPrompt(run),
+      recordPreflight(rows) {
+        preflight = rows;
+        writeFileSync(join(state, "captures", PREFLIGHT_FILE), preflightTranscript(rows), { flag: "wx", mode: 0o600 });
+      },
+    });
+    const seat = recording(run, "you");
+    if (preflight.length) seat.attachPreflight(PREFLIGHT_FILE, preflight);
+    const errors = importResults(seat, base);
     if (errors.length) run.tag("result_import_errors", errors.map((error) => maskText(run.redact(error))));
-    if (result.handoff) run.attach({ name: HANDOFF_FILE, body: maskText(run.redact(result.handoff)), kind: "transcript" });
+    if (result.handoff) {
+      handoff = result.handoff;
+      for (const file of run.files.keys()) {
+        handoff = handoff.replaceAll(join(state, "captures", file), file);
+      }
+      handoff = maskText(run.redact(handoff));
+      run.attach({ name: HANDOFF_FILE, body: handoff, kind: "transcript" });
+    }
     problem = result.problem;
   } catch (error) {
     problem = run.redact(error instanceof Error ? error.message : "The agent could not complete the journey.");
@@ -73,7 +93,20 @@ export async function withAgentRun({ journey, caseId, project, agent, label, log
   const signal = interrupt.signal.reason;
   if (signal) problem = [`${label} was interrupted (${signal}).`, problem].filter(Boolean).join(" ");
   const saved = run.finish(problem ? { attempt: { status: "aborted", reason: problem } } : undefined);
+  const unchecked = saved.run.steps.flatMap((step) => "verdict" in step && step.verdict === "not_checked" ? [step.id] : []);
+  if (handoff && unchecked.length && /\bpass(?:ed|es|ing)\b/i.test(handoff)) {
+    console.error(`Check the agent's claims in handoff.txt against the saved run. These checks were not checked: ${unchecked.join(", ")}.`);
+  }
   return { ...saved, problem, exitCode: signal === "SIGINT" ? 130 : signal === "SIGTERM" ? 143 : problem ? 1 : 0 };
+}
+
+/** @param {RunRecorder} run @param {string[]} names */
+export function warnIfMissingMcp(run, names) {
+  const { promise, start, notes } = run.journey;
+  const text = [promise, start, notes, ...run.plan.lines.map((line) => line.kind === "check" ? line.check : line.says)].join("\n");
+  if (!names.length && /\b(?:MCP|tools?)\b/i.test(text)) {
+    console.error("This journey mentions MCP or tools, but no MCP server is configured. Add a trusted stdio server to .mcp.json or pass --mcp <file.json>.");
+  }
 }
 
 /** @param {string | undefined} project @param {string} base @param {string} work @param {string} [loginFile] */
@@ -81,7 +114,9 @@ export function prepareProject(project, base, work, loginFile) {
   if (project) {
     const source = realpathSync(project);
     const inside = relative(source, base);
-    if (!inside || (!inside.startsWith("../") && !isAbsolute(inside))) throw new Error("Choose a project that does not contain the scratch directory.");
+    if (!inside || (!inside.startsWith("../") && !isAbsolute(inside))) {
+      throw new Error(`The scratch directory is inside the test project. Set ${process.platform === "win32" ? "TEMP" : "TMPDIR"} to a writable folder outside the project, or choose a smaller test project with --project.`);
+    }
     cpSync(source, work, { recursive: true, filter: (path) => {
       if (path === source) return true;
       if (path === loginFile) return false;
@@ -91,10 +126,47 @@ export function prepareProject(project, base, work, loginFile) {
   }
   const state = join(work, ".journeysfirst");
   mkdirSync(join(state, "captures"), { recursive: true });
+  if (project) stagePackageArchives(realpathSync(project), work);
   for (const file of ["capture.js", "mask.js", "capture.mjs"]) {
     copyFileSync(fileURLToPath(new URL(file, import.meta.url)), join(state, file));
   }
   writeFileSync(join(state, "package.json"), '{"type":"module"}\n');
+}
+
+/** @param {string} project @param {string} work */
+function stagePackageArchives(project, work) {
+  const manifest = join(work, "package.json");
+  if (!lstatSync(manifest, { throwIfNoEntry: false })?.isFile()) return;
+  let pkg;
+  try { pkg = JSON.parse(readFileSync(manifest, "utf8")); } catch { return; }
+  const specs = new Map();
+  for (const group of ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"]) {
+    for (const [name, spec] of Object.entries(pkg?.[group] ?? {})) {
+      if (typeof spec !== "string" || !/^file:.+\.(?:tgz|tar\.gz)$/i.test(spec)) continue;
+      const path = spec.slice(5);
+      if (isAbsolute(path)) continue;
+      const source = resolve(project, path);
+      const rel = relative(project, source);
+      if (rel !== ".." && !rel.startsWith("../") && !rel.startsWith("..\\")) continue;
+      if (!lstatSync(source, { throwIfNoEntry: false })?.isFile()) continue;
+      if (!specs.has(spec)) {
+        const local = `.journeysfirst/local-packages/${specs.size}-${basename(source)}`;
+        mkdirSync(join(work, ".journeysfirst/local-packages"), { recursive: true });
+        copyFileSync(source, join(work, local), constants.COPYFILE_EXCL);
+        specs.set(spec, `file:${local}`);
+      }
+      pkg[group][name] = specs.get(spec);
+    }
+  }
+  if (!specs.size) return;
+  writeFileSync(manifest, JSON.stringify(pkg, null, 2) + "\n");
+  for (const name of ["npm-shrinkwrap.json", "package-lock.json"]) {
+    const lockPath = join(work, name);
+    if (!lstatSync(lockPath, { throwIfNoEntry: false })?.isFile()) continue;
+    let lock;
+    try { lock = JSON.parse(readFileSync(lockPath, "utf8"), (key, value) => specs.get(value) ?? value); } catch { continue; }
+    writeFileSync(lockPath, JSON.stringify(lock, null, 2) + "\n");
+  }
 }
 
 /** @param {RunRecorder} run */
@@ -102,17 +174,20 @@ export function agentPrompt(run) {
   const start = run.journey.cases?.find((item) => item.id === run.plan.case)?.start ?? run.journey.start;
   return [
     run.journey.promise, start, "",
-    ...run.plan.lines.map((line) => line.kind === "action" ? `${line.n}. ${line.says}` : `${line.n}. Check ${line.id}: ${line.check}`), "",
+    ...run.plan.lines.map((line) => line.kind === "action" ? `${line.n}. ${line.says}`
+      : `${line.n}. Check ${line.id}: ${line.check}${line.launcher_probe ? ` (cite launcher probe: ${line.launcher_probe})` : ""}`), "",
     "Work only in this folder. It is a fresh copy of the project, without local logins. Do not sign in to the product unless a step says to.",
     "To record selected command output, run node .journeysfirst/capture.mjs capture NAME.txt -- COMMAND ARGS.",
     "For a command that uses a service key, put --key ENV_NAME before --. Use the variable name, not its value. A key capture cannot prove a pass.",
     "If this project has .mcp.json, use it for MCP calls. Configured servers record calls as NAME.txt.",
-    `Use distinct capture names other than ${HANDOFF_FILE}. Cite files from .journeysfirst/captures.`,
+    `Use distinct capture names other than ${HANDOFF_FILE} and ${PREFLIGHT_FILE}. Cite files from .journeysfirst/captures.`,
+    `If ${PREFLIGHT_FILE} exists, read it without editing it. Only cite it for checks that name a launcher probe.`,
+    "You own every check in this journey. Do not leave checks to the launcher or another runner. If you cannot prove a check, record what stopped you.",
     "As you go, write one JSON object per line to .journeysfirst/results.jsonl.",
     'Actions: {"line":1,"status":"done"}. Checks: {"id":"check-id","verdict":"passed","proof":"what you observed","refs":[{"file":"NAME.txt","line":1}]}.',
     `For a failed or blocked line include a reason and a cause: ${CAUSES.join(", ")}. A failed check also needs proof.`,
     "Do not claim a pass without a capture that proves it. Cite an output or response line, not a request line.",
-    "Finish with the message you would send to the person who asked you to run the journey.",
+    "Finish with the message you would send to the person who asked you to run the journey. Refer to saved captures by filename and line, not by absolute scratch path. Claim only results supported by those captures.",
   ].filter((line) => line !== undefined).join("\n");
 }
 
@@ -122,7 +197,7 @@ export function importResults(seat, base) {
   const captures = join(state, "captures");
   if (realpathSync(captures) !== captures) throw new Error("Capture folders must stay inside the scratch project and cannot be links.");
   const output = readSmall(join(state, "results.jsonl"));
-  const names = new Set(readdirSync(captures, { withFileTypes: true }).filter((item) => item.isFile() && item.name !== HANDOFF_FILE).map((item) => item.name));
+  const names = new Set(readdirSync(captures, { withFileTypes: true }).filter((item) => item.isFile() && ![HANDOFF_FILE, PREFLIGHT_FILE].includes(item.name)).map((item) => item.name));
   const attached = new Set();
   const errors = [];
   for (const [index, line] of output.split("\n").entries()) {
@@ -177,13 +252,13 @@ export function readSmall(path) {
  * @param {string} command
  * @param {string[]} args
  * @param {{cwd: string, env?: NodeJS.ProcessEnv, stdin: string, timeout: number, signal?: AbortSignal, shell?: boolean}} options
- * @returns {Promise<{code: number | null, stdout: string, timedOut: boolean}>}
+ * @returns {Promise<{code: number | null, stdout: string, stderr: string, timedOut: boolean}>}
  */
 export function processResult(command, args, { cwd, env, stdin, timeout, signal, shell = false }) {
   return new Promise((done) => {
-    if (signal?.aborted) { done({ code: null, stdout: "", timedOut: false }); return; }
-    const child = spawn(command, args, { cwd, env, shell, detached: true, stdio: ["pipe", "pipe", shell ? "inherit" : "ignore"] });
-    let stdout = "", timedOut = false, stopping = false;
+    if (signal?.aborted) { done({ code: null, stdout: "", stderr: "", timedOut: false }); return; }
+    const child = spawn(command, args, { cwd, env, shell, detached: true, stdio: ["pipe", "pipe", shell ? "inherit" : "pipe"] });
+    let stdout = "", stderr = "", timedOut = false, stopping = false;
     const stop = () => {
       if (stopping) return;
       stopping = true;
@@ -194,15 +269,17 @@ export function processResult(command, args, { cwd, env, stdin, timeout, signal,
       timedOut = true;
       stop();
     }, timeout);
-    child.stdin.on("error", () => {});
-    child.stdin.end(stdin);
-    child.stdout.setEncoding("utf8");
-    child.stdout.on("data", (chunk) => { stdout = (stdout + chunk).slice(-2 * 1024 * 1024); });
+    child.stdin?.on("error", () => {});
+    child.stdin?.end(stdin);
+    child.stdout?.setEncoding("utf8");
+    child.stdout?.on("data", (chunk) => { stdout = (stdout + chunk).slice(-2 * 1024 * 1024); });
+    child.stderr?.setEncoding("utf8");
+    child.stderr?.on("data", (chunk) => { stderr = (stderr + chunk).slice(-4096); });
     /** @param {number | null} code */
     const finish = (code) => {
       clearTimeout(timer);
       signal?.removeEventListener("abort", stop);
-      done({ code, stdout, timedOut });
+      done({ code, stdout, stderr, timedOut });
     };
     child.once("error", () => finish(null));
     child.once("close", finish);

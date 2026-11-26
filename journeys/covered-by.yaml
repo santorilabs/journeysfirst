@@ -35,7 +35,21 @@ see-why-a-run-failed:
 let-an-agent-run-a-journey:
   - packages/core/bin/journeysfirst.js
   - packages/core/src/runner/**
+  - packages/core/src/format/run-folder.js
+  - packages/core/src/format/runfile.js
+
+keep-an-aborted-agent-rerun:
+  - packages/core/bin/journeysfirst.js
+  - packages/core/src/runner/**
   - packages/core/src/format/merge-check.js
+  - packages/core/src/format/run-folder.js
+  - packages/core/src/format/runfile.js
+
+run-a-custom-agent-command:
+  - packages/core/bin/journeysfirst.js
+  - packages/core/src/runner/agent.js
+  - packages/core/src/runner/capture.js
+  - packages/core/src/runner/capture.mjs
   - packages/core/src/format/run-folder.js
   - packages/core/src/format/runfile.js
   - packages/core/src/review/**

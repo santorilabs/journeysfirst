@@ -151,7 +151,7 @@ Files, in `src/shared/`. None of them imports another source file.
 - `bin/journeysfirst.js`: the CLI (`validate`, `validate-run`, `merge-check`, `measured`, `add-findings`, `add-review`, `review`, `capture`, `mcp-proxy`, `report`, `summary`, `publish`, `dev-server`, `doctor`, `init`, `upgrade`, `--version`). It uses the runner for terminal and MCP capture. Playwright uses the runner for browser journeys.
 - `prepack` copies `skills/`, `spec/` and `docs/` from the repo root into this package, and `postpack` removes the copies. An install then has them at `node_modules/journeysfirst/spec` and `node_modules/journeysfirst/docs`.
 - `src/doctor.js`: `doctor`. Checks Node, Playwright, Chromium, the Playwright config, whether `baseURL` answers, and each journey file. The CLI is the only caller.
-- `src/setup.js`: `init` and `upgrade`. They copy the skills, add `playwright.config.js` when there is none, ignore `journey-runs/`, and add the upgrade workflow. Only `init --agent-instructions` writes the proposed Journeys section. With no app to start, `init` also adds an example page, journey and script that pass.
+- `src/setup.js`: `init` and `upgrade`. They copy the skills, add `playwright.config.js` when there is none, ignore `journey-runs/`, and add the upgrade workflow. Only `init --agent-instructions` adds the proposed Journeys section. `upgrade` refreshes existing managed sections. With no app to start, `init` also adds an example page, journey and script that pass.
 - `src/index.js`: the main entry. It re-exports `format.js`, `runfile.js`, `checkRun` and `stableJson`.
 
 ## One run, from recorder to a sealed run on a service

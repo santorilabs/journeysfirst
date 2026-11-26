@@ -176,13 +176,14 @@
         "id": { "description": "The check's id from the journey.", "$ref": "#/$defs/text" },
         "says": { "not": {} },
         "verdict": {
-          "description": "passed: true, with evidence. failed: the product did the wrong thing. blocked: setup or the environment broke. not_checked: no evidence. A pass without evidence from the by user's own login is read as not_checked.",
+          "description": "passed: true, with evidence. failed: the product did the wrong thing. blocked: setup or the environment broke. not_checked: no evidence. A pass needs evidence from the by user's own login or the check's declared launcher probe.",
           "enum": ["passed", "failed", "blocked", "not_checked"]
         },
         "claimed": { "description": "Set when a claimed pass was settled to not_checked.", "const": "passed" },
         "proof": { "description": "How it was proven, in one plain sentence.", "$ref": "#/$defs/text" },
         "evidence": { "description": "What was collected, for engineers.", "type": "array", "items": { "$ref": "#/$defs/evidence" } },
-        "added": { "description": "true when an agent added the check. Copied from the journey.", "type": "boolean" }
+        "added": { "description": "true when an agent added the check. Copied from the journey.", "type": "boolean" },
+        "launcher_probe": { "description": "The required preflight probe, copied from the journey.", "enum": ["login-reuse", "protected-files"] }
       },
       "allOf": [
         { "if": { "properties": { "verdict": { "enum": ["passed", "failed"] } } }, "then": { "required": ["proof"] } },
@@ -205,12 +206,20 @@
       "type": "object",
       "required": ["source"],
       "properties": {
-        "source": { "enum": ["page", "api", "database", "log", "message"] },
+        "source": { "enum": ["page", "api", "database", "log", "message", "launcher"] },
         "login": { "$ref": "#/$defs/text" },
         "key": { "$ref": "#/$defs/text" }
       },
-      "oneOf": [{ "required": ["login"], "not": { "required": ["key"] } }, { "required": ["key"], "not": { "required": ["login"] } }],
       "allOf": [
+        {
+          "if": { "properties": { "source": { "const": "launcher" } } },
+          "then": {
+            "required": ["query", "probe"],
+            "properties": { "query": { "$ref": "#/$defs/text" }, "probe": { "enum": ["login-reuse", "protected-files"] } },
+            "not": { "anyOf": [{ "required": ["login"] }, { "required": ["key"] }] }
+          },
+          "else": { "oneOf": [{ "required": ["login"], "not": { "required": ["key"] } }, { "required": ["key"], "not": { "required": ["login"] } }] }
+        },
         { "if": { "properties": { "source": { "enum": ["page", "api"] } } }, "then": { "required": ["url"], "properties": { "url": { "$ref": "#/$defs/text" } } } },
         { "if": { "properties": { "source": { "enum": ["database", "log"] } } }, "then": { "required": ["query"], "properties": { "query": { "$ref": "#/$defs/text" } } } },
         { "if": { "properties": { "source": { "const": "message" } } }, "then": { "required": ["message_id"], "properties": { "message_id": { "$ref": "#/$defs/text" } } } }

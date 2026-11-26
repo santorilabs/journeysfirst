@@ -1,6 +1,13 @@
 import { closeSync, constants, fstatSync, openSync, readSync } from "node:fs";
 import { CAPTURE_LIMIT } from "./capture.js";
 
+/** @typedef {{text: string, probe?: string}} PreflightRow */
+
+/** @param {PreflightRow[]} rows */
+export function preflightTranscript(rows) {
+  return rows.map(({ text, probe }) => JSON.stringify({ kind: "stdout", source: "launcher", text, probe })).join("\n") + "\n";
+}
+
 /**
  * Record steps and checks for one seat, using files selected by the runner.
  * @param {import("./recorder.js").RunRecorder} run
@@ -10,7 +17,15 @@ export function recording(run, by) {
   run.knows(by);
   /** @type {Map<string, {entries: Map<number, string>, login?: string, key?: string}>} */
   const captures = new Map();
+  /** @type {Map<string, PreflightRow[]>} */
+  const preflight = new Map();
   return {
+    /** @param {string} name @param {PreflightRow[]} rows */
+    attachPreflight(name, rows) {
+      const safe = rows.map((row) => ({ ...row, text: run.redact(row.text) }));
+      const file = run.attach({ name, body: preflightTranscript(safe), kind: "transcript" });
+      preflight.set(file, safe);
+    },
     /**
      * Attach a private capture the runner has checked for secrets.
      * @param {string} name
@@ -43,7 +58,8 @@ export function recording(run, by) {
     },
     /** @param {Parameters<typeof run.step>[0]} line @param {Omit<NonNullable<Parameters<typeof run.step>[1]>, "by">} [result] */
     step(line, result) {
-      run.step(line, { ...result, by });
+      const reason = typeof result?.reason === "string" ? run.redact(result.reason) : result?.reason;
+      run.step(line, { ...result, reason, by });
     },
     /**
      * Resolve refs against captures owned by this seat, not arbitrary paths.
@@ -53,6 +69,11 @@ export function recording(run, by) {
     check(id, { refs = [], ...result } = {}) {
       if (result.verdict === "passed" && !refs.length) throw new Error("A passed check needs at least one captured evidence reference.");
       const evidence = refs.map(({ file, line }) => {
+        if (preflight.has(file)) {
+          const row = preflight.get(file)?.[line - 1];
+          if (!row?.probe) throw new Error("Use a launcher preflight line that reports a completed probe.");
+          return { source: "launcher", probe: row.probe, query: `${file}, line ${line}`, got: row.text };
+        }
         const capture = captures.get(file);
         const got = capture?.entries.get(line);
         if (!got) throw new Error("Use an output or response line from a capture attached to this seat.");
@@ -60,7 +81,9 @@ export function recording(run, by) {
         if (result.verdict === "passed" && capture.login !== by) throw new Error("A passed check must cite evidence from this seat's own session.");
         return { source: "log", ...(capture.key ? { key: capture.key } : { login: capture.login }), query: `${file}, line ${line}`, got };
       });
-      run.check(id, { ...result, evidence, by });
+      const proof = typeof result.proof === "string" ? run.redact(result.proof) : result.proof;
+      const reason = typeof result.reason === "string" ? run.redact(result.reason) : result.reason;
+      run.check(id, { ...result, proof, reason, evidence, by });
     },
   };
 }

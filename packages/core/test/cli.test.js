@@ -2,11 +2,12 @@ import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
 import { createServer } from "node:net";
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { RunRecorder } from "../src/runner/recorder.js";
+import { recording } from "../src/runner/recording.js";
 import { DRAFT_0, JOURNEY, findings, recordAllPassed, recorder } from "./helpers.js";
 
 const BIN = new URL("../bin/journeysfirst.js", import.meta.url).pathname;
@@ -121,7 +122,7 @@ test("add-findings writes a review's findings into the run and changes nothing e
     writeFileSync(join(dir, "findings.json"), JSON.stringify(content));
     return cli(["add-findings", folder, "findings.json"], dir);
   };
-  assert.match(cli(["validate-run", folder], dir).stdout, /\n {2}Not reviewed\.\n$/);
+  assert.match(cli(["validate-run", folder], dir).stdout, /\n {2}Not reviewed\.\n {2}Follow journey-review, then run: npx journeysfirst add-findings <run folder> <findings file>\n$/);
 
   const nothing = add({ findings: [] });
   assert.equal(nothing.status, 0, nothing.stderr);
@@ -366,5 +367,206 @@ test("run --agent refuses options it does not use", () => {
     assert.equal(result.status, 1);
     assert.match(result.stderr, /--agent "<command>"/);
     assert.equal(run, undefined);
+  }
+});
+
+test("a known agent proxies native stdio servers and honors project and explicit overrides", () => {
+  const dir = mkdtempSync(join(tmpdir(), "jf-native-mcp-"));
+  const home = join(dir, "home"), bin = join(dir, "bin"), project = join(dir, "project");
+  for (const path of [home, bin, project]) mkdirSync(path);
+  const auth = join(home, "native-config"), observed = join(dir, "observed.json");
+  mkdirSync(auth);
+  writeFileSync(join(auth, "auth.json"), "{}");
+  writeFileSync(join(auth, "config.toml"), [
+    "[mcp_servers.native]", "command = 'npx'", "args = [", '  "--yes", # comment', "  'example#fixture',", "\"mcp\",", "]",
+    'env_vars = ["TEST_API_KEY"]', "[mcp_servers.shared]", 'command = "native-shared"',
+    "[mcp_servers.disabled]", "enabled = false", 'command = "disabled"',
+    "[mcp_servers.remote]", 'url = "https://example.invalid"',
+  ].join("\n"));
+  writeFileSync(join(bin, "codex"), `#!/usr/bin/env node
+const fs = require("node:fs");
+const path = require("node:path");
+const args = process.argv.slice(2);
+if (args[0] === "sandbox") console.log("journeysfirst: workspace readable, auth directory denied");
+else {
+const preflightPath = ".journeysfirst/captures/launcher-preflight.txt";
+const preflight = fs.readFileSync(preflightPath, "utf8");
+fs.writeFileSync(preflightPath, "Forged launcher evidence");
+const outcome = (id, line) => ({ id, verdict: "passed", proof: "Read launcher preflight.", refs: [{ file: "launcher-preflight.txt", line }] });
+fs.writeFileSync(".journeysfirst/results.jsonl", [
+  outcome("link-on", 3), outcome("launcher-login", 3), outcome("launcher-protected", 2),
+].map(JSON.stringify).join("\\n"));
+const echoed = ["CI", "FIXTURE_SHORT", "FIXTURE_LONG"].map((name) => process.env["JF_MCP_ENV_" + name]).filter(Boolean);
+console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "Evidence: " + path.resolve(preflightPath) + (echoed.length ? "; server returned " + echoed.join(", ") : "") } }));
+fs.writeFileSync(${JSON.stringify(observed)}, JSON.stringify({
+  args, named: Boolean(process.env.JF_MCP_ENV_TEST_API_KEY),
+  leaked: Boolean(process.env.TEST_API_KEY || process.env.JF_MCP_ENV_NOT_REQUESTED || process.env.NOT_REQUESTED),
+  copied: fs.existsSync(process.env.CODEX_HOME + "/config.toml"),
+  preflight,
+}));
+}`, { mode: 0o700 });
+  writeFileSync(join(dir, "share.journey.yaml"), JOURNEY.replace("users: [viewer]\n", "") +
+    "  - check: You see the launcher reuse its login.\n    id: launcher-login\n    launcher_probe: login-reuse\n" +
+    "  - check: You see the launcher verify protected files.\n    id: launcher-protected\n    launcher_probe: protected-files\n");
+  const { OPENAI_API_KEY, ...hostEnv } = process.env;
+  const env = { ...hostEnv, HOME: home, CODEX_HOME: auth, TMPDIR: dir, PATH: bin + ":" + process.env.PATH,
+    TEST_API_KEY: "named-test-value", NOT_REQUESTED: "unselected-test-value", CI: "1", FIXTURE_SHORT: "qZ7x", FIXTURE_LONG: "wX3zRt7Y" };
+  const run = (...extra) => {
+    const result = spawnSync(process.execPath, [BIN, "run", "share.journey.yaml", "--project", project, ...extra], { cwd: dir, env, encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /Next: npx journeysfirst validate-run .*\nThen follow journey-review\./);
+    const folder = /^Saved .* run to (.+)\.$/m.exec(result.stdout)[1];
+    return { ...JSON.parse(readFileSync(observed, "utf8")), stderr: result.stderr, folder: join(dir, folder) };
+  };
+  const native = run();
+  assert.match(native.stderr, /Proxying MCP servers from agent config\.toml: native/);
+  const saved = JSON.parse(readFileSync(join(native.folder, "run.json"), "utf8"));
+  const check = (id) => saved.steps.find((step) => step.id === id);
+  assert.equal(check("link-on").verdict, "not_checked");
+  assert.match(saved.tags.result_import_errors[0], /only for its declared probe/);
+  for (const [id, probe] of [["launcher-login", "login-reuse"], ["launcher-protected", "protected-files"]]) {
+    assert.equal(check(id).verdict, "passed");
+    assert.deepEqual({ ...check(id).evidence[0], got: undefined, query: undefined },
+      { source: "launcher", probe, got: undefined, query: undefined });
+  }
+  assert.match(check("launcher-login").evidence[0].got, /reused the existing CLI login/);
+  const preflight = readFileSync(join(native.folder, "launcher-preflight.txt"), "utf8");
+  assert.equal(readFileSync(join(native.folder, "handoff.txt"), "utf8"), "Evidence: launcher-preflight.txt");
+  assert.equal(preflight, native.preflight);
+  assert.match(preflight, /could not read a test file in the host home directory/);
+  assert.match(preflight, /the existing CLI login file, or the scratch login file/);
+  const proxy = JSON.parse(native.args.find((arg) => arg.startsWith("mcp_servers.native.args=")).split(/=(.*)/s)[1]);
+  assert.deepEqual(proxy.slice(-9), ["mcp-proxy", "native.txt", "--env-vars", "TEST_API_KEY", "--", "npx", "--yes", "example#fixture", "mcp"]);
+  assert.ok(native.args.includes('mcp_servers.native.env_vars=["JF_MCP_ENV_TEST_API_KEY"]'));
+  assert.equal(native.named, true);
+  assert.equal(native.leaked || native.copied, false);
+  assert.doesNotMatch(native.args.join(" "), /disabled|remote|named-test-value/);
+  writeFileSync(join(project, ".mcp.json"), JSON.stringify({ mcpServers: { shared: { command: "project-shared" } } }));
+  const projectAndNative = run();
+  assert.match(projectAndNative.stderr, /Proxying MCP servers from \.mcp\.json: shared/);
+  const merged = projectAndNative.args.join(" ");
+  assert.match(merged, /mcp_servers.native.args=.*project-shared/);
+  assert.doesNotMatch(merged, /native-shared/);
+  writeFileSync(join(dir, "override.json"), JSON.stringify({ only: ["explicit"] }));
+  const only = run("--mcp", "override.json");
+  assert.match(only.stderr, /Proxying MCP servers from --mcp: only\./);
+  assert.match(only.args.join(" "), /mcp_servers.only.args=.*explicit/);
+  assert.doesNotMatch(only.args.join(" "), /mcp_servers\.(native|shared)/);
+  assert.equal(only.named, false);
+  writeFileSync(join(auth, "config.toml"), '[mcp_servers.user_fixture]\ncommand = "npx"\nenv_vars = ["TEST_API_KEY"]\njourneysfirst_login = true\n');
+  const user = run().args.find((arg) => arg.startsWith("mcp_servers.user_fixture.args="));
+  assert.match(user, /"--login-env-vars","TEST_API_KEY"/);
+  writeFileSync(join(auth, "config.toml"), '[mcp_servers.ci_fixture]\ncommand = "npx"\nenv_vars = ["CI", "FIXTURE_SHORT", "FIXTURE_LONG"]\n');
+  const ci = run();
+  assert.ok(ci.args.includes('mcp_servers.ci_fixture.env_vars=["JF_MCP_ENV_CI","JF_MCP_ENV_FIXTURE_SHORT","JF_MCP_ENV_FIXTURE_LONG"]'));
+  const handoff = readFileSync(join(ci.folder, "handoff.txt"), "utf8");
+  assert.match(handoff, /server returned 1, •+, •+/);
+  assert.doesNotMatch(handoff, /qZ7x|wX3zRt7Y/);
+  for (const setting of ['"disabled_tools" = ["write"]', "'enabled_tools' = ['read']", 'env = { FIXTURE = "not-used" }']) {
+    writeFileSync(join(auth, "config.toml"), `[mcp_servers.restricted]\ncommand = "npx"\n${setting}\n`);
+    const restricted = spawnSync(process.execPath, [BIN, "run", "share.journey.yaml", "--project", project], { cwd: dir, env, encoding: "utf8" });
+    assert.equal(restricted.status, 0, restricted.stderr);
+    assert.match(restricted.stderr, /Skipping MCP server "restricted".*inline environment values or tool restrictions/);
+    const args = JSON.parse(readFileSync(observed, "utf8")).args.join(" ");
+    assert.match(args, /mcp_servers.shared.args=.*project-shared/);
+    assert.doesNotMatch(args, /mcp_servers\.restricted/);
+  }
+});
+
+test("run warns when a journey has no MCP server and the handoff contradicts the saved checks", () => {
+  const dir = mkdtempSync(join(tmpdir(), "jf-run-warnings-"));
+  writeFileSync(join(dir, "share.journey.yaml"), JOURNEY.replace("users: [viewer]\n", "").replace(/^promise:.*$/m, "promise: Call my MCP server"));
+  const result = cli(["run", "share.journey.yaml", "--agent", "echo All checks passed"], dir);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stderr, /mentions MCP or tools, but no MCP server is configured/);
+  assert.match(result.stderr, /claims in handoff\.txt against the saved run.*not checked: link-on/);
+});
+
+test("forwarded MCP credentials prove a pass only when marked as the user's login", () => {
+  const dir = mkdtempSync(join(tmpdir(), "jf-delegated-mcp-"));
+  mkdirSync(join(dir, "captures"));
+  for (const file of ["capture.mjs", "capture.js", "mask.js"]) {
+    copyFileSync(new URL("../src/runner/" + file, import.meta.url), join(dir, file));
+  }
+  const request = { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "status" } };
+  const reply = { jsonrpc: "2.0", id: 1, result: { content: [{ type: "text", text: "Link sharing: on" }] } };
+  const server = `process.stdin.on("end", () => console.log(${JSON.stringify(JSON.stringify(reply))})); process.stdin.resume();`;
+  for (const [flag, name, credential, ownLogin] of [
+    ["--env-vars", "admin.txt", "ADMIN_CREDENTIAL", false],
+    ["--env-vars", "empty.txt", "EMPTY_VAR", false],
+    ["--login-env-vars", "user.txt", "USER_TOKEN", true],
+  ]) {
+    const result = spawnSync(process.execPath, [join(dir, "capture.mjs"), "mcp-proxy", name,
+      flag, credential, "--", process.execPath, "-e", server], {
+      input: JSON.stringify(request) + "\n", encoding: "utf8",
+      env: { ...process.env, ["JF_MCP_ENV_" + credential]: name === "empty.txt" ? "" : "fixture-credential" }, timeout: 5000,
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const run = recordAllPassed(recorder({ outputDir: dir }));
+    const seat = recording(run, "you");
+    const capturePath = join(dir, "captures", name);
+    const file = seat.attach(name, capturePath, "recorded");
+    const first = JSON.parse(readFileSync(capturePath, "utf8").split("\n")[0]);
+    const recordPass = () => seat.check("link-on", { verdict: "passed", proof: "Read the setting.", refs: [{ file, line: 2 }] });
+    if (ownLogin) {
+      assert.equal(first.login, "you");
+      recordPass();
+      assert.equal(run.finish().run.steps[1].evidence[0].login, "you");
+    } else {
+      assert.equal(first.key, credential);
+      assert.throws(recordPass, /own session/);
+    }
+  }
+});
+
+test("proxied MCP captures keep ordinary one-character forwarded values and mask longer ones", () => {
+  const dir = mkdtempSync(join(tmpdir(), "jf-forwarded-redaction-"));
+  try {
+    mkdirSync(join(dir, "captures"));
+    for (const file of ["capture.mjs", "capture.js", "mask.js"]) {
+      copyFileSync(new URL("../src/runner/" + file, import.meta.url), join(dir, file));
+    }
+    const server = `process.stdin.on("end", () => {
+      const text = [process.env.CI, process.env.SHORT, process.env.LONG].join(", ");
+      console.log(JSON.stringify({ jsonrpc: "2.0", id: 1, result: { content: [{ type: "text", text }] } }));
+    }); process.stdin.resume();`;
+    const result = spawnSync(process.execPath, [join(dir, "capture.mjs"), "mcp-proxy", "server.txt",
+      "--env-vars", "CI,SHORT,LONG", "--", process.execPath, "-e", server], {
+      input: '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"fixture"}}\n', encoding: "utf8",
+      env: { ...process.env, JF_MCP_ENV_CI: "1", JF_MCP_ENV_SHORT: "qZ7x", JF_MCP_ENV_LONG: "wX3zRt7Y" }, timeout: 5000,
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const text = readFileSync(join(dir, "captures/server.txt"), "utf8");
+    assert.match(text, /1, •+, •+/);
+    assert.doesNotMatch(text, /qZ7x|wX3zRt7Y/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a relative npm archive outside the project installs from its scratch copy", () => {
+  const dir = mkdtempSync(join(tmpdir(), "jf-run-archive-"));
+  try {
+    const project = join(dir, "project"), fixture = join(dir, "fixture");
+    mkdirSync(project);
+    mkdirSync(fixture);
+    writeFileSync(join(fixture, "package.json"), JSON.stringify({ name: "fixture-dep", version: "1.0.0", main: "index.js" }));
+    writeFileSync(join(fixture, "index.js"), "module.exports = 'installed fixture';\n");
+    const npm = (...args) => spawnSync("npm", args, { cwd: dir, encoding: "utf8", timeout: 30000 });
+    const packed = npm("pack", fixture, "--ignore-scripts", "--pack-destination", dir);
+    assert.equal(packed.status, 0, packed.stderr);
+    const manifest = join(project, "package.json");
+    writeFileSync(manifest, JSON.stringify({ dependencies: { "fixture-dep": "file:../fixture-dep-1.0.0.tgz" } }));
+    const installed = npm("--prefix", project, "install", "--package-lock-only", "--ignore-scripts", "--no-audit", "--no-fund");
+    assert.equal(installed.status, 0, installed.stderr);
+    writeFileSync(join(dir, "share.journey.yaml"), JOURNEY.replace("users: [viewer]\n", ""));
+    const command = `npm ci --ignore-scripts --no-audit --no-fund && node -p 'require("fixture-dep")'`;
+    const result = cli(["run", "share.journey.yaml", "--project", project, "--agent", command], dir);
+    assert.equal(result.status, 0, result.stderr);
+    const runDir = join(dir, "journey-runs", "share");
+    assert.match(readFileSync(join(runDir, readdirSync(runDir)[0], "handoff.txt"), "utf8"), /installed fixture/);
+    assert.equal(JSON.parse(readFileSync(manifest, "utf8")).dependencies["fixture-dep"], "file:../fixture-dep-1.0.0.tgz");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
 });

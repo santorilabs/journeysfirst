@@ -44,12 +44,15 @@ export declare function instructionProposal({ root, skillsDir }?: {
 }): {
     name: string;
     text: string;
+    files: {
+        name: string;
+        text: string;
+    }[];
     section: string;
 };
 /**
- * What the agent does after init or upgrade. A repo with no journeys/README.md
- * is not onboarded yet, even if it was set up before that file existed, so both
- * go to journey-onboard. A repo with no journeys and no scripts in e2e/ is a
+ * What the agent does after init or upgrade. Existing journeys can run before
+ * adding Foundation notes. A repo with no journeys and no scripts in e2e/ is a
  * first install: there is nothing to re-check or re-run, but Playwright and its
  * browser may be missing. Setup never edits package.json: a dependency added
  * there is not installed until npm install runs, so it prints the command.

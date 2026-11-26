@@ -7,7 +7,7 @@ description: Fix a journey run that failed, a saved Playwright script that broke
 
 First decide what is wrong: the code or the journey. Ask what the user would expect at that step. If the product falls short of that, fix the code. If the journey asks for something the user would not expect, fix the journey and say why. Either way, the user's experience is the line you hold. Never lower it to make a run pass.
 
-An existing product: read Foundation in `journeys/README.md` first (none yet: follow `journey-onboard`). A new build: a check that fails because a part is not built yet is cause `product`. Build it; never shrink the journey.
+Read the Foundation in `journeys/README.md` if it exists. Otherwise use the journey and its evidence. A new build: a check that fails because a part is not built yet is cause `product`. Build it; never shrink the journey.
 
 The first thing you do is find out what went wrong. What does the run say? At which step was the state first wrong? Is the cause the product, the script or the environment? Then you fix that one thing and run the whole journey again.
 

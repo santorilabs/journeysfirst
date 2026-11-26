@@ -5,7 +5,7 @@ description: Review a journey file, or a walked run of one, against 16 fixed cri
 
 # Review a journey
 
-An existing product: judge it against its Foundation in `journeys/README.md` and its earlier runs (no Foundation: follow `journey-onboard`). A new build: judge it against the request's own words, with "New build" triage below.
+Judge an existing product against its Foundation in `journeys/README.md` and earlier runs when available. With no Foundation, judge against the journey and the request, and say which Foundation checks you could not make. For a new build, use "New build" triage below.
 
 The first thing you do is read what good means for this product. Then you judge each step of the journey and its run against that, as its user. You write findings with evidence, show them to the person, and stop.
 
@@ -25,6 +25,7 @@ A repo with no UI (a backend, an API, a worker) skips `foundation-values`, `foun
 ## Triage
 
 - **File only.** No run and no saved script (you came from `journey-write`). Do pass 1, list what you found in your reply, and stop.
+- **Terminal or MCP.** Read the captures, the evidence each check cites, and the final handoff. Check that the output or recorded reply proves the verdict, and note any mismatch with the handoff. Review the words, feedback, and errors the user got. Mark screen- and timing-only criteria "not measured".
 - **New build.** Nothing was built before this task. Read the request itself, not the README you wrote from it. Do pass 1. Once per build, not per journey, list each thing the request asks for, in its words, beside the screenshot that shows it done the way a user would expect. A part that is missing, or done with less, is a `file-request` finding, even when every check passed. Judge every screen against the bar in `journey-build`. Run `measured` for its `fact` lines. Skip the comparisons and the slow replay.
 - **Full.** The first review of this journey, or the journey changed. Every pass on every step. With a saved script and no run, replay it first (`journey-run`).
 - **Light.** `measured` compared with an earlier reviewed run, and `journey.version` is the same in both. Read only the screens it lists under "Screens that differ". For other steps, carry over the earlier run's findings with the same ids.
@@ -135,7 +136,7 @@ Record their call in the run, as `journey-fix` says. Fixing a finding is `journe
 
 ## Report
 
-These lines first. On a new build, the request list from triage comes next. Then each finding (the step, the sentence, the evidence), then each question.
+These lines first. Include `Counts:` only when `measured` reports counts from measure files. On a new build, the request list from triage comes next. Then each finding (the step, the sentence, the evidence), then each question.
 
 ```text
 Review: full. 2 findings, 1 question.

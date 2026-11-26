@@ -91,6 +91,7 @@
       "properties": {
         "check": { "$ref": "#/$defs/sentence" },
         "id": { "$ref": "#/$defs/id" },
+        "launcher_probe": { "description": "Require a matching launcher preflight probe instead of a product login.", "enum": ["login-reuse", "protected-files"] },
         "added": {
           "description": "true when an agent added this check beyond what the person asked for.",
           "type": "boolean"

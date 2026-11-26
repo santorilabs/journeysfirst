@@ -2,6 +2,7 @@
 // Each problem is one plain sentence, prefixed with where it is.
 
 export const ID = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+export const LAUNCHER_CHECKS = ["login-reuse", "protected-files"];
 const ROLE = /^[a-z][a-z0-9_-]*$/;
 const VALUE = /^\$\{[a-z][a-z0-9_]*\}/;
 
@@ -124,6 +125,7 @@ function checkSteps(steps, path, say, checks, caseId) {
     if (!isText(step.check)) return say(p, "the check has no sentence. Say what must be true at this point.");
     checkValues(step.check, p, say);
     if (step.added !== undefined && typeof step.added !== "boolean") say([...p, "added"], "added must be true or false.");
+    if (step.launcher_probe !== undefined && !LAUNCHER_CHECKS.includes(step.launcher_probe)) say([...p, "launcher_probe"], "launcher_probe must be login-reuse or protected-files.");
     if (step.id === undefined || step.id === null) return say(p, `the check "${step.check}" has no id. Every check needs an id, like id: link-on.`);
     if (typeof step.id !== "string") return say([...p, "id"], notText("id", step.id));
     const id = step.id;

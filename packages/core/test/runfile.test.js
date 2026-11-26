@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { journeyPlan, parseJourney } from "../src/format/format.js";
+import { journeyPlan, parseJourney, validateJourney } from "../src/format/format.js";
 import { checkRun } from "../src/format/run-check.js";
 import { runDigest, runFiles, runResult, settle, settleCheck, validateRun, verifiedLists } from "../src/format/runfile.js";
 import { JOURNEY, findings, recordAllPassed, recorder, specRun } from "./helpers.js";
@@ -25,6 +25,16 @@ test("attempt status can prevent a pass without hiding a recorded failure", () =
 
 test("a recorded run is valid, and matches the journey's lines", () => {
   assert.deepEqual(validateRun(goodRun(), plan()), []);
+});
+
+test("v1 checks can still use launcher as metadata without changing the proof needed", () => {
+  const journey = parseJourney(JOURNEY.replace("    id: link-on\n", "    id: link-on\n    launcher: codex\n"));
+  assert.deepEqual(validateJourney(journey), []);
+  assert.deepEqual(journeyPlan(journey), plan());
+  const run = goodRun();
+  run.steps[1].launcher = "codex";
+  assert.deepEqual(validateRun(run, journeyPlan(journey)), []);
+  assert.equal(settleCheck(run.steps[1]).verdict, "passed");
 });
 
 test("journeysfirst is optional, and a version string when present", () => {
@@ -100,7 +110,7 @@ test("check steps", () => {
 test("evidence says its source, its login and how to look it up again", () => {
   const evidence = (item) => after((r) => (r.steps[1].evidence = [item, ...r.steps[1].evidence]));
   assert.deepEqual(evidence("a screenshot"), ['step 2 (check "link-on"): evidence must be an object with source and login.']);
-  assert.deepEqual(evidence({ source: "vibes", login: "you" }), ['step 2 (check "link-on"): evidence source must be one of: page, api, database, log, message.']);
+  assert.deepEqual(evidence({ source: "vibes", login: "you" }), ['step 2 (check "link-on"): evidence source must be one of: page, api, database, log, message, launcher.']);
   assert.deepEqual(evidence({ source: "page", url: "/" }), ['step 2 (check "link-on"): evidence needs login: whose login it came from, you or a name from users. A read with an admin or service key names it in key instead.']);
   assert.deepEqual(evidence({ source: "page", login: "you" }), ['step 2 (check "link-on"): page evidence needs url, so someone can look it up again.']);
   assert.deepEqual(evidence({ source: "database", login: "you" }), ['step 2 (check "link-on"): database evidence needs query, so someone can look it up again.']);

@@ -3,6 +3,7 @@
 import { createHash } from "node:crypto";
 import { isCheck, screenshotFile } from "../shared/display.js";
 import { stableJson } from "./stable-json.js";
+import { LAUNCHER_CHECKS } from "./validate-journey.js";
 
 export const RUN_FORMAT = "journeysfirst-run/v1";
 export const VERDICTS = ["passed", "failed", "blocked", "not_checked"];
@@ -10,7 +11,7 @@ export const STEP_STATUSES = ["done", "failed", "blocked", "not_run"];
 export const RESULTS = ["passed", "failed", "not_fully_checked"];
 export const CAUSES = ["product", "test", "environment"];
 // Where evidence came from, and the field that lets someone look it up again.
-export const LOOKUP = { page: "url", api: "url", database: "query", log: "query", message: "message_id" };
+export const LOOKUP = { page: "url", api: "url", database: "query", log: "query", message: "message_id", launcher: "query" };
 export const SOURCES = Object.keys(LOOKUP);
 export const FILE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 // A full page address, like https://app.example.test/p/q3-plan.
@@ -20,7 +21,7 @@ export const FULL_URL = /^https?:\/\/[^/?#\s]+/;
  * @typedef {{source: string, login?: string, key?: string, [field: string]: unknown}} Evidence a user's own login, or the name of the admin or service key used
  * @typedef {string | {file: string, url?: string}} Screenshot a file name in the run folder, or the file and the full address of the page it shows
  * @typedef {{says: string, by: string, status: string, at?: number, took?: number, screenshots?: Screenshot[], cause?: string, reason?: string}} ActionStep
- * @typedef {{check: string, id: string, by: string, verdict: string, claimed?: string, proof?: string, evidence?: Evidence[], at?: number, took?: number, screenshots?: Screenshot[], cause?: string, reason?: string, added?: boolean}} CheckStep
+ * @typedef {{check: string, id: string, by: string, verdict: string, claimed?: string, proof?: string, evidence?: Evidence[], at?: number, took?: number, screenshots?: Screenshot[], cause?: string, reason?: string, added?: boolean, launcher_probe?: string}} CheckStep
  * @typedef {{id: string, criterion: string, says: string, evidence: Evidence[], step?: number, ask?: string}} Finding what a review against fixed criteria found. With ask, it is a question for a person.
  * @typedef {{status: "complete", reason?: string} | {status: "aborted", reason: string}} Attempt
  * @typedef {{
@@ -44,7 +45,11 @@ export { isCheck, screenshotFile };
 function missingProof(step) {
   const evidence = Array.isArray(step.evidence) ? step.evidence : [];
   if (evidence.length === 0) return "No evidence was attached.";
-  if (step.by && !evidence.some((e) => e?.login === step.by)) return `No evidence came from ${step.by === "you" ? "your" : `the ${step.by}'s`} own login.`;
+  if (step.launcher_probe !== undefined) {
+    return evidence.some((e) => e?.source === "launcher" && e.probe === step.launcher_probe && e.login === undefined && e.key === undefined)
+      ? null : "No evidence came from the matching launcher probe.";
+  }
+  if (step.by && !evidence.some((e) => e?.source !== "launcher" && e?.login === step.by)) return `No evidence came from ${step.by === "you" ? "your" : `the ${step.by}'s`} own login.`;
   return null;
 }
 
@@ -120,7 +125,10 @@ function evidenceProblems(item, users) {
   if (!SOURCES.includes(item.source)) problems.push(`evidence source must be one of: ${SOURCES.join(", ")}.`);
   // A read with an admin or service key names the key instead of a login. It
   // is no user's view, so it never counts as evidence for `by`.
-  if (item.key !== undefined && item.login !== undefined) problems.push("evidence has both login and key. Use login for a user's own session, key for an admin or service key.");
+  if (item.source === "launcher") {
+    if (item.key !== undefined || item.login !== undefined) problems.push("launcher evidence does not name a login or key.");
+    if (!LAUNCHER_CHECKS.includes(item.probe)) problems.push("launcher evidence needs a login-reuse or protected-files probe.");
+  } else if (item.key !== undefined && item.login !== undefined) problems.push("evidence has both login and key. Use login for a user's own session, key for an admin or service key.");
   else if (item.key !== undefined && !isText(item.key)) problems.push("evidence key must name the key, like SERVICE_ROLE_KEY. Never its value.");
   else if (item.key === undefined && !isText(item.login)) problems.push(`evidence needs login: whose login it came from, you or a name from users. A read with an admin or service key names it in key instead.`);
   else if (item.key === undefined && users && !users.includes(item.login)) problems.push(`evidence login "${item.login}" is not in users (${users.join(", ")}).`);
@@ -209,7 +217,11 @@ export function stepProblems(step, n, users) {
     need(isText(step.id), "has no id.");
     need(VERDICTS.includes(step.verdict), `verdict must be one of: ${VERDICTS.join(", ")}.`);
     need(step.evidence === undefined || Array.isArray(step.evidence), "evidence must be a list.");
-    for (const item of Array.isArray(step.evidence) ? step.evidence : []) for (const p of evidenceProblems(item, users)) problems.push(`${label}: ${p}`);
+    need(step.launcher_probe === undefined || LAUNCHER_CHECKS.includes(step.launcher_probe), "launcher_probe must be login-reuse or protected-files.");
+    for (const item of Array.isArray(step.evidence) ? step.evidence : []) {
+      for (const p of evidenceProblems(item, users)) problems.push(`${label}: ${p}`);
+      if (item?.source === "launcher") need(item.probe === step.launcher_probe, "can cite launcher evidence only for its declared probe.");
+    }
     if (["passed", "failed"].includes(step.verdict)) need(isText(step.proof), "has no proof: say how it was proven, in one plain sentence.");
     need(step.claimed === undefined || (step.claimed === "passed" && step.verdict === "not_checked"), 'claimed can only be "passed", on a not_checked check.');
     need(step.added === undefined || typeof step.added === "boolean", "added must be true or false.");
@@ -388,6 +400,7 @@ function planProblems(run, steps, plan) {
     } else {
       if (step.check !== line.check || step.id !== line.id) problems.push(`step ${n} should be the check "${line.check}" with id "${line.id}".`);
       if (Boolean(step.added) !== Boolean(line.added)) problems.push(`step ${n} (check "${line.id}") must copy added: true from the journey${line.added ? "" : " only when the journey has it"}.`);
+      if (step.launcher_probe !== line.launcher_probe) problems.push(`step ${n} (check "${line.id}") must copy launcher_probe from the journey.`);
     }
   });
   return problems;

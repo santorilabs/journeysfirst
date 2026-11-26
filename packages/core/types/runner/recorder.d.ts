@@ -166,6 +166,8 @@ export declare class RunRecorder {
      * @param {string} text
      */
     redact(text: string): string;
+    /** @param {string[]} values exact host values to mask in recorded text, not in the run's structural fields */
+    redactOutputValues(values: string[]): void;
     /**
      * Record an action line.
      * @param {number|string} line the line number (from 1) or the action's sentence
@@ -241,6 +243,7 @@ export declare class RunRecorder {
         check: string;
         id: string;
         added?: boolean;
+        launcher_probe?: string;
     };
 }
 /** The repo in the current folder, as run results `repos`. Empty outside git. */
