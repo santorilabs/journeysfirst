@@ -197,12 +197,12 @@ function launcherFor({ base, work, home, auth, container, runtime, node, signal 
   };
 }
 
-/** @param {{work: string, home: string, auth: string, container?: string, hostHome?: string, loginFile?: string, runtime?: string, node: string}} path */
-function sandboxArgs({ work, home, auth, container, hostHome, loginFile, runtime, node }) {
+/** @param {{work: string, home: string, auth: string, container?: string, hostHome?: string, loginFile?: string, runtime?: string, node: string, platform?: NodeJS.Platform}} path */
+function sandboxArgs({ work, home, auth, container, hostHome, loginFile, runtime, node, platform = process.platform }) {
   /** @type {Record<string, string>} */
   const paths = { [hostHome ? ":minimal" : ":root"]: "read", "/proc": "deny", [work]: "write", [home]: "write", [auth]: "deny" };
   if (hostHome) {
-    const runtimes = [...nodeRuntimePaths(node), ...(runtime ? codexRuntimePaths(runtime) : [])];
+    const runtimes = [...nodeRuntimePaths(node), ...nodeSupportPaths(node, platform), ...(runtime ? codexRuntimePaths(runtime) : [])];
     for (const path of runtimes) paths[path] = "read";
     const resolvers = resolverPaths([hostHome, auth, "/proc"]);
     for (const path of resolvers.files) paths[path] ??= "read";
@@ -345,6 +345,26 @@ function nodeRuntimePaths(node) {
   return paths;
 }
 
+/**
+ * What Node reads outside its own folder to start on macOS. Without these it
+ * exits before running anything, so no command works in the sandbox.
+ * A Homebrew Node links to libraries of other Homebrew packages and reads
+ * Homebrew's OpenSSL config. Only the folders that hold programs are given.
+ * Homebrew's var and the rest of etc hold local data and service config, and stay closed.
+ * Any other Node reads the system OpenSSL config.
+ * @param {string} node the real path of the Node executable
+ * @param {NodeJS.Platform} platform
+ */
+function nodeSupportPaths(node, platform) {
+  if (platform !== "darwin") return [];
+  const prefix = /^(.+)\/Cellar\/[^/]+\/[^/]+\/bin\/node$/.exec(node)?.[1];
+  if (!prefix) return ["/System/Library/OpenSSL"].filter(existsDirectory);
+  /** @type {string[]} */
+  let config = [];
+  try { config = readdirSync(join(prefix, "etc")).filter((name) => /^(?:openssl@[\d.]+|ca-certificates)$/.test(name)); } catch {}
+  return [join(prefix, "opt"), join(prefix, "Cellar"), ...config.map((name) => join(prefix, "etc", name))].filter(existsDirectory);
+}
+
 /** @param {string} executable */
 function codexRuntimePaths(executable) {
   const pkg = dirname(dirname(executable));
@@ -376,6 +396,7 @@ function scratchProbeError({ stdout, stderr, timedOut }) {
   if (timedOut) return "the sandbox did not start in time. Try a regular host terminal or a compatible container.";
   if (stdout.trim() === PROTECTED_READABLE) return "a protected file was readable. No login was copied. Use a compatible container.";
   if (stdout.trim() === WORKSPACE_DENIED) return "Node could not read the scratch project. Set TMPDIR to a writable host folder outside the project.";
+  if (/Library not loaded|OpenSSL configuration error/.test(stderr)) return "Node could not start inside the sandbox: the sandbox blocks a file this Node install needs. Run with a Node from nodejs.org or Homebrew, or use a compatible container.";
   if (/namespace|operation not permitted|bwrap|bubblewrap/i.test(stderr)) return "the sandbox could not start. If you are inside another sandbox, run from a regular host terminal or use a compatible container.";
   if (/failed to exec|no such file or directory/i.test(stderr)) return "the sandbox could not start Node. Check that the Node executable is available to Codex, or use a compatible container.";
   return "the sandbox did not return a result. Run from a regular host terminal and check that Codex can start its Linux sandbox, or use a compatible container.";

@@ -65,7 +65,7 @@ The adapter reads stdio commands and argument lists, not URL servers or the rest
 
 Saved output masks forwarded environment values of four or more characters. Shorter values such as `CI=1` are not used to match secrets in output. Do not use credentials shorter than four characters.
 
-The local sandbox can run `npm` and `npx` bundled with the Node installation. Other globally installed tools may need a sandbox-readable installation or a compatible container.
+The local sandbox can run `npm` and `npx` bundled with the Node installation. On macOS, Node needs a few files outside its own folder to start, so the sandbox can read them. For a Homebrew Node these are Homebrew's `opt` and `Cellar` folders and its OpenSSL config and certificates. For any other Node it is `/System/Library/OpenSSL`. The rest of Homebrew, such as `var` and the other folders in `etc`, stays closed. Other globally installed tools may need a sandbox-readable installation or a compatible container.
 
 The sandbox allows outbound network access. If a server needs dependencies from a registry, it can install them in the scratch project or use a sandbox-readable installation.
 
