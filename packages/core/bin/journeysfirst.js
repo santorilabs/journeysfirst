@@ -44,6 +44,8 @@ const USAGE = `Usage:
   journeysfirst measured <run folder>
       Prints what the run's measure files say, for a review: one line for each measured fact a criterion names.
       It compares with the earlier reviewed run of the journey. With none, it lists the values the run uses, to check against the design system journeys/README.md links to.
+      For a run with an MCP transcript, it also prints the tool calls: how many, how many returned an error, the wait, and the slowest.
+      It shows them beside the average of up to 10 earlier passed runs. A tool call that returned an error is a fact line.
   journeysfirst add-findings <run folder> <findings file> [--journey <file>]
       Writes a review's findings into the run. The file is {"findings": [...]}, with an empty list when the review found nothing.
       Nothing else in the run changes: a finding never changes a verdict or the result. Do it before publish.

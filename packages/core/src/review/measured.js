@@ -5,8 +5,9 @@
 // nothing a number cannot show. It keeps no list of the product's values: the
 // design system journeys/README.md links to is that list, and a review reads it.
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { readRunJson } from "../format/run-folder.js";
+import { join } from "node:path";
+import { earlierRuns, readRunJson } from "../format/run-folder.js";
+import { toolCallReport } from "./tool-calls.js";
 
 const VALUE_KINDS = /** @type {const} */ (["spacing", "type", "fonts", "radius"]);
 
@@ -41,16 +42,7 @@ export function readMeasures(folder) {
  * @returns {string|null}
  */
 export function earlierRun(folder) {
-  const run = readRunJson(folder);
-  const dir = dirname(folder);
-  const before = readdirSync(dir)
-    .map((id) => join(dir, id))
-    .filter((other) => existsSync(join(other, "run.json")))
-    .map((other) => ({ folder: other, raw: readRunJson(other) }))
-    .filter(({ raw }) => raw.id !== run.id && (raw.journey?.case ?? null) === (run.journey?.case ?? null) && Array.isArray(raw.findings) && Date.parse(raw.started_at) < Date.parse(run.started_at))
-    .filter((other) => readMeasures(other.folder).size)
-    .sort((a, b) => Date.parse(b.raw.started_at) - Date.parse(a.raw.started_at));
-  return before[0]?.folder ?? null;
+  return earlierRuns(folder).find(({ folder: other, raw }) => Array.isArray(raw.findings) && readMeasures(other).size)?.folder ?? null;
 }
 
 /**
@@ -168,7 +160,8 @@ const count = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 export function measuredReport(folder) {
   readRunJson(folder);
   const lines = readMeasures(folder);
-  if (!lines.size) return `${folder} has no measure files. A run made by a saved Playwright script has them. Without them every measured criterion is "not measured".`;
+  const toolLines = toolCallReport(folder);
+  if (!lines.size) return [`${folder} has no measure files. A run made by a saved Playwright script has them. Without them every measured criterion is "not measured".`, ...(toolLines.length ? ["", ...toolLines] : [])].join("\n");
   const before = earlierRun(folder);
   const { facts, counts, notMeasured, differ } = measuredFacts({ lines, earlier: before ? readMeasures(before) : null });
   const said = [`${folder}`, before ? `Compared with the earlier reviewed run, ${before}.` : "No earlier reviewed run to compare with."];
@@ -177,5 +170,6 @@ export function measuredReport(folder) {
   said.push("", ...(facts.length ? facts.map((f) => `fact  ${f.criterion}  step ${f.step}  ${f.says}  (measure-${f.step}.txt)`) : ["No measured criterion fails."]));
   if (counts.length) said.push("", `Counts: ${counts.join("; ")}.`);
   for (const line of notMeasured) said.push(`Not measured: ${line}.`);
+  if (toolLines.length) said.push("", ...toolLines);
   return said.join("\n");
 }

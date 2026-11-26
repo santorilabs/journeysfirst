@@ -3,7 +3,7 @@
 // checkRun, so a run is settled the same way wherever it is taken in. Writing
 // stores the settled run; reading digests run.json as it is, never as settled.
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { loadJourney } from "./format.js";
 import { checkRun } from "./run-check.js";
 import { runDigest, runFiles, sha256 } from "./runfile.js";
@@ -30,6 +30,22 @@ export function readRunJson(folder) {
   const path = join(folder, "run.json");
   if (!existsSync(path)) throw new Error(`${folder} is not a run folder: it has no run.json.`);
   return JSON.parse(readFileSync(path, "utf8"));
+}
+
+/**
+ * The runs before this one, of the same journey and case, newest first.
+ * @param {string} folder a run folder
+ * @returns {Array<{folder: string, raw: any}>} raw: the run.json as stored
+ */
+export function earlierRuns(folder) {
+  const run = readRunJson(folder);
+  const dir = dirname(folder);
+  return readdirSync(dir)
+    .map((id) => join(dir, id))
+    .filter((other) => existsSync(join(other, "run.json")))
+    .map((other) => ({ folder: other, raw: readRunJson(other) }))
+    .filter(({ raw }) => raw.id !== run.id && (raw.journey?.case ?? null) === (run.journey?.case ?? null) && Date.parse(raw.started_at) < Date.parse(run.started_at))
+    .sort((a, b) => Date.parse(b.raw.started_at) - Date.parse(a.raw.started_at));
 }
 
 /**
