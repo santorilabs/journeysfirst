@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/santorilabs/journeysfirst/main/spec/journey-v1.schema.json
+format: journeysfirst/v1
+title: Keep an aborted agent rerun
+promise: An interrupted rerun keeps the evidence it collected and cannot leave an old pass in charge.
+start: You have a disposable workspace with a tarball of this Journeys First build you can install. All saved attempts in this journey belong to a separate one-check fixture.
+steps:
+  - Run the fixture with a deterministic local command that submits a valid evidence-backed pass. Keep the passing run.
+  - Rerun the same fixture and case. After recording some evidence, have the child exit with an error or hit a time limit.
+  - check: Journeys First keeps both attempts and saves the newer one as aborted, with the reason and evidence it already recorded.
+    id: keeps-aborted-rerun
+  - Run merge-check for the fixture and case.
+  - check: Merge-check rejects the newer aborted rerun instead of accepting the older pass.
+    id: abort-blocks-merge
+notes: Put the fixture's TMPDIR outside its project but inside the outer workspace. Capture the fixture run metadata and merge-check output in this journey.
