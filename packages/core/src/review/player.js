@@ -26,15 +26,16 @@ export function playerHtml({ id, src, label, captions }) {
 const SPEEDS = [0.5, 1, 1.5, 2];
 
 /** Styles for playerHtml. */
-export const PLAYER_CSS = `.player{background:#000;border-radius:12px;overflow:hidden;margin-top:8px}
-.player video{display:block;width:100%;border:0;border-radius:0;margin:0;background:#000;cursor:pointer}
+export const PLAYER_CSS = `.player{background:var(--black);border-radius:var(--r-md);overflow:hidden;margin-top:var(--s-sm)}
+.player video{display:block;width:100%;border:0;border-radius:0;margin:0;background:var(--black);cursor:pointer}
 .player:fullscreen{display:flex;flex-direction:column;justify-content:center;border-radius:0}.player:fullscreen video{flex:1;min-height:0;object-fit:contain}
-.controls{display:flex;align-items:center;gap:8px;padding:8px 10px;background:#141516;color:#fff;font-size:13px}
-.controls button{flex:none;width:32px;height:32px;padding:0;border-radius:6px;background:#2a2b2d;font-size:14px}
-.controls .seek{flex:1;min-width:40px;accent-color:#f5c542}
+.controls{display:flex;align-items:center;gap:var(--s-sm);padding:var(--s-sm) var(--s-md);background:var(--black);color:var(--white);font:400 var(--fs-xs)/1 var(--mono)}
+.controls button,.controls select{flex:none;height:var(--control-sm);border-radius:var(--r-full);background:none;color:var(--white);box-shadow:inset 0 0 0 1px var(--gray-800)}
+.controls button{width:var(--control-sm);padding:0;font-size:var(--fs-sm)}
+.controls .seek{flex:1;min-width:var(--control);accent-color:var(--yellow-300)}
 .controls .time{flex:none;font-variant-numeric:tabular-nums;white-space:nowrap}
-.controls .cc{font-size:11px;font-weight:700}.controls .cc[aria-pressed="true"]{background:#f5c542;color:#000}
-.controls select{flex:none;font:inherit;background:#2a2b2d;color:#fff;border:0;border-radius:6px;height:32px;padding:0 4px}`;
+.controls .cc{font-size:var(--fs-xs);font-weight:500}.controls .play,.controls .cc[aria-pressed="true"]{background:var(--yellow-300);color:var(--black);box-shadow:none}
+.controls select{font:inherit;border:0;padding:0 var(--s-sm)}`;
 
 /** Wires every player on the page. Runs in the browser. */
 export const PLAYER_SCRIPT = `

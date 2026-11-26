@@ -11,7 +11,11 @@ import { checkRun } from "../format/run-check.js";
 import { findJourney } from "../format/run-folder.js";
 import { LABELS, REVIEW_PASSES, batchResult, esc, isCheck, reviewCountText, runTitle, screenshotFile, screenshotPage, stepState, videoAt } from "../shared/display.js";
 import { FILE_NAME, runResult } from "../format/runfile.js";
-import { RUN_PLAYER_CSS, RUN_PLAYER_SCRIPT, runPlayerHtml } from "./run-player.js";
+import { VERSION } from "../shared/version.js";
+import { RUN_PLAYER_SCRIPT, runPlayerHtml } from "./run-player.js";
+import { badge } from "./primitives.js";
+import { PAGE_CSS } from "./style.js";
+import { FONTS, MARK } from "./tokens.js";
 import { transcriptPanels } from "./transcripts.js";
 
 /**
@@ -170,16 +174,23 @@ export function indexPage(runs, runUrl = (journey, id) => `/runs/${encodeURIComp
     if (batch) batches.set(batch, [...(batches.get(batch) ?? []), entry]);
   }
   const shown = new Set();
+  let day = "";
   const rows = runs
     .map((entry) => {
       const batch = entry.run.repeat?.batch;
-      if (!batch) return runRow(entry, runUrl);
-      if (shown.has(batch)) return "";
-      shown.add(batch);
-      return batchRow(/** @type {RunEntry[]} */ (batches.get(batch)), runUrl);
+      if (batch && shown.has(batch)) return "";
+      if (batch) shown.add(batch);
+      const row = batch ? batchRow(/** @type {RunEntry[]} */ (batches.get(batch)), runUrl) : runRow(entry, runUrl);
+      // A band names the day above the first run of that day.
+      const started = dayOf(entry.run.started_at);
+      const band = started && started !== day ? `<div class="day">${esc(started)}</div>` : "";
+      day = started || day;
+      return band + row;
     })
     .join("");
-  return layout("Journey runs", `<h1>Journey runs</h1>${rows || '<p class="empty">No runs yet. Run a journey and its run shows up here.</p>'}`);
+  const failed = runs.filter((entry) => entry.run.result === "failed").length;
+  const heading = runs.length ? `${runs.length} ${runs.length === 1 ? "run" : "runs"}${failed ? `, ${failed} failed` : ""}` : "Journey runs";
+  return layout("Journey runs", `<h1>${heading}</h1>${rows ? `<div class="rows">${rows}</div>` : '<p class="empty">No runs yet. Run a journey and its run shows up here.</p>'}`, [{ text: "Journey runs" }]);
 }
 
 /** @param {RunEntry[]} entries @param {(journey: string, id: string) => string} runUrl */
@@ -209,7 +220,8 @@ function runRow({ journey, id, run }, runUrl) {
 
 /** @param {ShownRun} run */
 function indexMeta(run) {
-  const labels = [run.started_at && `Started: ${when(run.started_at)}`, run.ran_by?.agent && `Run by: ${run.ran_by.agent}`, run.legacy && "Draft 0",
+  // The day is in the band above the row, so the row has only the time.
+  const labels = [run.started_at && new Date(run.started_at).toLocaleTimeString(), run.ran_by?.agent, run.legacy && "Draft 0",
     run.problems?.length && `${run.problems.length} problems in the run file`];
   return `<span class="meta row-meta">${labels.filter(Boolean).map((label) => `<span>${esc(label)}</span>`).join("")}</span>`;
 }
@@ -243,7 +255,7 @@ function runDetails(run) {
     ...[...people].map((u) => [`Role: ${u === "you" ? "You" : u}`, [run.played_by?.[u] && `Played by ${run.played_by[u]}`, run.users?.[u] && `Account: ${run.users[u]}`].filter(Boolean).join(". ")]),
     ...Object.entries(run.values ?? {}).map(([name, v]) => [`\${${name}}`, v.secret ? "Hidden" : JSON.stringify(v.value)]),
   ].filter(([, value]) => value !== "" && value !== undefined);
-  return rows.length ? `<details class="run-details"><summary>Run details</summary><dl>${rows.map(([name, value]) => `<dt>${esc(name)}</dt><dd>${esc(value)}</dd>`).join("")}</dl></details>` : "";
+  return rows.length ? `<div class="run-details"><dl>${rows.map(([name, value]) => `<dt>${esc(name)}</dt><dd>${esc(value)}</dd>`).join("")}</dl></div>` : "";
 }
 
 /**
@@ -264,47 +276,56 @@ export function runPage(run, journey, id, folder, assets) {
   const transcripts = !assets || assets.includeTranscripts ? transcriptPanels(run, folder) : new Map();
   const steps = run.steps.map((/** @type {StepFields} */ step, i) => {
     const at = videoAt(step, media);
-    const card = stepCard(step, i + 1, fileUrl, Boolean(at)) + (report?.line === i + 1 ? reportedSection(report) : "") + (transcripts.get(i + 1) ?? "");
-    return { n: i + 1, text: String(step.check ?? step.says ?? ""), isCheck: isCheck(step), state: stepState(step), by: step.by || undefined, at: at?.seconds, card };
+    const shots = screenshots(step, i + 1, fileUrl);
+    const card = stepCard(step, at ? shots : "") + (report?.line === i + 1 ? reportedSection(report) : "") + (transcripts.get(i + 1) ?? "");
+    return { n: i + 1, text: String(step.check ?? step.says ?? ""), isCheck: isCheck(step), state: stepState(step), by: step.by || undefined, at: at?.seconds, card, shot: at ? undefined : shots || undefined };
   });
   const openAt = (steps.find((s) => s.state === "failed") ?? steps.find((s) => s.isCheck && s.state !== "passed"))?.n ?? steps.length;
+  const repo = run.repos?.[0];
+  const facts = [when(run.started_at), run.ran_by?.agent, repo && `${repo.branch ?? repo.repo}${repo.commit ? ` @ ${String(repo.commit).slice(0, 7)}` : ""}`, run.journey?.case && `case ${run.journey.case}`].filter(Boolean);
+  const details = runDetails(run) + (transcripts.get(0) ?? "") + (assets ? "" : traceSection((run.media ?? []).filter((m) => m.kind === "trace"), folder, liveFile));
+  const panels = [{ name: "findings", label: reviewCountText(run) || "Findings", html: findingsSection(run) + reviewsSection(run) }, ...(details ? [{ name: "details", label: "Run details", html: details }] : [])];
   return layout(
     title(run),
-    `<p><a href="${assets ? "../../../index.html" : "/"}">All runs</a></p>
-     <h1>${esc(run.promise ?? title(run))}</h1>
-     <p class="verdict-row">${badge(run.result)} <span class="summary">${checkSummary(run)}</span></p>
+    `<section class="strip">
+       <p class="verdict-row">${badge(run.result)} <span class="summary">${checkSummary(run)}</span> <span class="facts">${facts.map(esc).join(" · ")}</span></p>
+       <h1>${esc(run.promise ?? title(run))}</h1>
+     </section>
      ${run.problems?.length ? `<section class="problems"><p><b>This run file breaks the rules.</b> What is shown below is what the rules allow, not what the file claims.</p><ul>${run.problems.map((p) => `<li>${esc(p)}</li>`).join("")}</ul></section>` : ""}
-     ${findingsSection(run)}
-     ${steps.length ? runPlayerHtml({ steps, videos, openAt }) : '<p class="empty">This run has no steps.</p>'}
-     ${transcripts.get(0) ?? ""}
-     ${runDetails(run)}
-     ${assets ? "" : traceSection((run.media ?? []).filter((m) => m.kind === "trace"), folder, liveFile)}
-     ${reviewsSection(run)}
+     ${steps.length ? runPlayerHtml({ steps, videos, openAt, panels }) : `<p class="empty">This run has no steps.</p>${panels.map((p) => p.html).join("")}`}
      <script>${RUN_PLAYER_SCRIPT}</script>`,
+    [{ text: "All runs", href: assets ? "../../../index.html" : "/" }, { text: title(run) }, ...(run.started_at ? [{ text: when(run.started_at) }] : [])],
+    true,
   );
 }
 
 /**
- * A step's details under the video: how it went, and how it was checked.
- * Its screenshots show when the step is not in a video, else they fold away.
+ * A step's screenshots, as HTML. Empty when it has none that can be shown.
  * @param {StepFields} step
  * @param {number} n
  * @param {(name: string | undefined) => string | undefined} fileUrl
- * @param {boolean} inVideo
  */
-function stepCard(step, n, fileUrl, inVideo) {
-  const state = stepState(step);
-  const shots = (step.screenshots ?? []).map((s) => {
+function screenshots(step, n, fileUrl) {
+  return (step.screenshots ?? []).map((s) => {
     const url = fileUrl(screenshotFile(s));
     return url ? `<img src="${url}" alt="What ${esc(step.by || "the user")} saw at step ${n}"${screenshotPage(s) ? ` title="${esc(screenshotPage(s))}"` : ""}>` : "";
   }).join("");
-  return `<p>${badge(state)}${step.added ? ' <span class="how">added by the agent</span>' : ""}</p>
+}
+
+/**
+ * A step's details under its line: how it went, and how it was checked.
+ * @param {StepFields} step
+ * @param {string} folded the step's screenshots when it is in a video, where they fold away.
+ *   A step in no video shows them where the video would be.
+ */
+function stepCard(step, folded) {
+  return `${step.added ? '<p class="how">added by the agent</p>' : ""}
     ${step.claimed ? `<p class="how">Claimed ${esc(step.claimed)}, but ${esc(lowerFirst(step.reason ?? "it had no evidence."))}</p>` : ""}
     ${step.reason && !step.claimed ? `<p class="error">${esc(step.reason)}</p>` : ""}
     ${step.cause && !step.claimed ? `<p class="how">Cause: ${esc(step.cause)}</p>` : ""}
     ${step.proof && step.proof !== step.reason ? `<p>${esc(step.proof)}</p>` : ""}
     ${evidenceList(step.evidence ?? [], { open: true, repeated: [step.reason, step.proof] })}
-    ${shots ? (inVideo ? `<details><summary>Screenshot</summary>${shots}</details>` : shots) : ""}`;
+    ${folded ? `<details><summary>Screenshot</summary>${folded}</details>` : ""}`;
 }
 
 /**
@@ -488,59 +509,23 @@ function reviewsSection(run) {
 
 const title = (/** @type {ShownRun} */ run) => runTitle(run);
 
-/** @param {string | undefined} state */
-function badge(state) {
-  return state ? `<span class="verdict ${esc(state)}">${esc(LABELS[/** @type {keyof typeof LABELS} */ (state)] ?? state)}</span>` : "";
-}
-
 /** @param {string} text */
 const lowerFirst = (text) => text.charAt(0).toLowerCase() + text.slice(1);
 /** @param {string | undefined} iso */
 const when = (iso) => (iso ? new Date(iso).toLocaleString() : "");
+/** The day a run started, like "Nov 25, 2026". @param {string | undefined} iso */
+const dayOf = (iso) => (iso ? new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "");
 
 /**
  * @param {string} heading
  * @param {string} body
+ * @param {Array<{text: string, href?: string}>} path where this page is, for the header bar. The last one is this page.
+ * @param {boolean} [fit] the page fills one screen and its panels scroll, where a page otherwise scrolls as a whole
  */
-function layout(heading, body) {
+function layout(heading, body, path, fit = false) {
+  const crumbs = path.map(({ text, href }, i) => (href ? `<a href="${esc(href)}">${esc(text)}</a>` : `<span${i === path.length - 1 ? ' aria-current="page"' : ""}>${esc(text)}</span>`)).join("");
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(heading)}</title>
-<style>
-:root{--ink:#141516;--muted:#6b6d69;--rule:#e6e6e3;--tint:#f3f3f0;--pass:#0c7741;--fail:#a32057;--wait:#6b583c}
-*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,sans-serif;color:var(--ink);background:#fff;line-height:1.45}
-main{max-width:1180px;margin:0 auto;padding:32px 16px 64px}h1{font-size:30px;margin:8px 0 6px}a{color:var(--ink)}
-.meta,.how,.empty{color:var(--muted);font-size:14px}
-.row{display:flex;flex-direction:column;gap:4px;padding:16px 0;border-top:1px solid var(--rule);text-decoration:none}
-.row .title{font-weight:600}
-.row-meta{display:flex;flex-wrap:wrap;gap:4px 16px}a.row:hover .title{text-decoration:underline}
-.runs{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:14px}.runs a{text-decoration:none}
-.verdict{display:inline-block;font-size:12px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;padding:3px 8px;border-radius:999px;white-space:nowrap;color:var(--wait);background:var(--tint)}
-.verdict.passed,.verdict.done{color:var(--pass);background:#e8f6ec}.verdict.failed{color:var(--fail);background:#fdebef}
-img{width:100%;border:1px solid var(--rule);border-radius:12px;display:block;margin-top:8px}
-${RUN_PLAYER_CSS}
-button{font:inherit;font-size:13px;padding:2px 10px;border-radius:999px;border:0;background:var(--ink);color:#fff;cursor:pointer}
-.error{color:var(--fail);font-size:14px}
-.verdict-row{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}.summary{font-weight:600}
-.problems{border:1px solid var(--fail);border-radius:12px;padding:4px 16px;margin:12px 0;font-size:14px}.problems ul{padding-left:20px}
-details{margin-top:6px;font-size:14px}summary{cursor:pointer;color:var(--muted)}
-pre{background:var(--tint);border-radius:8px;padding:8px 10px;font-size:12px;overflow-x:auto;white-space:pre-wrap;word-break:break-word;margin:6px 0}
-.transcript pre{max-height:24rem;overflow:auto}
-.evidence{list-style:none;padding:0;margin:6px 0}.evidence li{padding:6px 0;border-top:1px solid var(--rule)}
-.evidence dl,.run-details dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;margin:6px 0}
-.evidence dt,.run-details dt{font-weight:600}.evidence dd,.run-details dd{margin:0;overflow-wrap:anywhere;white-space:pre-wrap}
-.evidence dd dl{margin:0}.evidence ul.evidence-values{margin:0;padding-left:16px}.evidence-values li{padding:0;border:0}
-.run-details{border-top:1px solid var(--rule);margin-top:20px;padding-top:8px}.run-details dl{max-width:620px}
-.start{border-top:1px solid var(--rule);padding:8px 0}.start ul{margin:4px 0;padding-left:20px}
-.start h2{font-size:17px;margin:4px 0}.found{font-weight:400}
-.start .findings{list-style:none;padding:0;margin:4px 0 8px}.findings li{padding:10px 0;border-top:1px solid var(--rule)}.findings li:first-child{border-top:0}
-.reported{border-top:1px solid var(--rule);margin-top:12px;padding-top:4px}.reported-user{padding:4px 0}.reported-user p{margin:4px 0}.reported code{font-size:13px;word-break:break-all}
-.findings p{margin:2px 0}.findings .says{font-weight:600}.findings a{color:var(--muted)}
-@media(max-width:600px){
-  .evidence dl,.run-details dl{grid-template-columns:minmax(0,1fr);gap:2px}
-  .evidence dt,.run-details dt{overflow-wrap:anywhere}
-  .evidence dd+dt,.run-details dd+dt{margin-top:6px}
-  .evidence dd dl{border-left:1px solid var(--rule);padding-left:10px}
-}
-</style></head><body><main>${body}</main></body></html>`;
+${FONTS}<style>${PAGE_CSS}</style></head><body${fit ? ' class="fit"' : ""}><div class="frame"><header class="bar"><span class="logo">${MARK}</span>${crumbs}</header><main>${body}</main><footer class="foot"><span>Santori Labs</span><span>journeysfirst ${VERSION}</span></footer></div></body></html>`;
 }
 
 /**
