@@ -441,6 +441,9 @@ fs.writeFileSync(${JSON.stringify(observed)}, JSON.stringify({
   assert.match(only.args.join(" "), /mcp_servers.only.args=.*explicit/);
   assert.doesNotMatch(only.args.join(" "), /mcp_servers\.(native|shared)/);
   assert.equal(only.named, false);
+  writeFileSync(join(auth, "config.toml"), '[mcp_servers.user_fixture]\ncommand = "npx"\nenv_vars = ["TEST_API_KEY"]\njourneysfirst_login = true\n');
+  const user = run().args.find((arg) => arg.startsWith("mcp_servers.user_fixture.args="));
+  assert.match(user, /"--login-env-vars","TEST_API_KEY"/);
   writeFileSync(join(auth, "config.toml"), '[mcp_servers.ci_fixture]\ncommand = "npx"\nenv_vars = ["CI"]\n');
   assert.ok(run().args.includes('mcp_servers.ci_fixture.env_vars=["JF_MCP_ENV_CI"]'));
   for (const setting of ['"disabled_tools" = ["write"]', "'enabled_tools' = ['read']", 'env = { FIXTURE = "not-used" }']) {
@@ -463,7 +466,7 @@ test("run warns when a journey has no MCP server and the handoff contradicts the
   assert.match(result.stderr, /claims in handoff\.txt against the saved run.*not checked: link-on/);
 });
 
-test("MCP replies from a forwarded database credential cannot prove a pass for the seat", () => {
+test("forwarded MCP credentials prove a pass only when marked as the user's login", () => {
   const dir = mkdtempSync(join(tmpdir(), "jf-delegated-mcp-"));
   mkdirSync(join(dir, "captures"));
   for (const file of ["capture.mjs", "capture.js", "mask.js"]) {
@@ -472,17 +475,32 @@ test("MCP replies from a forwarded database credential cannot prove a pass for t
   const request = { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "status" } };
   const reply = { jsonrpc: "2.0", id: 1, result: { content: [{ type: "text", text: "Link sharing: on" }] } };
   const server = `process.stdin.on("end", () => console.log(${JSON.stringify(JSON.stringify(reply))})); process.stdin.resume();`;
-  const result = spawnSync(process.execPath, [join(dir, "capture.mjs"), "mcp-proxy", "database.txt",
-    "--env-vars", "DATABASE_URL", "--", process.execPath, "-e", server], {
-    input: JSON.stringify(request) + "\n", encoding: "utf8",
-    env: { ...process.env, JF_MCP_ENV_DATABASE_URL: "postgres://fixture.invalid/test" }, timeout: 5000,
-  });
-  assert.equal(result.status, 0, result.stderr);
-  const seat = recording(recordAllPassed(recorder({ outputDir: dir })), "you");
-  const file = seat.attach("database.txt", join(dir, "captures/database.txt"), "recorded");
-  const [first] = readFileSync(join(dir, "captures/database.txt"), "utf8").split("\n");
-  assert.equal(JSON.parse(first).key, "DATABASE_URL");
-  assert.throws(() => seat.check("link-on", { verdict: "passed", proof: "Read the setting.", refs: [{ file, line: 2 }] }), /own session/);
+  for (const [flag, name, credential, ownLogin] of [
+    ["--env-vars", "admin.txt", "ADMIN_CREDENTIAL", false],
+    ["--env-vars", "empty.txt", "EMPTY_VAR", false],
+    ["--login-env-vars", "user.txt", "USER_TOKEN", true],
+  ]) {
+    const result = spawnSync(process.execPath, [join(dir, "capture.mjs"), "mcp-proxy", name,
+      flag, credential, "--", process.execPath, "-e", server], {
+      input: JSON.stringify(request) + "\n", encoding: "utf8",
+      env: { ...process.env, ["JF_MCP_ENV_" + credential]: name === "empty.txt" ? "" : "fixture-credential" }, timeout: 5000,
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const run = recordAllPassed(recorder({ outputDir: dir }));
+    const seat = recording(run, "you");
+    const capturePath = join(dir, "captures", name);
+    const file = seat.attach(name, capturePath, "recorded");
+    const first = JSON.parse(readFileSync(capturePath, "utf8").split("\n")[0]);
+    const recordPass = () => seat.check("link-on", { verdict: "passed", proof: "Read the setting.", refs: [{ file, line: 2 }] });
+    if (ownLogin) {
+      assert.equal(first.login, "you");
+      recordPass();
+      assert.equal(run.finish().run.steps[1].evidence[0].login, "you");
+    } else {
+      assert.equal(first.key, credential);
+      assert.throws(recordPass, /own session/);
+    }
+  }
 });
 
 test("a relative npm archive outside the project installs from its scratch copy", () => {

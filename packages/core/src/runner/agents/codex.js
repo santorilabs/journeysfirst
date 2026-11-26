@@ -72,15 +72,15 @@ async function start({ mcp = {}, mcpOverride, container, allowHostRead = false, 
       recordPreflight(preflight);
       const native = mcpOverride ? [] : nativeMcpServers(mcp);
       const config = { ...Object.fromEntries(native.map(({ name, argv }) => [name, argv])), ...mcp };
-      const envNames = Object.fromEntries(native.map(({ name, envNames }) => [name, envNames]));
-      const servers = mcpConfig(config, sandbox, state, work, runtime ?? "codex", node, envNames);
+      const envByServer = Object.fromEntries(native.map(({ name, envNames, login }) => [name, { envNames, login }]));
+      const servers = mcpConfig(config, sandbox, state, work, runtime ?? "codex", node, envByServer);
       warnIfMissingMcp(run, servers.names);
       const sources = [["agent config.toml", native.map(({ name }) => name)],
         [mcpOverride ? "--mcp" : ".mcp.json", Object.keys(mcp)]];
       for (const [source, names] of sources) {
         if (Array.isArray(names) && names.length) console.error(`Proxying MCP servers from ${source}: ${names.join(", ")}.`);
       }
-      const serverEnv = Object.fromEntries(Object.values(envNames).flat().flatMap((name) => {
+      const serverEnv = Object.fromEntries(native.flatMap(({ envNames }) => envNames).flatMap((name) => {
         const value = process.env[name];
         if (value && value.length >= 8) run.value(`JF_MCP_ENV_${name}`, value, { secret: true });
         return value === undefined ? [] : [[`JF_MCP_ENV_${name}`, value]];
@@ -359,14 +359,14 @@ function scratchProbeError({ stdout, stderr, timedOut }) {
   return "the sandbox did not return a result. Run from a regular host terminal and check that Codex can start its Linux sandbox, or use a compatible container.";
 }
 
-/** @param {Record<string,string[]>} config @param {string[]} sandbox @param {string} state @param {string} work @param {string} runtime @param {string} node @param {Record<string,string[]>} [envByServer] */
+/** @param {Record<string,string[]>} config @param {string[]} sandbox @param {string} state @param {string} work @param {string} runtime @param {string} node @param {Record<string,{envNames:string[], login:boolean}>} [envByServer] */
 function mcpConfig(config, sandbox, state, work, runtime, node, envByServer = {}) {
   const args = Object.entries(config).flatMap(([name, argv]) => {
-    const envNames = Object.hasOwn(envByServer, name) ? envByServer[name] : [];
+    const { envNames, login } = Object.hasOwn(envByServer, name) ? envByServer[name] : { envNames: [], login: false };
     const forwarded = envNames.map((name) => `JF_MCP_ENV_${name}`);
     const policy = forwarded.length ? [...sandbox, "-c", 'shell_environment_policy.inherit="all"',
       "-c", `shell_environment_policy.include_only=${JSON.stringify(["PATH", "HOME", "LANG", ...forwarded])}`] : sandbox;
-    const passEnv = envNames.length ? ["--env-vars", envNames.join(",")] : [];
+    const passEnv = envNames.length ? [login ? "--login-env-vars" : "--env-vars", envNames.join(",")] : [];
     const args = [...policy, "--", node, join(state, "capture.mjs"), "mcp-proxy", name + ".txt", ...passEnv, "--", ...argv];
     const prefix = `mcp_servers.${name}`;
     return ["-c", `${prefix}.command=${JSON.stringify(runtime)}`, "-c", `${prefix}.args=${JSON.stringify(args)}`,
@@ -416,7 +416,7 @@ function nativeMcpServers(project) {
       table.set("nested", true);
       continue;
     }
-    if (!["command", "args", "enabled", "url", "env_vars", "env", "enabled_tools", "disabled_tools"].includes(key)) continue;
+    if (!["command", "args", "enabled", "url", "env_vars", "env", "enabled_tools", "disabled_tools", "journeysfirst_login"].includes(key)) continue;
     table.set(key, value);
     if (value.startsWith("[") && !value.endsWith("]")) pending = key;
   }
@@ -431,7 +431,7 @@ function nativeMcpServers(project) {
       const args = values.has("args") ? tomlStringArray(values.get("args")) : [];
       const envNames = values.has("env_vars") ? tomlStringArray(values.get("env_vars")) : [];
       if (!command || !envNames.every((key) => /^[A-Z_][A-Z0-9_]*$/.test(key) && !["PATH", "HOME", "CODEX_HOME"].includes(key) && !key.startsWith("JF_MCP_ENV_"))) throw new Error();
-      return [{ name, argv: [command, ...args], envNames: [...new Set(envNames)] }];
+      return [{ name, argv: [command, ...args], envNames: [...new Set(envNames)], login: values.get("journeysfirst_login") === "true" }];
     } catch {
       console.error(`Skipping MCP server "${name}": check command, args and env_vars in config.toml, or pass --mcp to override it.`);
       return [];
