@@ -126,7 +126,9 @@ function milliseconds(duration) {
 function stepRecorded(command, steps) {
   if (!command.includes("results.jsonl")) return undefined;
   let last;
-  for (const record of records(command)) {
+  // Inside a shell's double quotes each quote of the record is written \\", so read it that way when nothing reads as written.
+  const plain = records(command);
+  for (const record of plain.length ? plain : records(command.replaceAll('\\"', '"'))) {
     // As the runner reads a result: a check by its id, an action by its line. A line inside a check's refs is a line of a kept file.
     const n = typeof record.id === "string" ? steps.findIndex((s) => s?.id === record.id) + 1 : Number.isInteger(record.line) ? record.line : 0;
     if (n >= 1 && n <= steps.length) last = Math.max(last ?? 0, n);

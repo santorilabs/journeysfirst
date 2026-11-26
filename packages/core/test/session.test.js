@@ -42,6 +42,12 @@ test("a session record becomes rows: what was said, commands and tool calls, wit
   assert.equal(items[5].step, 3, "a line number in a check's refs is a line of a kept file, not a step");
 });
 
+test("a result written inside a shell's double quotes still ends its step", () => {
+  const command = String.raw`echo "{\"line\":2,\"status\":\"done\"}" >> .journeysfirst/results.jsonl`;
+  const [item] = sessionItems(saved(3, { type: "CommandExecution", command: ["/bin/zsh", "-lc", command], exit_code: 0 }), STARTED, STEPS);
+  assert.equal(item.step, 2);
+});
+
 test("the events Codex prints are read too, without times", () => {
   const printed = [
     { type: "thread.started", thread_id: "t1" },
