@@ -121,6 +121,9 @@ function readCapture(path) {
       }
       return { kind: /** @type {string} */ (row.kind), text: row.text,
         ...(Number.isSafeInteger(row.request) ? { request: row.request } : {}),
+        ...(Number.isSafeInteger(row.at) && row.at >= 0 ? { at: row.at } : {}),
+        ...(Number.isSafeInteger(row.ms) && row.ms >= 0 ? { ms: row.ms } : {}),
+        ...(row.error === true ? { error: true } : {}),
         ...(typeof row.login === "string" ? { login: row.login } : {}),
         ...(typeof row.key === "string" && /^[A-Z_][A-Z0-9_]*$/.test(row.key) ? { key: row.key } : {}) };
     });

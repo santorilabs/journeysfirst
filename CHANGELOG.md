@@ -4,6 +4,7 @@ Each released version is on npm (`journeysfirst`). Newest first.
 
 ## Unreleased
 
+- `mcp-proxy` saves times with each MCP exchange. A request row has `at`, the ms since the proxy started. A reply row has `ms`, how long its request waited, and `error: true` when the server answered with an error. Transcripts saved before this have none of these and still attach to a run.
 - The Node requirement now matches the ZIP support the package uses: Node 20.15 or newer on the 20 line, or Node 22.2 or newer.
 
 - The package includes the journey and run specs, schemas, and usage docs. The published 0.0.6 package did not include `spec/` or `docs/`. Releases check that these files are in the exact tarball sent to npm.

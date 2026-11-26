@@ -125,7 +125,7 @@ npx journeysfirst capture --out terminal.txt -- npm test
 npx journeysfirst mcp-proxy --out mcp.txt --secret-env MY_API_KEY -- node ./server.js
 ```
 
-For MCP, configure the client to start the proxy in place of the server. Child input and output are unchanged. The capture saves selected request names and bounded reply text or structured results from tools, resources and prompts. It does not save request arguments. Declare extra secrets by environment variable name. Redaction cannot find every private value. Check each capture before attaching or sharing it. Use a new file for each command.
+For MCP, configure the client to start the proxy in place of the server. Child input and output are unchanged. The capture saves selected request names and bounded reply text or structured results from tools, resources and prompts. Each request has the time it was seen, in ms since the proxy started (`at`). Each reply has how long its request waited (`ms`), and `error: true` when the server answered with an error. It does not save request arguments. Declare extra secrets by environment variable name. Redaction cannot find every private value. Check each capture before attaching or sharing it. Use a new file for each command.
 
 In the script that owns the run, import `recording` from `journeysfirst/recorder`. Give it the run and the seat doing the work:
 

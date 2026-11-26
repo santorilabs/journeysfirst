@@ -20,3 +20,8 @@ export declare function captureCommand(argv: string[], { out, mcp, secrets, iden
 export declare function forwardedSecrets(values: string[]): string[];
 /** @param {string[]} secrets */
 export declare function makeRedactor(secrets: string[]): (/** @type {string} */ text: string) => string;
+export type Requests = Map<string, {
+    line: number;
+    method: string;
+    at: number;
+}>;
