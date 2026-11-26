@@ -37,6 +37,8 @@ export const PRIMITIVES_CSS = `.meta,.how,.empty{color:var(--text-3);font-size:v
 .error{color:var(--error);font-size:var(--fs-sm)}
 .evidence dl,.run-details dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--s-xs) var(--s-md);margin:var(--s-sm) 0}
 .evidence dt,.run-details dt{color:var(--text-3)}.evidence dd,.run-details dd{margin:0;overflow-wrap:anywhere;white-space:pre-wrap}
+/* What a check read is data, so it is in the mono, like a call's in the session. */
+.evidence dd{font:var(--label);line-height:1.75}
 /* A tick and a cross, drawn once. The element keeps its word for a screen reader. */
 .row .verdict.passed,.row .verdict.failed,.check .step-status.good,.step-status.bad{flex:none;width:var(--s-md);height:var(--s-md);padding:0;overflow:hidden;color:transparent;box-shadow:none;border-radius:0;background:var(--text);-webkit-mask:var(--tick) center/contain no-repeat;mask:var(--tick) center/contain no-repeat}
 .row .verdict.failed,.step-status.bad{background:var(--error);-webkit-mask-image:var(--cross);mask-image:var(--cross)}
