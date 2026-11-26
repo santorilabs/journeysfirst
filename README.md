@@ -14,7 +14,7 @@ An open format for user journeys, with skills and a CLI. Your agent verifies eac
 
 - **Format:** journeys in plain sentences, and a run file with proof for every check.
 - **Skills:** onboard, build, write, run, review, fix.
-- **Runner:** replays each journey as a Playwright test.
+- **Runners:** replay browser journeys with Playwright or launch an agent to run terminal and MCP journeys.
 - **Review page:** watch each run step by step, as each user.
 
 Everything lives in your repo and runs wherever your code runs: your machine, CI or your own cloud.
@@ -101,7 +101,7 @@ steps:
     id: teammate-sees-it
 ```
 
-You write it in plain sentences, with no selectors or URLs. Your agent works those out when it runs it, and saves them in a script. Every run keeps the proof: a screenshot for each line, a video for each user, and a [`run.json`](spec/run-results-v1.example.json) with every check.
+You write it in plain sentences, with no selectors or URLs. Your agent works those out when it runs it, and saves them in a script. A run keeps a [`run.json`](spec/run-results-v1.example.json) with every check. A browser replay can also keep screenshots and video.
 
 https://github.com/user-attachments/assets/8d8912ba-3d1c-472b-a1af-b98645e558f5
 
@@ -117,9 +117,27 @@ npx journeysfirst init
 
 For terminal or MCP journeys, install `journeysfirst` and run `npx journeysfirst init --terminal` instead. This sets up the skills without a browser, Playwright config, or web server. Keep `.journeysfirst-terminal` in the repo so upgrades skip browser setup too.
 
-Run a terminal or MCP journey with `npx journeysfirst run journeys/<name>.journey.yaml` from a trusted test project. It picks a signed-in agent CLI and records configured stdio MCP servers.
-
 Or only the skills: `npx skills add santorilabs/journeysfirst --skill '*' --agent claude-code codex -y`
+
+## How journeys run
+
+| Where the user acts | What runs and what you can review |
+|---|---|
+| Browser | Playwright replays the steps in the browser. Review screenshots, video, and check results. |
+| Terminal | The agent runs commands. Use `journeysfirst capture` to save their output for checks. |
+| MCP | The agent calls tools through a proxy. Review the recorded calls and selected replies as evidence. |
+
+For terminal or MCP journeys, run `npx journeysfirst run journeys/<name>.journey.yaml` from a trusted test project. Journeys First picks an adapter for a supported, signed-in agent CLI. The adapter launches the agent; the run keeps its submitted checks, captures, and final message.
+
+### Set up MCP
+
+1. Put your test server under `mcpServers` in the project's `.mcp.json`. Use a stdio `command` and optional `args`. The proxy records calls without changing how the client and server talk.
+2. If the adapter reads the agent's own config, it also picks up supported stdio servers from there. The project entry wins when both have the same name.
+3. Pass `--mcp <file.json>` to use only the servers in that file for one run.
+
+Only explicitly named host environment variables are forwarded. A server that receives forwarded variables records evidence as a key by default. Key evidence cannot prove a check for your own login. Set `journeysfirst_login = true` in a supported native server entry only when the server acts as the journey user's own login, not when it uses a service or admin credential.
+
+See [MCP setup and recording details](docs/run-in-code.md#let-an-agent-run-a-journey) for the config formats and capture commands.
 
 ## Use it
 
@@ -134,7 +152,7 @@ Just ask your agent. It picks the right skill:
 | "Review the last run." | [journey-review](skills/journey-review/SKILL.md) |
 | "That run failed. Fix it." | [journey-fix](skills/journey-fix/SKILL.md) |
 
-After the first run, a replay is a plain Playwright test: `npx playwright test`. It needs no model, unless one of the users is an agent. For every command, run `npx journeysfirst --help`.
+After the first browser run, replay the Playwright test with `npx playwright test`. It needs no model unless one of the users is an agent. For every command, run `npx journeysfirst --help`.
 
 ## Limitations
 
