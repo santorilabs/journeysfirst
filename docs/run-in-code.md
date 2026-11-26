@@ -105,7 +105,7 @@ From the scratch project, use the helper that the launcher provides:
 node .journeysfirst/capture.mjs capture status.txt -- node ./check-status.mjs
 ```
 
-This saves selected output to `.journeysfirst/captures/status.txt`. Choose a new `.txt` name for each capture. The launcher reserves `handoff.txt` and `launcher-preflight.txt`. If a command uses a service key, add `--key ENV_NAME` before `--`. Use the variable name, not its value. Key evidence cannot prove a pass for the user's login. The MCP proxy records configured servers as `<server-name>.txt` in the same captures folder.
+This saves selected output to `.journeysfirst/captures/status.txt`. Choose a new `.txt` name for each capture. The launcher reserves `handoff.txt` and `launcher-preflight.txt`. If a command uses a service key, add `--key ENV_NAME` before `--`. Use the variable name, not its value. The capture helper masks that key in the output it shows the agent. Key evidence cannot prove a pass for the user's login. The MCP proxy records configured servers as `<server-name>.txt` in the same captures folder.
 
 Append one JSON object per line to `.journeysfirst/results.jsonl` as you go. The prompt on stdin gives you the action line numbers and check IDs. For example:
 

@@ -1,6 +1,8 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { closeSync, openSync, writeFileSync } from "node:fs";
+import { Transform } from "node:stream";
+import { StringDecoder } from "node:string_decoder";
 import { TextDecoder } from "node:util";
 import { MASK, maskText } from "./mask.js";
 
@@ -13,9 +15,9 @@ const CUT = JSON.stringify({ kind: "notice", text: "Capture limit reached. More 
 /**
  * Run a command with its streams connected normally, saving selected text.
  * @param {string[]} argv
- * @param {{out: string, mcp?: boolean, secrets?: string[], identity?: {login: string} | {key: string}, diagnostic?: string}} options
+ * @param {{out: string, mcp?: boolean, secrets?: string[], identity?: {login: string} | {key: string}, diagnostic?: string, maskOutput?: boolean}} options
  */
-export async function captureCommand(argv, { out, mcp = false, secrets = [], identity, diagnostic }) {
+export async function captureCommand(argv, { out, mcp = false, secrets = [], identity, diagnostic, maskOutput = false }) {
   if (!argv[0]) throw new Error("Give a command after --.");
   const fd = openSync(out, "wx", 0o600);
   const redact = makeRedactor(secrets);
@@ -52,8 +54,11 @@ export async function captureCommand(argv, { out, mcp = false, secrets = [], ide
   }
   child.stdout?.on("data", (chunk) => output.read(chunk));
   child.stderr?.on("data", (chunk) => error.read(chunk));
-  child.stdout?.pipe(process.stdout, { end: false });
-  child.stderr?.pipe(process.stderr, { end: false });
+  const secretOutput = maskOutput && !mcp ? secretVariants(secrets) : [];
+  for (const [source, target] of /** @type {const} */ ([[child.stdout, process.stdout], [child.stderr, process.stderr]])) {
+    if (!source) continue;
+    (secretOutput.length ? source.pipe(maskStream(secretOutput)) : source).pipe(target, { end: false });
+  }
   try {
     const [code, signal] = await once(child, "close");
     output.finish();
@@ -80,10 +85,45 @@ export function forwardedSecrets(values) {
 }
 
 /** @param {string[]} secrets */
-export function makeRedactor(secrets) {
-  const variants = [...new Set(secrets.filter(Boolean).flatMap((value) =>
+function secretVariants(secrets) {
+  return [...new Set(secrets.filter(Boolean).flatMap((value) =>
     [value, JSON.stringify(value).slice(1, -1), encodeURIComponent(value)]))].sort((a, b) => b.length - a.length);
-  const pattern = variants.length ? new RegExp(variants.map((text) => text.replace(/[.*+?^$${}()|[\]\\]/g, "\\$&")).join("|"), "g") : null;
+}
+
+/** @param {string[]} variants */
+function secretPattern(variants) {
+  return new RegExp(variants.map((text) => text.replace(/[.*+?^$${}()|[\]\\]/g, "\\$&")).join("|"), "g");
+}
+
+/** @param {string[]} variants */
+function maskStream(variants) {
+  const decoder = new StringDecoder("utf8");
+  const pattern = secretPattern(variants);
+  let pending = "";
+  return new Transform({
+    transform(chunk, _encoding, done) {
+      const text = pending + decoder.write(chunk);
+      let output = "", offset = 0;
+      for (const match of text.matchAll(pattern)) {
+        output += text.slice(offset, match.index) + MASK;
+        offset = match.index + match[0].length;
+      }
+      const tail = text.slice(offset);
+      let keep = Math.min(tail.length, variants[0].length - 1);
+      while (keep && !variants.some((secret) => secret.startsWith(tail.slice(-keep)))) keep--;
+      pending = keep ? tail.slice(-keep) : "";
+      done(null, output + tail.slice(0, tail.length - keep));
+    },
+    flush(done) {
+      done(null, (pending + decoder.end()).replace(pattern, MASK));
+    },
+  });
+}
+
+/** @param {string[]} secrets */
+export function makeRedactor(secrets) {
+  const variants = secretVariants(secrets);
+  const pattern = variants.length ? secretPattern(variants) : null;
   const credential = /(?<![-\w])([-\w]*(?:admin[-_]?key|deploy[-_]?key|api[-_]?key|password|secret|token|authorization)["']?(?:\s*[:=]\s*|(?<=key)\s+))("(?:[^"\\]|\\.)*"|'[^']*'|(?:bearer\s+)?[^\s,"';}]+)/gi;
   return (/** @type {string} */ text) => maskText((pattern ? text.replace(pattern, MASK) : text)
     .replace(credential, (_, name) => name + MASK));
