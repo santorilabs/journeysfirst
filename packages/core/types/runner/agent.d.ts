@@ -84,8 +84,8 @@ export declare function withAgentRun({ journey, caseId, project, agent, label, l
     handoff?: string;
     recording?: AdapterRecording;
 }>): Promise<AgentResult>;
-/** @param {RunRecorder} run @param {string[]} names */
-export declare function warnIfMissingMcp(run: RunRecorder, names: string[]): void;
+/** @param {string[]} names */
+export declare function noteMissingMcp(names: string[]): void;
 /** @param {string | undefined} project @param {string} base @param {string} work @param {string} [loginFile] */
 export declare function prepareProject(project: string | undefined, base: string, work: string, loginFile?: string): void;
 /** @param {RunRecorder} run */
