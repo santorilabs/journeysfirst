@@ -94,7 +94,8 @@ export async function withAgentRun({ journey, caseId, project, agent, label, log
   const saved = run.finish(problem ? { attempt: { status: "aborted", reason: problem } } : undefined);
   const unchecked = saved.run.steps.flatMap((step) => "verdict" in step && step.verdict === "not_checked" ? [step.id] : []);
   if (unchecked.length) {
-    console.error(`These checks were not checked: ${unchecked.join(", ")}. The saved run is the record. ${HANDOFF_FILE} is only what the agent said.`);
+    const said = run.files.has(HANDOFF_FILE) ? ` ${HANDOFF_FILE} is only what the agent said.` : "";
+    console.error(`These checks were not checked: ${unchecked.join(", ")}. The saved run is the record.${said}`);
   }
   return { ...saved, problem, exitCode: signal === "SIGINT" ? 130 : signal === "SIGTERM" ? 143 : problem ? 1 : 0 };
 }

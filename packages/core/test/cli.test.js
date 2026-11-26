@@ -480,6 +480,10 @@ test("run states from facts that no MCP server is configured and which checks we
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stderr, /No MCP servers are configured for the agent/);
   assert.match(result.stderr, /These checks were not checked: link-on\. The saved run is the record\./);
+  assert.match(result.stderr, /handoff\.txt is only what the agent said/);
+  const silent = cli(["run", "share.journey.yaml", "--agent", "true"], dir);
+  assert.match(silent.stderr, /These checks were not checked: link-on\. The saved run is the record\.\n/);
+  assert.doesNotMatch(silent.stderr, /handoff\.txt/);
   writeFileSync(join(dir, ".mcp.json"), JSON.stringify({ mcpServers: { fixture: { command: "fixture-server" } } }));
   const results = '{"id":"link-on","verdict":"failed","proof":"The link was off.","reason":"Sharing stayed off.","cause":"product"}';
   const checked = cli(["run", "share.journey.yaml", "--agent", `echo '${results}' > .journeysfirst/results.jsonl; echo All checks passed`], dir);
