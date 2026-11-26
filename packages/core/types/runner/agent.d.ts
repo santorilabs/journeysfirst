@@ -86,10 +86,10 @@ export declare function withAgentRun({ journey, caseId, project, agent, label, l
 }>): Promise<AgentResult>;
 /** @param {string[]} names */
 export declare function noteMissingMcp(names: string[]): void;
-/** @param {string | undefined} project @param {string} base @param {string} work @param {string} [loginFile] */
-export declare function prepareProject(project: string | undefined, base: string, work: string, loginFile?: string): void;
-/** @param {RunRecorder} run */
-export declare function agentPrompt(run: RunRecorder): string;
+/** @param {string | undefined} project @param {string} base @param {string} work @param {string} [loginFile] @param {"you" | "agent"} actor */
+export declare function prepareProject(project: string | undefined, base: string, work: string, loginFile?: string, actor?: "you" | "agent"): void;
+/** @param {RunRecorder} run @param {"you" | "agent"} actor */
+export declare function agentPrompt(run: RunRecorder, actor?: "you" | "agent"): string;
 /** @param {ReturnType<typeof recording>} seat @param {string} base @param {string} [sessionFile] */
 export declare function importResults(seat: ReturnType<typeof recording>, base: string, sessionFile?: string): string[];
 /** @param {string} path */

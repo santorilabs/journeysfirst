@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { adapters, selectAdapter } from "../src/runner/agents/index.js";
 import { importResults, stopProcessTree } from "../src/runner/agent.js";
 import { recording } from "../src/runner/recorder.js";
-import { JOURNEY, recordAllPassed, recorder } from "./helpers.js";
+import { AGENT_JOURNEY, JOURNEY, recordAllPassed, recorder } from "./helpers.js";
 
 const cli = fileURLToPath(new URL("../bin/journeysfirst.js", import.meta.url));
 const node = process.execPath;
@@ -119,7 +119,11 @@ test("a seat records checks only from output lines of its own approved captures"
   const passed = { verdict: "passed", proof: "Read the setting." };
   assert.throws(() => seat.check("link-on", passed), /needs at least one captured evidence reference/);
   assert.throws(() => seat.check("link-on", { ...passed, refs: [{ file, line: 2 }] }), /attached to this seat/);
-  assert.throws(() => recording(run, "viewer").check("link-on", { ...passed, refs: [{ file, line: 1 }] }), /attached to this seat/);
+  const viewer = recording(run, "viewer");
+  assert.throws(() => viewer.check("viewer-sees-it", { ...passed, refs: [{ file, line: 1 }] }), /attached to this seat/);
+  const viewerFile = viewer.attach("viewer.txt", out, { login: "viewer" });
+  assert.throws(() => viewer.check("link-on", { ...passed, refs: [{ file: viewerFile, line: 1 }] }), /Line 2 belongs to 'you'/);
+  assert.throws(() => viewer.step(1), /Line 1 belongs to 'you'/);
   seat.check("link-on", { ...passed, refs: [{ file, line: 1 }] });
   const { run: saved } = run.finish();
   assert.equal(saved.result, "passed");
@@ -340,7 +344,7 @@ function codexFixture(mode, flags = []) {
   if (project !== root) mkdirSync(project);
   mkdirSync(join(project, ".product-state"));
   writeFileSync(join(bin, "codex"), fakeCodex, { mode: 0o700 });
-  const journey = mode === "multi-seat" ? JOURNEY : JOURNEY.replace("users: [viewer]\n", "");
+  const journey = mode === "agent-seat" ? AGENT_JOURNEY : mode === "multi-seat" ? JOURNEY : JOURNEY.replace("users: [viewer]\n", "");
   writeFileSync(join(root, "share-by-link.journey.yaml"), journey + "\nnotes: private setup hint\n");
   writeFileSync(join(project, ".env.local"), "Private product login");
   if (mode) writeFileSync(join(project, mode + ".txt"), "");
@@ -592,11 +596,20 @@ test("Codex can read the resolver through the /etc/resolvconf/run directory alia
   assert.equal(run.steps[1].verdict, "passed");
 });
 
-test("the single-seat Codex launcher refuses a journey that names another seat", () => {
+test("the single-seat Codex launcher refuses a journey that names a human seat", () => {
   const { result, run } = codexFixture("multi-seat");
   assert.equal(result.status, 1);
-  assert.match(result.stderr, /only plays the 'you' seat/);
+  assert.match(result.stderr, /To record human or multiple seats, use Playwright or RunRecorder directly/);
   assert.equal(run, undefined);
+});
+
+test("the Codex adapter records terminal evidence for the named agent seat", () => {
+  const { result, run } = codexFixture("agent-seat");
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(run.played_by, { agent: "Codex" });
+  assert.equal(run.steps[1].verdict, "passed");
+  assert.equal(run.steps[1].by, "agent");
+  assert.equal(run.steps[1].evidence[0].login, "agent");
 });
 
 test("host-home denial must pass the probe unless the caller opts into host reads", () => {

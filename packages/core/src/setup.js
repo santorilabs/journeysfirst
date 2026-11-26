@@ -94,8 +94,10 @@ export function init({ root = process.cwd(), skillsDir, demo = false, terminal =
   }
   const example = terminal ? { add: false, notes: [] } : exampleMode(root, demo);
   const cited = skillsDir ?? DEFAULT_SKILLS_DIR;
+  const journeys = mkdirSync(join(root, "journeys"), { recursive: true });
   if (terminal) writeFileSync(join(root, TERMINAL_MODE), "JourneysFirst records terminal runs without Playwright.\n");
   return [
+    ...(journeys ? ["added journeys/"] : []),
     ...dirs.flatMap((dir) => copySkills(root, dir)),
     ...(terminal ? [`added ${TERMINAL_MODE}: skip browser setup`] : addConfig(root, { example: example.add })),
     ...(example.add ? addExample(root) : []),

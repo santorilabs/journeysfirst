@@ -1,4 +1,6 @@
 import { closeSync, constants, fstatSync, openSync, readSync } from "node:fs";
+import { FORMAT } from "../format/format.js";
+import { lineOwner } from "../format/validate-journey.js";
 import { CAPTURE_LIMIT } from "./capture.js";
 
 /** @typedef {{text: string, probe?: string}} PreflightRow */
@@ -15,6 +17,11 @@ export function preflightTranscript(rows) {
  */
 export function recording(run, by) {
   run.knows(by);
+  /** @param {import("../format/format.js").PlanLine} line */
+  const requireOwner = (line) => {
+    const owner = lineOwner(line, run.plan.everyone);
+    if (owner !== by) throw new Error(`Line ${line.n} belongs to '${owner}'. Record it from that seat.`);
+  };
   /** @type {Map<string, {entries: Map<number, string>, login?: string, key?: string}>} */
   const captures = new Map();
   /** @type {Map<string, PreflightRow[]>} */
@@ -58,6 +65,7 @@ export function recording(run, by) {
     },
     /** @param {Parameters<typeof run.step>[0]} line @param {Omit<NonNullable<Parameters<typeof run.step>[1]>, "by">} [result] */
     step(line, result) {
+      if (run.journey.format === FORMAT) requireOwner(run.actionLine(line));
       const reason = typeof result?.reason === "string" ? run.redact(result.reason) : result?.reason;
       run.step(line, { ...result, reason, by });
     },
@@ -67,6 +75,7 @@ export function recording(run, by) {
      * @param {Omit<NonNullable<Parameters<typeof run.check>[1]>, "by"|"evidence"> & {refs?: {file: string, line: number}[]}} [result]
      */
     check(id, { refs = [], ...result } = {}) {
+      if (run.journey.format === FORMAT) requireOwner(run.checkLine(id));
       if (result.verdict === "passed" && !refs.length) throw new Error("A passed check needs at least one captured evidence reference.");
       const evidence = refs.map(({ file, line }) => {
         if (preflight.has(file)) {

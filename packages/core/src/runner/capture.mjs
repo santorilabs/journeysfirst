@@ -1,4 +1,4 @@
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { captureCommand, forwardedSecrets } from "./capture.js";
@@ -33,7 +33,7 @@ if (!["capture", "mcp-proxy"].includes(mode) || !/^[A-Za-z0-9][A-Za-z0-9._-]*\.t
       delete process.env[forwarded];
     }
     const actorKey = key ?? (login ? undefined : passed[0]);
-    const identity = actorKey ? { key: actorKey } : { login: "you" };
+    const identity = actorKey ? { key: actorKey } : { login: readFileSync(join(state, "seat"), "utf8") };
     const secrets = forwardedSecrets(passed.map((name) => process.env[name] ?? ""));
     if (key && process.env[key]) secrets.push(process.env[key]);
     process.exitCode = await captureCommand(argv, { out: join(state, "captures", name), mcp, identity, secrets, maskOutput: !mcp && key !== undefined,

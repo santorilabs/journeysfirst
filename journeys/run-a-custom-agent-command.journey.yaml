@@ -4,7 +4,12 @@ title: Run and interrupt a custom agent command
 promise: I can run my own agent command and see its evidence, the limits of its sandbox, and what happened when I stopped it.
 start: You have a disposable workspace with a tarball of this Journeys First build you can install. Run each command below against a separate one-check fixture, not this journey.
 steps:
+  - In a fresh fixture project, set up terminal journeys. Without creating a folder yourself, write the one-check journey in the folder setup made. Name the agent as the only seat to play.
+  - check: You can write the journey in the folder created by terminal setup, without adding a browser config.
+    id: terminal-setup-creates-journeys
   - Run the fixture with --agent and a deterministic local command that writes a capture, submits a result, and prints a handoff.
+  - check: You see the check pass with the agent named as the seat that played it and as the login in its evidence.
+    id: named-agent-seat-recorded
   - check: You see the saved fixture run marked sandbox unverified.
     id: custom-agent-sandbox-unverified
   - Open or export the saved fixture run in review with transcripts included.
@@ -18,4 +23,4 @@ steps:
     id: custom-agent-no-mcp-stated
   - check: You see the launcher name the fixture check that was not checked, and the saved fixture run did not pass.
     id: custom-agent-unchecked-named
-notes: Put the fixture's TMPDIR outside its project but inside the outer workspace. Capture the fixture result, review output, interrupt outcome and launcher messages as evidence in this journey.
+notes: Run init --terminal in the fresh fixture. Set users to [agent] in the fixture journey and start each action and check with "The agent". Put the fixture's TMPDIR outside its project but inside the outer workspace. Capture the init output, fixture result, review output, interrupt outcome and launcher messages as evidence in this journey.

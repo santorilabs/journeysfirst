@@ -43,7 +43,7 @@ The full example is [examples/share-by-link/tests/share-by-link.spec.js](../exam
 
 ### Let an agent run a journey
 
-Start with `journeysfirst run` when the journey calls for an agent CLI and `you` is the only seat. Use it even if the journey is testing the launcher itself, a custom command, or what happens after an interrupted run. Do not write the top-level run with `RunRecorder` instead: that does not exercise the launcher.
+Start with `journeysfirst run` when one agent CLI plays the whole journey. Leave out `users` to record as `you`. To record as `agent`, write `users: [agent]` and start every action and check with “The agent”. Use it even if the journey is testing the launcher itself, a custom command, or what happens after an interrupted run. Do not write the top-level run with `RunRecorder` instead: that does not exercise the launcher.
 
 ```sh
 npx journeysfirst run journeys/onboarding.journey.yaml
@@ -53,7 +53,7 @@ Run this from the trusted test project. Journeys First chooses a supported, sign
 
 For the Codex adapter, put a recent Codex CLI on PATH and run `codex login`. Journeys First uses the existing ChatGPT or API-key login from `$CODEX_HOME/auth.json` (default `~/.codex/auth.json`). If you set `OPENAI_API_KEY`, it takes precedence. Only the login file is copied into the new Codex home for the run, after the sandbox probes pass. The launcher does not copy your Codex config or session history.
 
-Use a trusted, signed-out project. Journeys First copies it to a scratch folder and skips hidden directories, hidden symlinks, dependency folders, common credential files, and prior runs. A root npm manifest can refer to a package archive outside the project with a relative `file:` dependency. The launcher copies that archive and updates only the scratch manifest and lockfile. Codex gets the journey's promise, start, and steps, with a clean home. This launcher only runs the `you` seat. For multi-user journeys, use the recorder directly. A run does not prove what happens with a signed-in product.
+Use a trusted, signed-out project. Journeys First copies it to a scratch folder and skips hidden directories, hidden symlinks, dependency folders, common credential files, and prior runs. A root npm manifest can refer to a package archive outside the project with a relative `file:` dependency. The launcher copies that archive and updates only the scratch manifest and lockfile. The agent gets the journey's promise, start, steps, and the seat to play. The launcher marks that seat as the one played and uses it for actions, checks, and evidence from the seat's session. Use Playwright or the recorder directly for named human roles or multiple seats. A run does not prove what happens with a signed-in product.
 
 The scratch folder must be outside the project. Leave `TMPDIR` unset to use the system temporary directory, or set it to a writable folder outside the project. If another sandbox blocks the launcher from starting its own sandbox, use a regular host terminal or a compatible container.
 

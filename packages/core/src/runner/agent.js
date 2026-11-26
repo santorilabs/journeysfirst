@@ -3,7 +3,9 @@ import { closeSync, constants, copyFileSync, cpSync, fstatSync, lstatSync, mkdir
 import { tmpdir } from "node:os";
 import { basename, isAbsolute, join, relative, resolve, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
+import { FORMAT } from "../format/format.js";
 import { CAUSES } from "../format/runfile.js";
+import { lineOwner } from "../format/validate-journey.js";
 import { RunRecorder, recording } from "./recorder.js";
 import { preflightTranscript } from "./recording.js";
 import { CAPTURE_LIMIT } from "./capture.js";
@@ -48,10 +50,23 @@ export async function runAgent({ command, mcp = {}, timeoutMs = 1800000, ...opti
  * @returns {Promise<AgentResult>}
  */
 export async function withAgentRun({ journey, caseId, project, agent, label, loginFile, unverified }, execute) {
-  const run = RunRecorder.start({ journey, case: caseId, ranBy: { agent }, playedBy: { you: label }, tags: unverified ? { sandbox: "unverified" } : undefined });
-  if (run.plan.everyone.some((user) => user !== "you")) {
-    throw new Error(`The ${label} launcher only plays the 'you' seat. Use the recorder directly for journeys with more than one user.`);
+  const run = RunRecorder.start({ journey, case: caseId, ranBy: { agent }, tags: unverified ? { sandbox: "unverified" } : undefined });
+  const named = run.plan.everyone.filter((user) => user !== "you");
+  if (named.some((user) => user !== "agent")) {
+    throw new Error(`The ${label} launcher plays one seat: 'you', or 'agent' with users: [agent]. To record human or multiple seats, use Playwright or RunRecorder directly.`);
   }
+  const actor = named.length ? "agent" : "you";
+  if (run.journey.format === FORMAT) {
+    for (const line of run.plan.lines) {
+      const owner = lineOwner(line, run.plan.everyone);
+      if (owner !== actor) {
+        const item = line.kind === "action" ? "Step" : "Check";
+        const text = JSON.stringify(line.kind === "action" ? line.says : line.check);
+        throw new Error(`${item} ${line.n}, ${text}, belongs to '${owner}', but the ${label} launcher plays '${actor}'. If it is for '${actor}', start it with "The ${actor}". If the journey needs both seats, use Playwright or RunRecorder directly.`);
+      }
+    }
+  }
+  run.playedBy(actor, label);
   const base = realpathSync(mkdtempSync(join(tmpdir(), "journeysfirst-run-")));
   const work = join(base, "work"), state = join(work, ".journeysfirst");
   const interrupt = new AbortController();
@@ -63,8 +78,8 @@ export async function withAgentRun({ journey, caseId, project, agent, label, log
   process.on("SIGINT", onInt);
   process.on("SIGTERM", onTerm);
   try {
-    prepareProject(project, base, work, loginFile);
-    const result = await execute({ base, work, state, run, signal: interrupt.signal, prompt: agentPrompt(run),
+    prepareProject(project, base, work, loginFile, actor);
+    const result = await execute({ base, work, state, run, signal: interrupt.signal, prompt: agentPrompt(run, actor),
       recordPreflight(rows) {
         preflight = rows;
         writeFileSync(join(state, "captures", PREFLIGHT_FILE), preflightTranscript(rows), { flag: "wx", mode: 0o600 });
@@ -82,7 +97,7 @@ export async function withAgentRun({ journey, caseId, project, agent, label, log
         run.attach({ name, body: redactSession(body, run), kind: "transcript" });
       }
     }
-    const seat = recording(run, "you");
+    const seat = recording(run, actor);
     if (preflight.length) seat.attachPreflight(PREFLIGHT_FILE, preflight);
     const errors = importResults(seat, base, evidence?.session?.name);
     if (errors.length) run.tag("result_import_errors", errors.map((error) => maskText(run.redact(error))));
@@ -143,8 +158,8 @@ export function noteMissingMcp(names) {
   }
 }
 
-/** @param {string | undefined} project @param {string} base @param {string} work @param {string} [loginFile] */
-export function prepareProject(project, base, work, loginFile) {
+/** @param {string | undefined} project @param {string} base @param {string} work @param {string} [loginFile] @param {"you" | "agent"} actor */
+export function prepareProject(project, base, work, loginFile, actor = "you") {
   if (project) {
     const source = realpathSync(project);
     const inside = relative(source, base);
@@ -165,6 +180,7 @@ export function prepareProject(project, base, work, loginFile) {
     copyFileSync(fileURLToPath(new URL(file, import.meta.url)), join(state, file));
   }
   writeFileSync(join(state, "package.json"), '{"type":"module"}\n');
+  writeFileSync(join(state, "seat"), actor);
 }
 
 /** @param {string} project @param {string} work */
@@ -203,14 +219,15 @@ function stagePackageArchives(project, work) {
   }
 }
 
-/** @param {RunRecorder} run */
-export function agentPrompt(run) {
+/** @param {RunRecorder} run @param {"you" | "agent"} actor */
+export function agentPrompt(run, actor = "you") {
   const start = run.journey.cases?.find((item) => item.id === run.plan.case)?.start ?? run.journey.start;
   return [
     run.journey.promise, start, "",
     ...run.plan.lines.map((line) => line.kind === "action" ? `${line.n}. ${line.says}`
       : `${line.n}. Check ${line.id}: ${line.check}${line.launcher_probe ? ` (cite launcher probe: ${line.launcher_probe})` : ""}`), "",
     "Work only in this folder. It is a fresh copy of the project, without local logins. Do not sign in to the product unless a step says to.",
+    `Play the '${actor}' seat. Submit only actions and checks for that seat.`,
     "To record selected command output, run node .journeysfirst/capture.mjs capture NAME.txt -- COMMAND ARGS.",
     "For a command that uses a service key, put --key ENV_NAME before --. Use the variable name, not its value. A key capture cannot prove a pass.",
     "If this project has .mcp.json, use it for MCP calls. Configured servers record calls as NAME.txt.",

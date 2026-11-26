@@ -17,7 +17,8 @@ What happened when a journey ran is a different file: [run results](run-results-
 ## Writing steps
 
 - **Who acts:** whoever the sentence starts with. "The viewer opens the link" is the viewer. A sentence that names no one first is you.
-- **Whose view a check is about:** whoever it starts with. It is checked in that user's own login.
+- **Whose view a check is about:** whoever it starts with. “The viewer sees the file” and “The viewer's page shows the file” both belong to `viewer`. It is checked in that user's own login.
+- **An agent CLI plays one seat.** If you run the whole journey through `journeysfirst run`, omit `users` to play `you`. To play `agent`, write `users: [agent]` and start every action and check with “The agent”. A journey with actions or checks for both seats needs a runner that can record both.
 - **Launcher checks** test the runner, not the product. Set `launcher_probe: login-reuse` or `launcher_probe: protected-files` on a check to require that specific launcher probe instead of evidence from a product login.
 - **What the user does and sees,** not clicks or page elements. "Invite the teammate as an editor," not "click the Invite button."
 - **Quotes mean exact.** `"Q3 plan"` is matched word for word. Unquoted words can vary.
