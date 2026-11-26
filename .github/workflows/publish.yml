@@ -40,4 +40,22 @@ jobs:
       - run: command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y ffmpeg)
       - run: npm test
       - run: npm run check:names
-      - run: npm publish -w packages/core --access public
+      - name: Pack and verify the release artifact
+        id: pack
+        working-directory: packages/core
+        run: |
+          npm pack --json --pack-destination "$RUNNER_TEMP" > "$RUNNER_TEMP/journeysfirst-pack.json"
+          filename=$(node -p 'require(process.argv[1])[0].filename' "$RUNNER_TEMP/journeysfirst-pack.json")
+          tarball="$RUNNER_TEMP/$filename"
+          tar -tzf "$tarball" > "$RUNNER_TEMP/journeysfirst-files.txt"
+          for file in LICENSE README.md skills/journey-run/SKILL.md spec/journey-format-v1.md spec/run-results-v1.md spec/journey-v1.schema.json spec/run-results-v1.schema.json docs/how-it-fits.md docs/run-in-code.md; do
+            if ! grep -Fxq "package/$file" "$RUNNER_TEMP/journeysfirst-files.txt"; then
+              echo "::error::$file is missing from $filename."
+              exit 1
+            fi
+          done
+          echo "tarball=$tarball" >> "$GITHUB_OUTPUT"
+      - name: Publish the verified artifact
+        env:
+          TARBALL: ${{ steps.pack.outputs.tarball }}
+        run: npm publish "$TARBALL" --access public --provenance

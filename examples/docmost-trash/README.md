@@ -51,7 +51,7 @@ Files:
 
 ## Run it
 
-You need Docker, git and Node 20 or newer. This example is not part of the repo's `npm test`.
+You need Docker, git and a [supported Node version](../../README.md#install). This example is not part of the repo's `npm test`.
 
 From a clone of this repo:
 

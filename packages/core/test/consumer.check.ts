@@ -1,14 +1,12 @@
 // A TypeScript reader of the package, as a service would import it.
 // package.test.js type-checks this file; it is never run.
-import { caseIds, checkRun, journeyVersion, parseJourney, runDigest, runFiles, runResult, settle, stableJson, validateJourney, verifiedLists } from "journeysfirst";
+import { caseIds, checkRun, journeyVersion, parseJourney, runDigest, runFiles, runResult, RUN_FORMAT, settle, stableJson, validateJourney, verifiedLists } from "journeysfirst";
 import type { Journey, Run, Screenshot } from "journeysfirst";
 import { publishRun } from "journeysfirst/publish";
 import { expect, test } from "journeysfirst/playwright";
 import type { JourneyRun } from "journeysfirst/playwright";
 import { RunRecorder } from "journeysfirst/recorder";
 import JourneyReporter from "journeysfirst/reporter";
-import { RUN_FORMAT } from "journeysfirst/runfile";
-import { readRunFolder } from "journeysfirst/run-folder";
 import { startDevServer } from "journeysfirst/dev-server";
 import { PublishError, errorReply } from "journeysfirst/publish-handler";
 import { runAnswer } from "journeysfirst/run-answer";
@@ -52,7 +50,6 @@ const run: JourneyRun | null = null;
 const recorder: RunRecorder = RunRecorder.start({ journey: "journeys/share-by-link.journey.yaml" });
 const reporter: JourneyReporter = new JourneyReporter({ outputDir: "journey-runs" });
 const format: string = RUN_FORMAT;
-const folder = readRunFolder("journey-runs/x/1");
 const server: Promise<{ url: string }> = startDevServer({ port: 0, host: "127.0.0.1" });
 const refused: PublishError = new PublishError(409, "conflict", "This run id was already published with different content.");
 const reply: { status: number } = errorReply(404, "not_found", "There is no run with this id.");
@@ -60,5 +57,5 @@ const answer = runAnswer(raw, { runId: "r1", state: "sealed", url: "https://jour
 const checkIds: string[] = raw.steps.filter(isCheck).map((step) => step.id);
 const firstShot: string | undefined = screenshotFile(shots[0]);
 
-export { answer, checkIds, firstShot, folder, format, recorder, refused, reply, reporter, run, server };
+export { answer, checkIds, firstShot, format, recorder, refused, reply, reporter, run, server };
 export { checked, digest, files, lists, problems, published, result, settled, shots, text, version, cases };

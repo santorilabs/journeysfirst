@@ -99,7 +99,7 @@ A run is one folder: `run.json` plus the screenshots and videos it points to.
 
 ## Try the example app
 
-You need Node 20 or newer.
+You need Node 20.15 or newer on the 20 line, or Node 22.2 or newer.
 
 ```bash
 git clone https://github.com/santorilabs/journeysfirst.git

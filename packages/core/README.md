@@ -12,7 +12,7 @@ Ask your agent to set it up. Copy this to your agent:
 Set up Journeys First in this repo: https://journeysfirst.com/start
 ```
 
-Or install it yourself (Node 20 or newer):
+Or install it yourself (Node 20.15 or newer on the 20 line, or Node 22.2 or newer):
 
 ```bash
 npm install --save-dev journeysfirst @playwright/test
@@ -56,6 +56,7 @@ npx journeysfirst review journey-runs
 
 ## More
 
+- [Public entry points and TypeScript support](https://github.com/santorilabs/journeysfirst/blob/main/docs/how-it-fits.md#stability). Import only listed entry points.
 - [Repo README](https://github.com/santorilabs/journeysfirst#readme): the full walkthrough, the Playwright script and the recorder.
 - [Journey format v1](https://github.com/santorilabs/journeysfirst/blob/main/spec/journey-format-v1.md)
 - [Run results v1](https://github.com/santorilabs/journeysfirst/blob/main/spec/run-results-v1.md)

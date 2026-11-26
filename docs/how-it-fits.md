@@ -193,11 +193,6 @@ The two formats themselves are stable too: [Journey format v1](../spec/journey-f
 | `journeysfirst/display` | Helpers a browser page needs to show a run |
 | `journeysfirst/dev-server` | `startDevServer`, the protocol on a memory store, for tests |
 
-**Internal.** These may change without notice.
+The package uses ESM and ships TypeScript declarations for every entry above. Files under `src/` and `types/` are not import paths. Import format helpers from `journeysfirst`, not the old `journeysfirst/runfile` path. Use `journeysfirst/publish` to send a run folder or `validate-run` to check one, not the old `journeysfirst/run-folder` path.
 
-| Entry | Use instead |
-|---|---|
-| `journeysfirst/runfile` | `journeysfirst`, which re-exports all of it |
-| `journeysfirst/run-folder` | `journeysfirst/publish` to send a folder, or the CLI's `validate-run` to check one |
-
-The package is at 0.0.x. Under semver that means any release may break things, the stable entries included. A change to the formats must keep every existing v1 journey and run valid, unless the pull request says why not. [CHANGELOG.md](../CHANGELOG.md) says what changed in each release.
+The npm package follows [SemVer](https://semver.org/) and is still pre-1.0. Check [CHANGELOG.md](../CHANGELOG.md) before upgrading. The package interface may change, but changes to format v1 keep existing v1 journeys and runs valid unless the pull request says why not.

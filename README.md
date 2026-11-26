@@ -107,7 +107,7 @@ https://github.com/user-attachments/assets/8d8912ba-3d1c-472b-a1af-b98645e558f5
 
 ## Install
 
-Do it yourself (Node 20 or newer):
+Do it yourself (Node 20.15 or newer on the 20 line, or Node 22.2 or newer):
 
 ```bash
 npm install --save-dev journeysfirst @playwright/test
@@ -120,6 +120,10 @@ For terminal or MCP journeys, install `journeysfirst` and run `npx journeysfirst
 Run `npx journeysfirst doctor` to check the project setup. In terminal mode it skips browser and Playwright config checks.
 
 Or only the skills: `npx skills add santorilabs/journeysfirst --skill '*' --agent claude-code codex -y`
+
+## Use it as a library
+
+Use the ESM package `journeysfirst` to read and check journey and run files. It includes TypeScript declarations. Import focused entry points such as `journeysfirst/recorder` to record a run from your own code. See the [public entry points and stability policy](docs/how-it-fits.md#stability).
 
 ## How journeys run
 
