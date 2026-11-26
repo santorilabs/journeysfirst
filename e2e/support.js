@@ -124,9 +124,26 @@ export function playwrightOf(dir) {
   return existsSync(local) ? local : join(REPO, "node_modules/@playwright/test/cli.js");
 }
 
-/** @returns {string} */
+/**
+ * A port nothing listens on, from the operating system. A random number can
+ * land on a port that is in use, and then the app under test cannot start.
+ * @returns {string}
+ */
 export function freePort() {
-  return String(20000 + Math.floor(Math.random() * 20000));
+  const asked = spawnSync(process.execPath, ["-e", "const s = require('node:net').createServer().listen(0, '127.0.0.1', () => { process.stdout.write(String(s.address().port)); s.close(); });"], { encoding: "utf8", timeout: 10_000 });
+  const port = asked.stdout.trim();
+  if (asked.status !== 0 || !/^\d+$/.test(port)) throw new Error(`Could not get a free port: ${asked.stderr || asked.error?.message || `it printed ${JSON.stringify(asked.stdout)}`}`);
+  return port;
+}
+
+/**
+ * Print a child run's output when it failed and was meant to pass, so a failed
+ * test says why. The checks after it only say that the run did not pass.
+ * @param {string} name
+ * @param {{status: number | null, output: string}} played
+ */
+export function sayIfFailed(name, played) {
+  if (played.status !== 0 && !process.env.JF_BROKEN) console.error(`${name}: the child run exited with status ${played.status}.\n${played.output.slice(-4000)}`);
 }
 
 /**
