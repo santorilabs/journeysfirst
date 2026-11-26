@@ -61,6 +61,8 @@ Journeys First starts and records the stdio servers under `mcpServers` in the te
 
 The adapter reads stdio commands and argument lists, not URL servers or the rest of the agent's config. `env_vars` in a host entry forwards only the named variables to that server. By default, replies from a server that receives forwarded variables cannot prove a pass for the user's seat. Set `journeysfirst_login = true` in that native server entry only if the server acts as the journey user's own login. Do not set it for a service or admin credential. This setting does not turn off redaction. The launcher warns and skips entries with inline `env` values or tool restrictions. If you need to choose the test servers yourself, pass an explicit test-only `--mcp` config. Only configure test servers whose tools you trust the agent to call without a prompt. If a proxied server exits with an error, the launcher saves redacted stderr when available and exits nonzero. Check the saved diagnostics and try the server command in the test project. A missing or invalid evidence submission stays unverified.
 
+Saved output masks forwarded environment values of four or more characters. Shorter values such as `CI=1` are not used to match secrets in output. Do not use credentials shorter than four characters.
+
 The local sandbox can run `npm` and `npx` bundled with the Node installation. Other globally installed tools may need a sandbox-readable installation or a compatible container.
 
 The sandbox allows outbound network access. If a server needs dependencies from a registry, it can install them in the scratch project or use a sandbox-readable installation.

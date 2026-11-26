@@ -2,6 +2,7 @@ import { accessSync, chmodSync, closeSync, constants, lstatSync, mkdirSync, mkdt
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { processResult, readSmall, warnIfMissingMcp, withAgentRun } from "../agent.js";
+import { forwardedSecrets } from "../capture.js";
 import { maskText } from "../mask.js";
 
 const PROFILE = "journeysfirst";
@@ -88,7 +89,7 @@ async function start({ mcp = {}, mcpOverride, container, allowHostRead = false, 
         const value = process.env[name];
         return value === undefined ? [] : [[`JF_MCP_ENV_${name}`, value]];
       }));
-      run.redactOutputValues(Object.values(serverEnv));
+      run.redactOutputValues(forwardedSecrets(Object.values(serverEnv)));
       const result = await launcher(["-a", "never", ...permissions, ...servers.args, "exec", "--json", "--ephemeral",
         "--skip-git-repo-check", ...selected, "-"], prompt, timeoutMs, serverEnv);
       handoff = finalMessage(result.stdout);

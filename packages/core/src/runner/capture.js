@@ -74,6 +74,11 @@ export async function captureCommand(argv, { out, mcp = false, secrets = [], ide
   }
 }
 
+/** @param {string[]} values */
+export function forwardedSecrets(values) {
+  return values.filter((value) => value.length >= 4);
+}
+
 /** @param {string[]} secrets */
 export function makeRedactor(secrets) {
   const variants = [...new Set(secrets.filter(Boolean).flatMap((value) =>

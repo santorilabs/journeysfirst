@@ -396,8 +396,8 @@ const outcome = (id, line) => ({ id, verdict: "passed", proof: "Read launcher pr
 fs.writeFileSync(".journeysfirst/results.jsonl", [
   outcome("link-on", 3), outcome("launcher-login", 3), outcome("launcher-protected", 2),
 ].map(JSON.stringify).join("\\n"));
-const echoed = process.env.JF_MCP_ENV_FIXTURE_VALUE;
-console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "Evidence: " + path.resolve(preflightPath) + (echoed ? "; server returned " + echoed : "") } }));
+const echoed = ["CI", "FIXTURE_SHORT", "FIXTURE_LONG"].map((name) => process.env["JF_MCP_ENV_" + name]).filter(Boolean);
+console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "Evidence: " + path.resolve(preflightPath) + (echoed.length ? "; server returned " + echoed.join(", ") : "") } }));
 fs.writeFileSync(${JSON.stringify(observed)}, JSON.stringify({
   args, named: Boolean(process.env.JF_MCP_ENV_TEST_API_KEY),
   leaked: Boolean(process.env.TEST_API_KEY || process.env.JF_MCP_ENV_NOT_REQUESTED || process.env.NOT_REQUESTED),
@@ -410,7 +410,7 @@ fs.writeFileSync(${JSON.stringify(observed)}, JSON.stringify({
     "  - check: You see the launcher verify protected files.\n    id: launcher-protected\n    launcher: protected-files\n");
   const { OPENAI_API_KEY, ...hostEnv } = process.env;
   const env = { ...hostEnv, HOME: home, CODEX_HOME: auth, TMPDIR: dir, PATH: bin + ":" + process.env.PATH,
-    TEST_API_KEY: "named-test-value", NOT_REQUESTED: "unselected-test-value", CI: "1", FIXTURE_VALUE: "qZ7xQ" };
+    TEST_API_KEY: "named-test-value", NOT_REQUESTED: "unselected-test-value", CI: "1", FIXTURE_SHORT: "qZ7x", FIXTURE_LONG: "wX3zRt7Y" };
   const run = (...extra) => {
     const result = spawnSync(process.execPath, [BIN, "run", "share.journey.yaml", "--project", project, ...extra], { cwd: dir, env, encoding: "utf8" });
     assert.equal(result.status, 0, result.stderr);
@@ -456,12 +456,12 @@ fs.writeFileSync(${JSON.stringify(observed)}, JSON.stringify({
   writeFileSync(join(auth, "config.toml"), '[mcp_servers.user_fixture]\ncommand = "npx"\nenv_vars = ["TEST_API_KEY"]\njourneysfirst_login = true\n');
   const user = run().args.find((arg) => arg.startsWith("mcp_servers.user_fixture.args="));
   assert.match(user, /"--login-env-vars","TEST_API_KEY"/);
-  writeFileSync(join(auth, "config.toml"), '[mcp_servers.ci_fixture]\ncommand = "npx"\nenv_vars = ["CI", "FIXTURE_VALUE"]\n');
+  writeFileSync(join(auth, "config.toml"), '[mcp_servers.ci_fixture]\ncommand = "npx"\nenv_vars = ["CI", "FIXTURE_SHORT", "FIXTURE_LONG"]\n');
   const ci = run();
-  assert.ok(ci.args.includes('mcp_servers.ci_fixture.env_vars=["JF_MCP_ENV_CI","JF_MCP_ENV_FIXTURE_VALUE"]'));
+  assert.ok(ci.args.includes('mcp_servers.ci_fixture.env_vars=["JF_MCP_ENV_CI","JF_MCP_ENV_FIXTURE_SHORT","JF_MCP_ENV_FIXTURE_LONG"]'));
   const handoff = readFileSync(join(ci.folder, "handoff.txt"), "utf8");
-  assert.match(handoff, /server returned •+/);
-  assert.doesNotMatch(handoff, /qZ7xQ/);
+  assert.match(handoff, /server returned 1, •+, •+/);
+  assert.doesNotMatch(handoff, /qZ7x|wX3zRt7Y/);
   for (const setting of ['"disabled_tools" = ["write"]', "'enabled_tools' = ['read']", 'env = { FIXTURE = "not-used" }']) {
     writeFileSync(join(auth, "config.toml"), `[mcp_servers.restricted]\ncommand = "npx"\n${setting}\n`);
     const restricted = spawnSync(process.execPath, [BIN, "run", "share.journey.yaml", "--project", project], { cwd: dir, env, encoding: "utf8" });
@@ -516,6 +516,31 @@ test("forwarded MCP credentials prove a pass only when marked as the user's logi
       assert.equal(first.key, credential);
       assert.throws(recordPass, /own session/);
     }
+  }
+});
+
+test("proxied MCP captures keep ordinary one-character forwarded values and mask longer ones", () => {
+  const dir = mkdtempSync(join(tmpdir(), "jf-forwarded-redaction-"));
+  try {
+    mkdirSync(join(dir, "captures"));
+    for (const file of ["capture.mjs", "capture.js", "mask.js"]) {
+      copyFileSync(new URL("../src/runner/" + file, import.meta.url), join(dir, file));
+    }
+    const server = `process.stdin.on("end", () => {
+      const text = [process.env.CI, process.env.SHORT, process.env.LONG].join(", ");
+      console.log(JSON.stringify({ jsonrpc: "2.0", id: 1, result: { content: [{ type: "text", text }] } }));
+    }); process.stdin.resume();`;
+    const result = spawnSync(process.execPath, [join(dir, "capture.mjs"), "mcp-proxy", "server.txt",
+      "--env-vars", "CI,SHORT,LONG", "--", process.execPath, "-e", server], {
+      input: '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"fixture"}}\n', encoding: "utf8",
+      env: { ...process.env, JF_MCP_ENV_CI: "1", JF_MCP_ENV_SHORT: "qZ7x", JF_MCP_ENV_LONG: "wX3zRt7Y" }, timeout: 5000,
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const text = readFileSync(join(dir, "captures/server.txt"), "utf8");
+    assert.match(text, /1, •+, •+/);
+    assert.doesNotMatch(text, /qZ7x|wX3zRt7Y/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
 });
 
