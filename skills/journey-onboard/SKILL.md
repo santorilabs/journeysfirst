@@ -92,6 +92,7 @@ Under **Journeys**, list the journeys that matter most:
 
 - One line each, a promise in the user's words: "I can share a doc and my teammate opens it." Not "Doc sharing works."
 - The most important first. Group by user or by area, whichever fits.
+- Include the ways a user says no or backs out: cancel, turn off, decline, delete, unsubscribe, leave. No task asks for these, so a change can break them and nobody sees. Each is its own promise: "I can cancel my plan, and I am not charged again."
 - Include planned promises, marked **planned**.
 - Give each a status: **proven** (a passing run exists), **drafted** (a file, not run yet), or **not yet**, with what blocks it.
 

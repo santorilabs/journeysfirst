@@ -2,13 +2,49 @@
 
 Each released version is on npm (`journeysfirst`). Newest first.
 
-## Unreleased
+## 0.0.7
 
+Upgrade steps: if you import `journeysfirst/runfile` or `journeysfirst/run-folder`, change the import (see the last line). Nothing else needs a change. Every v1 journey and run stays valid.
+
+Run a journey with an agent:
+
+- `journeysfirst run <journey.yaml>` runs a journey with an agent CLI you are signed in to, in a scratch copy of the project, and saves a run. It picks a supported, signed-in agent. `--agent codex` names one, and `--agent "<command>"` runs any agent command. A run from a custom command is marked `sandbox: unverified`.
+- The Codex adapter reuses your Codex login. Before it copies the login, it proves that the agent's commands cannot read your home folder or the login file. `--container <image>` runs it in Docker.
+- A journey with `users: [agent]` records the agent as the user who did each line. The launcher refuses a journey with a line for a user it does not play.
+- The run keeps the agent's session log, its model and CLI version, and its last message as `handoff.txt`. After a run, the launcher names each check that was not checked.
 - `npx journeysfirst run` with Codex works on macOS with the default host read protections. Before, Node could not start inside the sandbox, and the run stopped with "the sandbox did not return a result". The sandbox can now read what Node needs to start: for a Homebrew Node, Homebrew's `opt` and `Cellar` folders and its OpenSSL config and certificates, and for any other Node, `/System/Library/OpenSSL`. Your home folder and your login stay closed.
 - When Node cannot start inside the sandbox, the error says so.
-- `mcp-proxy` saves times with each MCP exchange. A request row has `at`, the ms since the proxy started. A reply row has `ms`, how long its request waited, and `error: true` when the server answered with an error. Transcripts saved before this have none of these and still attach to a run.
-- The Node requirement now matches the ZIP support the package uses: Node 20.15 or newer on the 20 line, or Node 22.2 or newer.
 
+Record a terminal or an MCP server:
+
+- `journeysfirst capture -- <command>` saves a command's output, bounded and redacted. `journeysfirst mcp-proxy -- <server>` relays an MCP server's stdio and saves each request name and reply text. Request arguments are not saved.
+- `journeysfirst run` starts the stdio servers in the project's `.mcp.json` through the proxy. `--mcp <file.json>` uses only the servers in that file.
+- `mcp-proxy` saves times with each MCP exchange. A request row has `at`, the ms since the proxy started. A reply row has `ms`, how long its request waited, and `error: true` when the server answered with an error. Transcripts saved before this have none of these and still attach to a run.
+- `journeysfirst/recorder` exports `recording`, which writes steps and checks from captures. A passed check must cite an output or reply line from that user's own capture.
+
+The run format:
+
+- A run can have `attempt: {status: "complete" | "aborted", reason}`. An aborted attempt cannot pass, and it keeps the evidence it recorded. `merge-check` stops the merge when the newest attempt was aborted. It does not fall back to an older pass.
+
+New commands:
+
+- `journeysfirst doctor` checks Node, Playwright, Chromium, the Playwright config, whether `baseURL` answers, and each journey file. A failed check says what to run next.
+- `journeysfirst report <run folder>` writes `report.html` for one run. `journeysfirst summary <run folder>` prints markdown for a pull request.
+- `journeysfirst affected <path...>` prints which journeys to run again after a change, from `journeys/covered-by.yaml`.
+- `journeysfirst init --terminal` sets up terminal and MCP journeys with no browser setup. `init` creates `journeys/`.
+
+The review page:
+
+- `journeysfirst review <runs> --out <folder>` exports the review as a static site, which works from any static host or from disk. Transcripts are left out unless you pass `--include-transcripts`.
+- A run page starts with the check counts. A failed run shows what the app reported around the failed line: each response with status 400 or more, and each console and page error.
+- A run page shows each attached transcript, collapsed, at its step.
+
+Other changes:
+
+- A declared secret is also hidden when it is used as a key in a recorder error.
+- `journey-onboard` also lists the ways a user says no or backs out, like cancel, turn off, decline and delete, when it lists the journeys that matter most.
+- The skills link to the file where a fact lives, and copy nothing into `journeys/README.md`. `measured` reads no list from the README.
+- The Node requirement now matches the ZIP support the package uses: Node 20.15 or newer on the 20 line, or Node 22.2 or newer.
 - The package includes the journey and run specs, schemas, and usage docs. The published 0.0.6 package did not include `spec/` or `docs/`. Releases check that these files are in the exact tarball sent to npm.
 - Removed two internal import paths. Import format helpers from `journeysfirst` instead of `journeysfirst/runfile`. To send or check a run folder, use `journeysfirst/publish` or `journeysfirst validate-run` instead of `journeysfirst/run-folder`. The v1 data formats are unchanged.
 
