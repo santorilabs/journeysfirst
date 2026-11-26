@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "journeysfirst/playwright";
-import { REPO, binOf, freePort, linkProject, markTime, newestRun, packs, playwrightOf, run, show } from "./support.js";
+import { REPO, binOf, freePort, linkProject, markTime, newestRun, packs, playwrightOf, run, sayIfFailed, show } from "./support.js";
 
 const broken = process.env.JF_BROKEN === "main";
 
@@ -40,6 +40,7 @@ test.journey("journeys/let-an-agent-write-a-journey.journey.yaml", { video: true
     let played = { status: 1, output: "" };
     await journey.step("The agent tries that.", { by: "agent", caption: "The agent tries that." }, async () => {
       played = run(dir, process.execPath, [playwrightOf(dir), "test", "--grep", "See that you are in"], { JOURNEYS_PORT: freePort() });
+      sayIfFailed("let-an-agent-write-a-journey", played);
       await show(agent, "The agent runs that journey", played.output);
     });
 
