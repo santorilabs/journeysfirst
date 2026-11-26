@@ -117,7 +117,7 @@ npx journeysfirst init
 
 For terminal or MCP journeys, install `journeysfirst` and run `npx journeysfirst init --terminal` instead. This sets up the skills without a browser, Playwright config, or web server. Keep `.journeysfirst-terminal` in the repo so upgrades skip browser setup too.
 
-Run a terminal or MCP journey with `npx journeysfirst run journeys/<name>.journey.yaml` from a trusted test project. It picks a signed-in agent CLI and records the project's stdio MCP servers.
+Run a terminal or MCP journey with `npx journeysfirst run journeys/<name>.journey.yaml` from a trusted test project. It picks a signed-in agent CLI and records configured stdio MCP servers.
 
 Or only the skills: `npx skills add santorilabs/journeysfirst --skill '*' --agent claude-code codex -y`
 

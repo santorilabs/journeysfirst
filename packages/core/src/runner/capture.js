@@ -13,9 +13,9 @@ const CUT = JSON.stringify({ kind: "notice", text: "Capture limit reached. More 
 /**
  * Run a command with its streams connected normally, saving selected text.
  * @param {string[]} argv
- * @param {{out: string, mcp?: boolean, secrets?: string[], identity?: {login: string} | {key: string}}} options
+ * @param {{out: string, mcp?: boolean, secrets?: string[], identity?: {login: string} | {key: string}, diagnostic?: string}} options
  */
-export async function captureCommand(argv, { out, mcp = false, secrets = [], identity }) {
+export async function captureCommand(argv, { out, mcp = false, secrets = [], identity, diagnostic }) {
   if (!argv[0]) throw new Error("Give a command after --.");
   const fd = openSync(out, "wx", 0o600);
   const redact = makeRedactor(secrets);
@@ -35,7 +35,10 @@ export async function captureCommand(argv, { out, mcp = false, secrets = [], ide
   };
   const input = mcp ? mcpTap(add, "client") : null;
   const output = mcp ? mcpTap(add, "server", input?.requests) : terminalTap("stdout", add);
-  const error = terminalTap("stderr", add);
+  const error = terminalTap("stderr", (entry) => {
+    add(entry);
+    if (diagnostic) writeFileSync(diagnostic, redact(entry.text), { flag: "wx", mode: 0o600 });
+  });
   const child = spawn(argv[0], argv.slice(1), { stdio: [mcp ? "pipe" : "inherit", "pipe", "pipe"] });
   const onInt = () => child.kill("SIGINT");
   const onTerm = () => child.kill("SIGTERM");
@@ -57,6 +60,7 @@ export async function captureCommand(argv, { out, mcp = false, secrets = [], ide
     error.finish();
     return code ?? (signal === "SIGINT" ? 130 : signal === "SIGTERM" ? 143 : 1);
   } catch {
+    if (diagnostic) writeFileSync(diagnostic, "Could not start the command. Check that the executable is installed.", { flag: "wx", mode: 0o600 });
     throw new Error("Could not start the command. Check that the executable is installed.");
   } finally {
     if (child.stdin) {

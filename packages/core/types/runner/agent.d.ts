@@ -10,6 +10,7 @@ export type RunOptions = {
 export type AdapterOptions = RunOptions & {
     container?: string;
     allowHostRead?: boolean;
+    mcpOverride?: boolean;
     agentArgs: string[];
 };
 export type AgentResult = {
@@ -49,7 +50,7 @@ export type RunContext = {
     prompt: string;
 };
 /** @typedef {{journey: string, caseId?: string, project?: string, mcp?: Record<string, string[]>, timeoutMs?: number}} RunOptions */
-/** @typedef {RunOptions & {container?: string, allowHostRead?: boolean, agentArgs: string[]}} AdapterOptions */
+/** @typedef {RunOptions & {container?: string, allowHostRead?: boolean, mcpOverride?: boolean, agentArgs: string[]}} AdapterOptions */
 /** @typedef {{folder: string, run: import("../format/runfile.js").Run, problem?: string, exitCode: number}} AgentResult */
 /** @typedef {{work: string, home: string, auth: string, container?: string, hostHome?: string, loginFile?: string, runtime?: string, node: string}} SandboxOptions */
 /** @typedef {{name: string, setup: string, detect(container?: string): boolean, authProbe(): boolean, sandboxArgs(options: SandboxOptions): string[], mcpConfig(config: Record<string,string[]>, sandbox: string[], state: string, work: string, runtime: string, node: string): {args: string[], names: string[]}, start(options: AdapterOptions): Promise<AgentResult>}} AgentAdapter */
@@ -72,6 +73,8 @@ export declare function withAgentRun({ journey, caseId, project, agent, label, l
     problem?: string;
     handoff?: string;
 }>): Promise<AgentResult>;
+/** @param {RunRecorder} run @param {string[]} names */
+export declare function warnIfMissingMcp(run: RunRecorder, names: string[]): void;
 /** @param {string | undefined} project @param {string} base @param {string} work @param {string} [loginFile] */
 export declare function prepareProject(project: string | undefined, base: string, work: string, loginFile?: string): void;
 /** @param {RunRecorder} run */
@@ -84,7 +87,7 @@ export declare function readSmall(path: string): string;
  * @param {string} command
  * @param {string[]} args
  * @param {{cwd: string, env?: NodeJS.ProcessEnv, stdin: string, timeout: number, signal?: AbortSignal, shell?: boolean}} options
- * @returns {Promise<{code: number | null, stdout: string, timedOut: boolean}>}
+ * @returns {Promise<{code: number | null, stdout: string, stderr: string, timedOut: boolean}>}
  */
 export declare function processResult(command: string, args: string[], { cwd, env, stdin, timeout, signal, shell }: {
     cwd: string;
@@ -96,6 +99,7 @@ export declare function processResult(command: string, args: string[], { cwd, en
 }): Promise<{
     code: number | null;
     stdout: string;
+    stderr: string;
     timedOut: boolean;
 }>;
 /**

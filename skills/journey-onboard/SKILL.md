@@ -6,6 +6,8 @@ description: Onboard an existing repo or product to Journeys First. Use when the
 # Onboard a product
 Is there a product here yet? If there is only a request, follow `journey-build` instead.
 
+If you already have a journey and a safe test setup, you can run it with `journey-run` before this skill.
+
 The first thing you do is to research and understand the product. What does it do? What are the users? (humans? agents?) What does this product do for them?
 
 You write down what good means for this product first, in `journeys/README.md`. Then you draft the top journeys and stop before running anything.

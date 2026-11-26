@@ -121,7 +121,7 @@ test("add-findings writes a review's findings into the run and changes nothing e
     writeFileSync(join(dir, "findings.json"), JSON.stringify(content));
     return cli(["add-findings", folder, "findings.json"], dir);
   };
-  assert.match(cli(["validate-run", folder], dir).stdout, /\n {2}Not reviewed\.\n$/);
+  assert.match(cli(["validate-run", folder], dir).stdout, /\n {2}Not reviewed\.\n {2}Follow journey-review, then run: npx journeysfirst add-findings <run folder> <findings file>\n$/);
 
   const nothing = add({ findings: [] });
   assert.equal(nothing.status, 0, nothing.stderr);
@@ -367,4 +367,62 @@ test("run --agent refuses options it does not use", () => {
     assert.match(result.stderr, /--agent "<command>"/);
     assert.equal(run, undefined);
   }
+});
+
+test("a known agent proxies native stdio servers and honors project and explicit overrides", () => {
+  const dir = mkdtempSync(join(tmpdir(), "jf-native-mcp-"));
+  const home = join(dir, "home"), bin = join(dir, "bin"), project = join(dir, "project");
+  for (const path of [home, bin, project]) mkdirSync(path);
+  const auth = join(home, "native-config"), observed = join(dir, "observed.json");
+  mkdirSync(auth);
+  writeFileSync(join(auth, "auth.json"), "{}");
+  writeFileSync(join(auth, "config.toml"), [
+    "[mcp_servers.native]", "command = 'npx'", "args = [", '  "--yes", # comment', "  'example#fixture',", "\"mcp\",", "]",
+    'env_vars = ["TEST_API_KEY"]', "[mcp_servers.shared]", 'command = "native-shared"',
+    "[mcp_servers.disabled]", "enabled = false", 'command = "disabled"',
+    "[mcp_servers.remote]", 'url = "https://example.invalid"',
+  ].join("\n"));
+  writeFileSync(join(bin, "codex"), `#!/usr/bin/env node
+const fs = require("node:fs");
+const args = process.argv.slice(2);
+if (args[0] === "sandbox") console.log("journeysfirst: workspace readable, auth directory denied");
+else fs.writeFileSync(${JSON.stringify(observed)}, JSON.stringify({
+  args, named: Boolean(process.env.JF_MCP_ENV_TEST_API_KEY),
+  leaked: Boolean(process.env.TEST_API_KEY || process.env.JF_MCP_ENV_NOT_REQUESTED || process.env.NOT_REQUESTED),
+  copied: fs.existsSync(process.env.CODEX_HOME + "/config.toml"),
+}));`, { mode: 0o700 });
+  writeFileSync(join(dir, "share.journey.yaml"), JOURNEY.replace("users: [viewer]\n", ""));
+  const { OPENAI_API_KEY, ...hostEnv } = process.env;
+  const env = { ...hostEnv, HOME: home, CODEX_HOME: auth, TMPDIR: dir, PATH: bin + ":" + process.env.PATH,
+    TEST_API_KEY: "named-test-value", NOT_REQUESTED: "unselected-test-value" };
+  const run = (...extra) => {
+    const result = spawnSync(process.execPath, [BIN, "run", "share.journey.yaml", "--project", project, ...extra], { cwd: dir, env, encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+    return JSON.parse(readFileSync(observed, "utf8"));
+  };
+  const native = run();
+  const proxy = JSON.parse(native.args.find((arg) => arg.startsWith("mcp_servers.native.args=")).split(/=(.*)/s)[1]);
+  assert.deepEqual(proxy.slice(-9), ["mcp-proxy", "native.txt", "--env-vars", "TEST_API_KEY", "--", "npx", "--yes", "example#fixture", "mcp"]);
+  assert.ok(native.args.includes('mcp_servers.native.env_vars=["JF_MCP_ENV_TEST_API_KEY"]'));
+  assert.equal(native.named, true);
+  assert.equal(native.leaked || native.copied, false);
+  assert.doesNotMatch(native.args.join(" "), /disabled|remote|named-test-value/);
+  writeFileSync(join(project, ".mcp.json"), JSON.stringify({ mcpServers: { shared: { command: "project-shared" } } }));
+  const merged = run().args.join(" ");
+  assert.match(merged, /mcp_servers.native.args=.*project-shared/);
+  assert.doesNotMatch(merged, /native-shared/);
+  writeFileSync(join(dir, "override.json"), JSON.stringify({ only: ["explicit"] }));
+  const only = run("--mcp", "override.json");
+  assert.match(only.args.join(" "), /mcp_servers.only.args=.*explicit/);
+  assert.doesNotMatch(only.args.join(" "), /mcp_servers\.(native|shared)/);
+  assert.equal(only.named, false);
+});
+
+test("run warns when a journey has no MCP server and the handoff contradicts the saved checks", () => {
+  const dir = mkdtempSync(join(tmpdir(), "jf-run-warnings-"));
+  writeFileSync(join(dir, "share.journey.yaml"), JOURNEY.replace("users: [viewer]\n", "").replace(/^promise:.*$/m, "promise: Call my MCP server"));
+  const result = cli(["run", "share.journey.yaml", "--agent", "echo All checks passed"], dir);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stderr, /mentions MCP or tools, but no MCP server is configured/);
+  assert.match(result.stderr, /claims in handoff\.txt against the saved run.*not checked: link-on/);
 });

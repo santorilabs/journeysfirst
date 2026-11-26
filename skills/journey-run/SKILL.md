@@ -5,7 +5,7 @@ description: Run a journey against the app, prove each check, and write a run fo
 
 # Run a journey
 
-An existing product: read Foundation in `journeys/README.md` first (none yet: follow `journey-onboard`). A new build: the README's "Running safely" lines are your app skill.
+Read the Foundation in `journeys/README.md` if it exists. If you already have a journey and know the safe test setup, you can run it before onboarding. A new build: the README's "Running safely" lines are your app skill.
 
 The first thing you do is find out who you are playing. Then you run the journey the way each user would, prove each check, and write one run folder anyone can review. The run results spec is `node_modules/journeysfirst/spec/run-results-v1.md`. Code enforces the limits: a pass needs evidence from the right login, and the run file must match the journey line by line.
 
@@ -36,7 +36,9 @@ No safe environment, no test sign-in, or no sink for a send: the affected checks
 
 ## 4. Do each line
 
-For a terminal or MCP journey, run `npx journeysfirst run journeys/<name>.journey.yaml` from the trusted test project. This picks a signed-in agent CLI and records the stdio MCP servers in the project's `.mcp.json`. Read the saved run to see what passed. Use `capture` or `mcp-proxy` by hand only when you drive the run yourself.
+For a terminal or MCP journey, run `npx journeysfirst run journeys/<name>.journey.yaml` from the trusted test project. This picks a signed-in agent CLI and records configured stdio MCP servers. Use `--mcp <file.json>` to select only the test servers in that file. Read the saved run to see what passed. Use `capture` or `mcp-proxy` by hand only when you drive the run yourself.
+
+Leave `TMPDIR` unset or point it to a writable folder outside the test project. If another agent's sandbox stops the launcher from starting its own sandbox, run the same command from a regular host terminal or a compatible container. Do not turn off a safety check to get a passing run.
 
 - Each line is done by the user it starts with, in their own login and their own browser context, the way they would do it.
 - Do exactly what the sentence says. Type quoted input word for word.
@@ -126,7 +128,7 @@ test.journey("journeys/share-by-link.journey.yaml", async ({ journey }) => {
 
 Follow `journey-review` on the run folder while the environment is still up. It reads the screenshots and the `measure` files, writes `findings` into the run, and shows them to the person. A finding never changes a verdict or the run's result. A run driven by hand, with no saved script, has no `measure` files, so the review says "not measured" for the criteria that need them.
 
-A run is done when `validate-run` says ok, the steps match, and it prints a `Review:` line, not `Not reviewed.` The review found nothing, or a person has seen what it found (`add-review`, in `journey-fix`). With nobody to ask, follow `journey-fix`: fix what your change caused, and report the rest.
+A run is done when `validate-run` says ok, the steps match, and it prints a `Review:` line. If it says `Not reviewed.`, follow `journey-review`, then run `npx journeysfirst add-findings <run folder> <findings file>`. The review found nothing, or a person has seen what it found (`add-review`, in `journey-fix`). With nobody to ask, follow `journey-fix`: fix what your change caused, and report the rest.
 
 A failed check is a good result when the product is wrong. Report it. Never change the check to make it pass.
 

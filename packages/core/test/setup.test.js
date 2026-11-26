@@ -286,6 +286,7 @@ test("terminal init and upgrade keep skills without browser setup, even with a d
   writeFileSync(join(dir, "package.json"), JSON.stringify({ scripts: { dev: "node server.js" } }));
   const result = cli(["init", "--terminal", "--skills", ".agents/skills"], dir);
   assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /Run an existing journey with .*journey-run.*Use .*journey-onboard/);
   assert.ok(existsSync(join(dir, ".agents/skills/journey-run/SKILL.md")));
   const refreshed = cli(["upgrade", "--skills", ".agents/skills"], dir);
   assert.equal(refreshed.status, 0, refreshed.stderr);
@@ -336,22 +337,31 @@ test("the CLI runs init and upgrade in the current folder, takes --skills, and p
 test("init shows the section but does not write agent instructions until approved", () => {
   const dir = repo();
   writeFileSync(join(dir, "AGENTS.md"), "# Working here\n");
+  writeFileSync(join(dir, "CLAUDE.md"), "# Independent instructions\n");
+  mkdirSync(join(dir, ".claude"));
+  writeFileSync(join(dir, ".claude/CLAUDE.md"), "@AGENTS.md\n");
   const args = ["init", "--terminal", "--skills", ".agents/skills"];
   const proposed = cli(args, dir);
   assert.equal(proposed.status, 0, proposed.stderr);
-  assert.match(proposed.stdout, /Proposed addition to AGENTS.md \(not written\)/);
+  assert.match(proposed.stdout, /Proposed addition to AGENTS.md, CLAUDE.md \(not written\)/);
   assert.match(proposed.stdout, /write or update its journey/);
   assert.match(proposed.stdout, /npx journeysfirst run journeys\/<name>\.journey\.yaml/);
+  for (const rule of [/review each run.*journey-review/, /journey-fix.*Never edit a check to make it pass, and never delete a finding/, /update .*journeys\/README.md/, /journey-onboard.*journey-build/]) {
+    assert.match(proposed.stdout, rule);
+  }
   assert.equal(read(dir, "AGENTS.md"), "# Working here\n");
+  assert.equal(read(dir, "CLAUDE.md"), "# Independent instructions\n");
   const approved = cli(["init", "--agent-instructions", "--skills", ".agents/skills"], dir);
   assert.equal(approved.status, 0, approved.stderr);
   assert.equal(read(dir, "AGENTS.md"), `# Working here\n\n${journeysSection(".agents/skills")}`);
-  assert.ok(!existsSync(join(dir, "CLAUDE.md")));
+  assert.equal(read(dir, "CLAUDE.md"), `# Independent instructions\n\n${journeysSection(".agents/skills")}`);
+  assert.equal(read(dir, ".claude/CLAUDE.md"), "@AGENTS.md\n");
   const none = repo();
   init({ root: none, terminal: true });
   assert.ok(!existsSync(join(none, "AGENTS.md")));
   assert.ok(init({ root: none, agentInstructions: true }).includes("added AGENTS.md"));
   assert.equal(read(none, "AGENTS.md"), journeysSection(".claude/skills"));
+  assert.deepEqual(init({ root: none, agentInstructions: true }), ["unchanged AGENTS.md"]);
 });
 
 test("approved init uses an existing instructions file and does not create AGENTS.md", () => {
@@ -365,35 +375,38 @@ test("approved init uses an existing instructions file and does not create AGENT
   }
 });
 
-test("upgrade leaves instructions alone; approved init replaces only the managed section", () => {
+test("upgrade refreshes an existing managed section but does not add one", () => {
   const dir = repo();
   writeFileSync(join(dir, "AGENTS.md"), "top\n");
   init({ root: dir, agentInstructions: true });
   const older = read(dir, "AGENTS.md").replace("write or update its journey", "an old wording") + "bottom\n";
   writeFileSync(join(dir, "AGENTS.md"), older);
-  upgrade({ root: dir });
-  assert.equal(read(dir, "AGENTS.md"), older);
-  assert.ok(init({ root: dir, agentInstructions: true }).includes("updated the Journeys section in AGENTS.md"));
+  writeFileSync(join(dir, "CLAUDE.md"), "no managed section\n");
+  assert.ok(upgrade({ root: dir }).includes("updated the Journeys section in AGENTS.md"));
   assert.equal(read(dir, "AGENTS.md"), `top\n\n${journeysSection(".claude/skills")}bottom\n`);
-  assert.deepEqual(init({ root: dir, agentInstructions: true }), ["unchanged AGENTS.md"]);
+  assert.equal(read(dir, "CLAUDE.md"), "no managed section\n");
+  const untouched = repo();
+  init({ root: untouched, terminal: true });
+  upgrade({ root: untouched });
+  assert.ok(!existsSync(join(untouched, "AGENTS.md")));
 });
 
-test("after init or upgrade, a repo with no journeys/README.md goes to journey-onboard; upgrade also re-checks scripts and re-runs", () => {
+test("after init or upgrade, a repo can run an existing journey before onboarding; upgrade also re-checks scripts and re-runs", () => {
   const dir = repo();
   mkdirSync(join(dir, "e2e"));
   writeFileSync(join(dir, "e2e/share.spec.js"), "");
   writeFileSync(join(dir, "package.json"), JSON.stringify({ devDependencies: { "@playwright/test": "^1.50.0" } }));
-  assert.match(nextSteps("init", { root: dir }).join("\n"), /No journeys\/README\.md yet: follow \.claude\/skills\/journey-onboard\/SKILL\.md/);
+  assert.match(nextSteps("init", { root: dir }).join("\n"), /Run an existing journey with \.claude\/skills\/journey-run\/SKILL\.md/);
   const upgraded = nextSteps("upgrade", { root: dir }).join("\n");
   assert.match(upgraded, /saved script in e2e\/ against the evidence rules/);
   assert.match(upgraded, /Run the journeys again/);
-  assert.match(upgraded, /follow \.claude\/skills\/journey-onboard/);
+  assert.match(upgraded, /Use \.claude\/skills\/journey-onboard/);
   assert.doesNotMatch(upgraded, /npm install|playwright install/, "Playwright is there, and so are journeys");
   mkdirSync(join(dir, "journeys"));
   writeFileSync(join(dir, "journeys/README.md"), "# Journeys\n");
   const noFoundation = nextSteps("upgrade", { root: dir });
-  assert.match(noFoundation.join("\n"), /journeys\/README\.md has no Foundation section\. Add it before you run the journeys: follow "Find the foundation" in \.claude\/skills\/journey-onboard\/SKILL\.md\./);
-  assert.ok(noFoundation.findIndex((s) => s.includes("no Foundation")) < noFoundation.findIndex((s) => s.includes("Run the journeys again")), "the Foundation comes before the rerun, which reviews against it");
+  assert.match(noFoundation.join("\n"), /To add a Foundation for review, follow "Find the foundation" in \.claude\/skills\/journey-onboard\/SKILL\.md\./);
+  assert.ok(noFoundation.some((s) => s.includes("Run the journeys again")), "a missing Foundation does not block replay");
   writeFileSync(join(dir, "journeys/README.md"), "# Journeys\n\n## Foundation\n");
   assert.ok(!nextSteps("upgrade", { root: dir }).join("\n").includes("journey-onboard"));
   assert.match(nextSteps("init", { root: dir }).join("\n"), /journey-write/);

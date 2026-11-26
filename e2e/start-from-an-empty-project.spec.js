@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "journeysfirst/playwright";
 import { REPO, binOf, freePort, install, markTime, newestRun, packs, playwrightOf, run, show } from "./support.js";
@@ -59,6 +59,17 @@ test.journey("journeys/start-from-an-empty-project.journey.yaml", { video: true,
         setupLog = /** @type {Error} */ (error).message;
       }
       await show(you, "You install it and set the project up", setupLog);
+    });
+
+    await journey.check("approves-agent-instructions", { by: "you" }, async () => {
+      const file = join(dir, "AGENTS.md");
+      const proposed = /Proposed addition to AGENTS.md \(not written\)/.test(setupLog) && /write or update its journey/.test(setupLog);
+      const untouched = Boolean(dir) && !existsSync(file);
+      const approved = dir ? run(dir, process.execPath, [binOf(dir), "init", "--agent-instructions"]) : null;
+      const written = approved?.status === 0 && existsSync(file) && /<!-- journeysfirst:start -->/.test(readFileSync(file, "utf8"));
+      const passed = proposed && untouched && written;
+      await show(you, "Approve the proposed agent instructions", `${setupLog}\nAGENTS.md absent before approval: ${untouched}\n${approved?.output ?? ""}`);
+      return { passed, proof: "Read the proposal and checked the file before and after approval.", evidence: [{ source: "page", url: "http://127.0.0.1:9/", login: "you", saw: passed ? "Init previewed the section and wrote it only after approval." : "The proposal or approval did not work." }], reason: "Init did not preview the section and wait for approval before writing it." };
     });
 
     let first = { status: 1, output: "" };

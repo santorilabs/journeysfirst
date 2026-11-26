@@ -185,6 +185,10 @@ if (args[0] === "sandbox") {
   if (probe === auth) {
     assert.match(fs.readFileSync(probe, "utf8"), /Synthetic probe/);
     if (fs.existsSync("unsafe.txt")) process.exit(1);
+    if (fs.existsSync("nested-preflight.txt")) {
+      console.error("bwrap: creating namespace: Operation not permitted");
+      process.exit(1);
+    }
   } else if (path.basename(probe) === "auth.json") {
     assert.deepEqual(JSON.parse(fs.readFileSync(probe, "utf8")), ${JSON.stringify(fixtureSession)});
     const denied = path.basename(path.dirname(probe)) === ".codex" ? path.dirname(path.dirname(probe)) : probe;
@@ -194,10 +198,17 @@ if (args[0] === "sandbox") {
   } else {
     assert.match(fs.readFileSync(probe, "utf8"), /Synthetic host home probe/);
     const host = path.dirname(path.dirname(probe));
-    if (fs.existsSync("home-runtime.txt")) {
-      const node = path.join(host, ".nvm/versions/node/test/bin/node");
+    if (fs.existsSync("home-runtime.txt") || fs.existsSync("alt-home-runtime.txt")) {
+      const layout = fs.existsSync("home-runtime.txt") ? ".nvm/versions/node/test" : ".local/share/fnm/node-versions/test/installation";
+      const node = path.join(host, layout, "bin/node");
+      const prefix = path.resolve(path.dirname(node), "..");
       assert.ok(args.includes(node));
-      assert.ok(args.join(" ").includes(JSON.stringify(node) + '="read"'));
+      for (const addition of ["bin", "lib/node_modules/npm"]) {
+        assert.ok(args.join(" ").includes(JSON.stringify(path.join(prefix, addition)) + '="read"'), addition);
+      }
+      for (const unrelated of [prefix, path.join(prefix, "lib/node_modules")]) {
+        assert.ok(!args.join(" ").includes(JSON.stringify(unrelated) + '="read"'), unrelated);
+      }
       assert.ok(args.join(" ").includes(JSON.stringify(path.join(host, "bin/codex")) + '="read"'));
       assert.ok(!args.join(" ").includes(JSON.stringify(host) + '="read"'));
     } else assert.ok(args.join(" ").includes(JSON.stringify(host) + '="deny"'));
@@ -208,7 +219,8 @@ if (args[0] === "sandbox") {
       const underRun = grants.filter(entry => entry.startsWith('"/run/') || entry.startsWith('"/run"'));
       if (fs.existsSync("resolver-alias.txt")) {
         assert.ok(!grants.includes('"/etc/resolvconf/run"="read"'));
-        assert.deepEqual(underRun, ['"/run/resolvconf/resolv.conf"="read"']);
+        assert.ok(grants.includes('"/etc/resolvconf/sibling.conf"="deny"'));
+        assert.deepEqual(underRun, ['"/run/resolvconf/resolv.conf"="read"', '"/run/resolvconf/other.conf"="deny"']);
       } else {
         assert.deepEqual(underRun, ['"/run/jf-resolver-link"="read"', '"/run/jf-resolver.conf"="read"']);
       }
@@ -310,8 +322,9 @@ if (args[0] === "sandbox") {
 function codexFixture(mode, flags = []) {
   const root = dir();
   const hostHome = join(root, "host-home");
+  const layout = mode === "home-runtime" ? ".nvm/versions/node/test" : mode === "alt-home-runtime" ? ".local/share/fnm/node-versions/test/installation" : "";
   mkdirSync(hostHome);
-  const bin = join(mode === "home-runtime" ? hostHome : root, "bin");
+  const bin = join(layout ? hostHome : root, "bin");
   const project = mode === "auto-mcp" ? root : join(root, "project");
   mkdirSync(bin);
   if (project !== root) mkdirSync(project);
@@ -321,7 +334,7 @@ function codexFixture(mode, flags = []) {
   writeFileSync(join(root, "share-by-link.journey.yaml"), journey + "\nnotes: private setup hint\n");
   writeFileSync(join(project, ".env.local"), "Private product login");
   if (mode) writeFileSync(join(project, mode + ".txt"), "");
-  const server = mode === "mcp-crash" ? [node, "-e", "process.stdin.once('data', () => process.exit(32))"] : ["node", "server.js"];
+  const server = mode === "mcp-crash" ? [node, "-e", "process.stdin.once('data', () => { console.error('Cannot find module npm-prefix.js', 'synthetic-fixture-key'); process.exit(32); })"] : ["node", "server.js"];
   writeFileSync(join(root, "mcp.json"), JSON.stringify({ demo: server }));
   const automatic = ["auto-mcp", "no-mcp", "auto-no-login", "mcp-override"].includes(mode ?? "");
   if (mode === "auto-mcp" || mode === "mcp-override") {
@@ -338,6 +351,10 @@ function codexFixture(mode, flags = []) {
     writeFileSync(join(loginDir, "config.toml"), "not part of the login");
   }
   const env = { ...process.env, TMPDIR: project === root ? tmpdir() : root, HOME: hostHome, CODEX_HOME: custom ? loginDir : "", PATH: bin + ":" + process.env.PATH, OPENAI_API_KEY: "synthetic-fixture-key" };
+  if (mode === "project-local-temp") {
+    env.TMPDIR = join(project, ".scratch");
+    mkdirSync(env.TMPDIR);
+  }
   if (automatic || ["custom-login", "default-login", "no-login", "leaky-login"].includes(mode ?? "") ||
       (mode?.startsWith("rotate-") && mode !== "rotate-override")) delete env.OPENAI_API_KEY;
   const resolver = mode === "resolver-chain" ? {
@@ -354,17 +371,26 @@ function codexFixture(mode, flags = []) {
     import { syncBuiltinESMExports } from "node:module";
     const fixture = ${JSON.stringify(resolver)};
     const links = new Map(fixture.links);
-    const { lstatSync, readlinkSync } = fs;
+    const { lstatSync, readdirSync, readlinkSync } = fs;
     fs.lstatSync = (path, ...args) => links.has(path) || path === fixture.file || fixture.dirs.includes(path)
       ? { isSymbolicLink: () => links.has(path), isFile: () => path === fixture.file }
       : lstatSync(path, ...args);
     fs.readlinkSync = (path, ...args) => links.get(path) ?? readlinkSync(path, ...args);
+    fs.readdirSync = (path, ...args) => path === "/etc/resolvconf" ? ["run", "sibling.conf"]
+      : path === "/run/resolvconf" ? ["resolv.conf", "other.conf"] : readdirSync(path, ...args);
     syncBuiltinESMExports();
   `)}`] : [];
-  const launchNode = mode === "home-runtime" ? join(hostHome, ".nvm/versions/node/test/bin/node") : node;
-  if (mode === "home-runtime") {
-    mkdirSync(join(hostHome, ".nvm/versions/node/test/bin"), { recursive: true });
+  const prefix = join(hostHome, layout);
+  const launchNode = layout ? join(prefix, "bin/node") : node;
+  if (layout) {
+    mkdirSync(join(prefix, "bin"), { recursive: true });
     copyFileSync(realpathSync(node), launchNode);
+    const npm = join(prefix, "lib/node_modules/npm/bin");
+    mkdirSync(npm, { recursive: true });
+    for (const tool of ["npm", "npx"]) {
+      writeFileSync(join(npm, tool + "-cli.js"), "");
+      symlinkSync("../lib/node_modules/npm/bin/" + tool + "-cli.js", join(prefix, "bin", tool));
+    }
   }
   const result = spawnSync(launchNode, [...preload, ...args], { cwd: root, env, encoding: "utf8", timeout: 10000 });
   const runs = join(root, "journey-runs", "share-by-link");
@@ -458,7 +484,11 @@ test("a crashed MCP server leaves an environment failure even if Codex exits cle
   const { result, folder, run } = codexFixture("mcp-crash");
   assert.equal(result.status, 1, result.stderr);
   assert.match(result.stderr, /MCP server "demo" exited with status 32/);
-  assert.equal(run.summary, 'MCP server "demo" exited with status 32.');
+  assert.match(run.summary, /MCP server "demo" exited with status 32.*dependency was not available/);
+  assert.match(result.stderr, /See demo-stderr.txt in the saved run/);
+  const diagnostics = readFileSync(join(folder, "demo-stderr.txt"), "utf8");
+  assert.match(diagnostics, /Cannot find module npm-prefix.js/);
+  assert.doesNotMatch(diagnostics, /synthetic-fixture-key/);
   assert.deepEqual(run.tags.mcp_server_failures, [{ server: "demo", code: 32, cause: "environment" }]);
   assert.equal(run.result, "not_fully_checked");
   assert.equal(run.steps[1].verdict, "not_checked");
@@ -470,6 +500,21 @@ test("a failed sandbox probe never sends the API key to login", () => {
   assert.equal(result.status, 1);
   assert.match(result.stderr, /failed the scratch login probe/);
   assert.equal(run.steps[1].verdict, "not_checked");
+});
+
+test("a nested sandbox startup refusal tells the user to run from the host", () => {
+  const { result, run } = codexFixture("nested-preflight");
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /scratch login probe: the sandbox could not start.*regular host terminal/);
+  assert.equal(run.attempt.status, "aborted");
+});
+
+test("a project-local TMPDIR tells the user to put scratch outside the project", () => {
+  const { result, root, run } = codexFixture("project-local-temp");
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stderr, /scratch directory is inside the test project.*TMPDIR to a writable folder outside/);
+  assert.equal(run.attempt.status, "aborted");
+  assert.deepEqual(readdirSync(join(root, "project", ".scratch")), []);
 });
 
 test("Codex imports failure causes and records rejected result lines", () => {
@@ -515,9 +560,11 @@ test("run picks a signed-in adapter and records project MCP unless overridden", 
 });
 
 test("home-installed runtimes get narrow grants and still run the login and home probes", () => {
-  const { result, run } = codexFixture("home-runtime");
-  assert.equal(result.status, 0, result.stderr);
-  assert.equal(run.steps[1].verdict, "passed");
+  for (const mode of ["home-runtime", "alt-home-runtime"]) {
+    const { result, run } = codexFixture(mode);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(run.steps[1].verdict, "passed");
+  }
 });
 
 test("Codex can read the resolver through the /etc/resolvconf/run directory alias", () => {

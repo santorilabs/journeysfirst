@@ -58,7 +58,7 @@ const USAGE = `Usage:
   journeysfirst mcp-proxy --out <new file> [--secret-env <NAME,NAME>] -- <server command> [args...]
       Relay an MCP server's stdio and save request names and redacted reply text.
   journeysfirst run <journey.yaml> [--agent <name-or-command>] [--project <folder>] [--case <id>] [--mcp <json>] [--container <image> | --allow-host-read] [--timeout <seconds>] -- [--model <name>]
-      Use a signed-in agent CLI to run in a scratch copy of the project. Records stdio servers from .mcp.json by default.
+      Use a signed-in agent CLI in a scratch copy of the project. Records configured stdio MCP servers unless --mcp overrides them.
   journeysfirst publish <run folder> [--to <url>] [--journey <file>]   (default JOURNEYSFIRST_URL; token from JOURNEYSFIRST_TOKEN)
   journeysfirst dev-server [--port <n>] [--host <address>]   (default port 4500; host 127.0.0.1)
   journeysfirst affected <path...>
@@ -109,7 +109,7 @@ if (command === "run") {
     if (flags["allow-host-read"]) console.error("Host files, including files in your home directory, can be read by agent commands.");
     const project = flags.project ?? process.cwd();
     const options = { journey: positional[0], caseId: flags.case, project, mcp: readMcpServers(flags.mcp, project), timeoutMs };
-    const saved = adapter ? await adapter.start({ ...options, container: flags.container, allowHostRead: flags["allow-host-read"],
+    const saved = adapter ? await adapter.start({ ...options, container: flags.container, allowHostRead: flags["allow-host-read"], mcpOverride: flags.mcp !== undefined,
       agentArgs: end === -1 ? [] : rest.slice(end + 1) }) : await runAgent({ ...options, command: flags.agent });
     console.log(`Saved ${saved.run.result} run to ${saved.folder}.`);
     if (saved.problem) { console.error(saved.problem); process.exitCode = saved.exitCode; }
@@ -171,6 +171,9 @@ if (command === "run") {
       if (settled.length) console.log(`  Claimed passes with no evidence from the right login count as not_checked: ${settled.join(", ")}.`);
       console.log(`  ${compared}`);
       console.log(`  ${reviewLine(run)}`);
+      if (!Array.isArray(run.findings)) {
+        console.log("  Follow journey-review, then run: npx journeysfirst add-findings <run folder> <findings file>");
+      }
     } catch (error) {
       failed = true;
       console.log(error.message);
@@ -300,8 +303,8 @@ if (command === "run") {
     console.log(changes.map((line) => `  ${line}`).join("\n"));
     if (changes.every((line) => line.startsWith("unchanged "))) console.log("  Nothing changed.");
     if (command === "init" && !agentInstructions) {
-      const { name, section } = instructionProposal({ skillsDir: flags.skills });
-      console.log(`\nProposed addition to ${name} (not written):\n${section}\nTo approve it, run npx journeysfirst init --agent-instructions${flags.skills ? " --skills " + JSON.stringify(flags.skills) : ""}.`);
+      const { files, section } = instructionProposal({ skillsDir: flags.skills });
+      console.log(`\nProposed addition to ${files.map(({ name }) => name).join(", ")} (not written):\n${section}\nTo approve it, run npx journeysfirst init --agent-instructions${flags.skills ? " --skills " + JSON.stringify(flags.skills) : ""}.`);
     }
     console.log(`Next:\n${nextSteps(command, { skillsDir: flags.skills }).map((line) => `  ${line}`).join("\n")}`);
   } catch (error) {

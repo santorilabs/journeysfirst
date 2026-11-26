@@ -19,6 +19,8 @@ steps:
     id: teammate-sees-the-same-product
     added: true
   - Install it.
+  - check: You see which agent instructions init proposes, and it writes them only after you approve.
+    id: approves-agent-instructions
   - Try the sample it gives you.
   - check: You see the sample pass.
     id: first-run-passes

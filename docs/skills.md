@@ -15,7 +15,7 @@ Each skill starts by telling an existing product from a new build. On an existin
 
 The same steps every time live in commands, not skills: `npx journeysfirst init`, `upgrade`, `validate`, `validate-run`, `merge-check`, `measured`, `add-findings`, `add-review`, `review` and `publish`.
 
-A skill loads only when an ask matches it. During onboarding, show the proposed Journeys section and ask before adding it to the project's agent instructions. `init` prints the proposal. Once approved, run `npx journeysfirst init --agent-instructions` to write it to an existing instructions file, or to create `AGENTS.md` if none exists. `upgrade` leaves instructions alone.
+A skill loads only when an ask matches it. During onboarding, show the proposed Journeys section and ask before adding it to the project's agent instructions. `init` prints the proposal. Once approved, run `npx journeysfirst init --agent-instructions` to add it to the existing instructions, or to create `AGENTS.md` if none exist. `upgrade` refreshes managed Journeys sections but does not add them to new files.
 
 Every app also needs its own app skill, written from the [app skill template](../packages/core/templates/app-skill.md) (`node_modules/journeysfirst/templates/app-skill.md` once installed): safety, environments, accounts, seeding, inbound, sends, saved state. The generic skills say what to do. The app skill says where and how for that app.
 

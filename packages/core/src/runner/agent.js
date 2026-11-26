@@ -13,7 +13,7 @@ const OMIT = new Set([".git", ".mcp.json", ".aws", ".config", ".docker", ".env",
 const HANDOFF_FILE = "handoff.txt";
 
 /** @typedef {{journey: string, caseId?: string, project?: string, mcp?: Record<string, string[]>, timeoutMs?: number}} RunOptions */
-/** @typedef {RunOptions & {container?: string, allowHostRead?: boolean, agentArgs: string[]}} AdapterOptions */
+/** @typedef {RunOptions & {container?: string, allowHostRead?: boolean, mcpOverride?: boolean, agentArgs: string[]}} AdapterOptions */
 /** @typedef {{folder: string, run: import("../format/runfile.js").Run, problem?: string, exitCode: number}} AgentResult */
 /** @typedef {{work: string, home: string, auth: string, container?: string, hostHome?: string, loginFile?: string, runtime?: string, node: string}} SandboxOptions */
 /** @typedef {{name: string, setup: string, detect(container?: string): boolean, authProbe(): boolean, sandboxArgs(options: SandboxOptions): string[], mcpConfig(config: Record<string,string[]>, sandbox: string[], state: string, work: string, runtime: string, node: string): {args: string[], names: string[]}, start(options: AdapterOptions): Promise<AgentResult>}} AgentAdapter */
@@ -23,7 +23,8 @@ const HANDOFF_FILE = "handoff.txt";
 export async function runAgent({ command, mcp = {}, timeoutMs = 1800000, ...options }) {
   const name = basename(command.trim().split(/\s+/)[0] ?? "");
   const agent = /^[\w.-]+$/.test(name) ? name : "agent";
-  return withAgentRun({ ...options, agent, label: agent, unverified: true }, async ({ work, prompt, signal }) => {
+  return withAgentRun({ ...options, agent, label: agent, unverified: true }, async ({ work, prompt, signal, run }) => {
+    warnIfMissingMcp(run, Object.keys(mcp));
     if (Object.keys(mcp).length) {
       const mcpServers = Object.fromEntries(Object.entries(mcp).map(([name, argv]) => [name, {
         command: process.execPath, args: [".journeysfirst/capture.mjs", "mcp-proxy", name + ".txt", "--", ...argv],
@@ -53,6 +54,7 @@ export async function withAgentRun({ journey, caseId, project, agent, label, log
   const interrupt = new AbortController();
   const onInt = () => interrupt.abort("SIGINT");
   const onTerm = () => interrupt.abort("SIGTERM");
+  let handoff;
   let problem;
   process.on("SIGINT", onInt);
   process.on("SIGTERM", onTerm);
@@ -61,7 +63,10 @@ export async function withAgentRun({ journey, caseId, project, agent, label, log
     const result = await execute({ base, work, state, run, signal: interrupt.signal, prompt: agentPrompt(run) });
     const errors = importResults(recording(run, "you"), base);
     if (errors.length) run.tag("result_import_errors", errors.map((error) => maskText(run.redact(error))));
-    if (result.handoff) run.attach({ name: HANDOFF_FILE, body: maskText(run.redact(result.handoff)), kind: "transcript" });
+    if (result.handoff) {
+      handoff = maskText(run.redact(result.handoff));
+      run.attach({ name: HANDOFF_FILE, body: handoff, kind: "transcript" });
+    }
     problem = result.problem;
   } catch (error) {
     problem = run.redact(error instanceof Error ? error.message : "The agent could not complete the journey.");
@@ -73,7 +78,20 @@ export async function withAgentRun({ journey, caseId, project, agent, label, log
   const signal = interrupt.signal.reason;
   if (signal) problem = [`${label} was interrupted (${signal}).`, problem].filter(Boolean).join(" ");
   const saved = run.finish(problem ? { attempt: { status: "aborted", reason: problem } } : undefined);
+  const unchecked = saved.run.steps.flatMap((step) => "verdict" in step && step.verdict === "not_checked" ? [step.id] : []);
+  if (handoff && unchecked.length && /\bpass(?:ed|es|ing)\b/i.test(handoff)) {
+    console.error(`Check the agent's claims in handoff.txt against the saved run. These checks were not checked: ${unchecked.join(", ")}.`);
+  }
   return { ...saved, problem, exitCode: signal === "SIGINT" ? 130 : signal === "SIGTERM" ? 143 : problem ? 1 : 0 };
+}
+
+/** @param {RunRecorder} run @param {string[]} names */
+export function warnIfMissingMcp(run, names) {
+  const { promise, start, notes } = run.journey;
+  const text = [promise, start, notes, ...run.plan.lines.map((line) => line.kind === "check" ? line.check : line.says)].join("\n");
+  if (!names.length && /\b(?:MCP|tools?)\b/i.test(text)) {
+    console.error("This journey mentions MCP or tools, but no MCP server is configured. Add a trusted stdio server to .mcp.json or pass --mcp <file.json>.");
+  }
 }
 
 /** @param {string | undefined} project @param {string} base @param {string} work @param {string} [loginFile] */
@@ -81,7 +99,9 @@ export function prepareProject(project, base, work, loginFile) {
   if (project) {
     const source = realpathSync(project);
     const inside = relative(source, base);
-    if (!inside || (!inside.startsWith("../") && !isAbsolute(inside))) throw new Error("Choose a project that does not contain the scratch directory.");
+    if (!inside || (!inside.startsWith("../") && !isAbsolute(inside))) {
+      throw new Error(`The scratch directory is inside the test project. Set ${process.platform === "win32" ? "TEMP" : "TMPDIR"} to a writable folder outside the project, or choose a smaller test project with --project.`);
+    }
     cpSync(source, work, { recursive: true, filter: (path) => {
       if (path === source) return true;
       if (path === loginFile) return false;
@@ -177,13 +197,13 @@ export function readSmall(path) {
  * @param {string} command
  * @param {string[]} args
  * @param {{cwd: string, env?: NodeJS.ProcessEnv, stdin: string, timeout: number, signal?: AbortSignal, shell?: boolean}} options
- * @returns {Promise<{code: number | null, stdout: string, timedOut: boolean}>}
+ * @returns {Promise<{code: number | null, stdout: string, stderr: string, timedOut: boolean}>}
  */
 export function processResult(command, args, { cwd, env, stdin, timeout, signal, shell = false }) {
   return new Promise((done) => {
-    if (signal?.aborted) { done({ code: null, stdout: "", timedOut: false }); return; }
-    const child = spawn(command, args, { cwd, env, shell, detached: true, stdio: ["pipe", "pipe", shell ? "inherit" : "ignore"] });
-    let stdout = "", timedOut = false, stopping = false;
+    if (signal?.aborted) { done({ code: null, stdout: "", stderr: "", timedOut: false }); return; }
+    const child = spawn(command, args, { cwd, env, shell, detached: true, stdio: ["pipe", "pipe", shell ? "inherit" : "pipe"] });
+    let stdout = "", stderr = "", timedOut = false, stopping = false;
     const stop = () => {
       if (stopping) return;
       stopping = true;
@@ -194,15 +214,17 @@ export function processResult(command, args, { cwd, env, stdin, timeout, signal,
       timedOut = true;
       stop();
     }, timeout);
-    child.stdin.on("error", () => {});
-    child.stdin.end(stdin);
-    child.stdout.setEncoding("utf8");
-    child.stdout.on("data", (chunk) => { stdout = (stdout + chunk).slice(-2 * 1024 * 1024); });
+    child.stdin?.on("error", () => {});
+    child.stdin?.end(stdin);
+    child.stdout?.setEncoding("utf8");
+    child.stdout?.on("data", (chunk) => { stdout = (stdout + chunk).slice(-2 * 1024 * 1024); });
+    child.stderr?.setEncoding("utf8");
+    child.stderr?.on("data", (chunk) => { stderr = (stderr + chunk).slice(-4096); });
     /** @param {number | null} code */
     const finish = (code) => {
       clearTimeout(timer);
       signal?.removeEventListener("abort", stop);
-      done({ code, stdout, timedOut });
+      done({ code, stdout, stderr, timedOut });
     };
     child.once("error", () => finish(null));
     child.once("close", finish);
