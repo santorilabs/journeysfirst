@@ -2,11 +2,12 @@ import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
 import { createServer } from "node:net";
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { RunRecorder } from "../src/runner/recorder.js";
+import { recording } from "../src/runner/recording.js";
 import { DRAFT_0, JOURNEY, findings, recordAllPassed, recorder } from "./helpers.js";
 
 const BIN = new URL("../bin/journeysfirst.js", import.meta.url).pathname;
@@ -431,4 +432,26 @@ test("run warns when a journey has no MCP server and the handoff contradicts the
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stderr, /mentions MCP or tools, but no MCP server is configured/);
   assert.match(result.stderr, /claims in handoff\.txt against the saved run.*not checked: link-on/);
+});
+
+test("MCP replies from a forwarded database credential cannot prove a pass for the seat", () => {
+  const dir = mkdtempSync(join(tmpdir(), "jf-delegated-mcp-"));
+  mkdirSync(join(dir, "captures"));
+  for (const file of ["capture.mjs", "capture.js", "mask.js"]) {
+    copyFileSync(new URL("../src/runner/" + file, import.meta.url), join(dir, file));
+  }
+  const request = { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "status" } };
+  const reply = { jsonrpc: "2.0", id: 1, result: { content: [{ type: "text", text: "Link sharing: on" }] } };
+  const server = `process.stdin.on("end", () => console.log(${JSON.stringify(JSON.stringify(reply))})); process.stdin.resume();`;
+  const result = spawnSync(process.execPath, [join(dir, "capture.mjs"), "mcp-proxy", "database.txt",
+    "--env-vars", "DATABASE_URL", "--", process.execPath, "-e", server], {
+    input: JSON.stringify(request) + "\n", encoding: "utf8",
+    env: { ...process.env, JF_MCP_ENV_DATABASE_URL: "postgres://fixture.invalid/test" }, timeout: 5000,
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const seat = recording(recordAllPassed(recorder({ outputDir: dir })), "you");
+  const file = seat.attach("database.txt", join(dir, "captures/database.txt"), "recorded");
+  const [first] = readFileSync(join(dir, "captures/database.txt"), "utf8").split("\n");
+  assert.equal(JSON.parse(first).key, "DATABASE_URL");
+  assert.throws(() => seat.check("link-on", { verdict: "passed", proof: "Read the setting.", refs: [{ file, line: 2 }] }), /own session/);
 });

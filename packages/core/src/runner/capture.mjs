@@ -27,7 +27,7 @@ if (!["capture", "mcp-proxy"].includes(mode) || !/^[A-Za-z0-9][A-Za-z0-9._-]*\.t
       if (process.env[forwarded] !== undefined) process.env[name] = process.env[forwarded];
       delete process.env[forwarded];
     }
-    const actorKey = key ?? envNames.find((name) => /KEY|TOKEN|SECRET|PASSWORD/.test(name) && process.env[name]);
+    const actorKey = key ?? envNames.find((name) => process.env[name]);
     const identity = actorKey ? { key: actorKey } : { login: "you" };
     const secrets = [...envNames, ...(key ? [key] : [])].flatMap((name) => {
       const value = process.env[name];
