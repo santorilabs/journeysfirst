@@ -136,7 +136,7 @@ Record their call in the run, as `journey-fix` says. Fixing a finding is `journe
 
 ## Report
 
-These lines first. On a new build, the request list from triage comes next. Then each finding (the step, the sentence, the evidence), then each question.
+These lines first. Include `Counts:` only when `measured` reports counts from measure files. On a new build, the request list from triage comes next. Then each finding (the step, the sentence, the evidence), then each question.
 
 ```text
 Review: full. 2 findings, 1 question.

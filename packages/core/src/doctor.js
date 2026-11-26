@@ -23,10 +23,11 @@ const PLAYWRIGHT_INSTALL = "npm install --save-dev @playwright/test";
  * @returns {Promise<{ok: boolean, lines: DoctorLine[]}>}
  */
 export async function doctor({ root = process.cwd(), node = process.versions.node, playwright = detectPlaywright, fetchImpl = globalThis.fetch } = {}) {
+  const terminal = existsSync(join(root, ".journeysfirst-terminal"));
   const lines = [
     nodeLine(node),
-    ...(await playwrightLines(playwright)),
-    ...(await configLines(root, fetchImpl)),
+    ...(terminal ? [{ ok: true, name: "Terminal", says: "Terminal mode. Browser and Playwright config checks are skipped." }]
+      : [...await playwrightLines(playwright), ...await configLines(root, fetchImpl)]),
     ...journeyLines(root),
   ];
   return { ok: lines.every((line) => line.ok), lines };

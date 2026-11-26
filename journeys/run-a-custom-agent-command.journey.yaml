@@ -5,12 +5,12 @@ promise: I can run my own agent command and see its evidence, the limits of its 
 start: You have a disposable workspace with a tarball of this Journeys First build you can install. Run each command below against a separate one-check fixture, not this journey.
 steps:
   - Run the fixture with --agent and a deterministic local command that writes a capture, submits a result, and prints a handoff.
-  - check: The saved fixture run is marked sandbox unverified.
+  - check: You see the saved fixture run marked sandbox unverified.
     id: custom-agent-sandbox-unverified
   - Open or export the saved fixture run in review with transcripts included.
   - check: You can read the fixture's captured transcript and the command's final handoff in review.
     id: review-shows-transcript-and-handoff
   - Run the fixture again with a command that stays running. Send SIGINT only to the child launcher after the fixture command starts.
-  - check: The command stops and the child launcher saves an aborted attempt before returning the interrupt exit status.
+  - check: You see the command stop and the child launcher save an aborted attempt before returning the interrupt exit status.
     id: custom-agent-interrupt-saved
 notes: Put the fixture's TMPDIR outside its project but inside the outer workspace. Capture the fixture result, review output and interrupt outcome as evidence in this journey.

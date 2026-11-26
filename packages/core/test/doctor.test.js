@@ -14,6 +14,17 @@ const repo = () => {
 };
 const says = (/** @type {{lines: {name: string, says: string, ok: boolean}[]}} */ result, name) => result.lines.find((line) => line.name === name);
 
+test("doctor does not require Playwright or a browser config after terminal init", () => {
+  const cwd = repo();
+  const init = spawnSync(process.execPath, [BIN, "init", "--terminal"], { cwd, encoding: "utf8" });
+  assert.equal(init.status, 0, init.stderr);
+  writeJourney(cwd, "format: journeysfirst/v1\ntitle: Open\npromise: You can open it.\nstart: The command is installed.\nsteps:\n  - Open it.\n  - check: The command opened it.\n    id: open\n");
+  const check = spawnSync(process.execPath, [BIN, "doctor"], { cwd, encoding: "utf8" });
+  assert.equal(check.status, 0, check.stdout + check.stderr);
+  assert.match(check.stdout, /Terminal mode.*skipped/);
+  assert.match(check.stdout, /1 journey file is valid/);
+});
+
 test("doctor reports an old Node, a missing browser, a config with no target, and no journeys", async () => {
   const result = await doctor({
     root: repo(),
