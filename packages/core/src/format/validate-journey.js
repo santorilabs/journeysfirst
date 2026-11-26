@@ -164,6 +164,18 @@ function checkValues(text, path, say) {
 /** The word after "The <word>" that makes the line about a thing: a quote, or is, has, stays and the like. */
 const THING = /^(["'“]|(is|are|was|were|has|have|had|stays|stay|still)$)/i;
 
+/** @param {string} sentence */
+function openingSubject(sentence) {
+  const [, word, next] = sentence.trim().match(/^the ([a-z][a-z0-9_-]*)\s+(\S+)/i) ?? [];
+  return { word: word?.toLowerCase(), next };
+}
+
+/** @param {import("./format.js").PlanLine} line @param {string[]} users */
+export function lineOwner(line, users) {
+  const { word } = openingSubject(line.kind === "action" ? line.says : line.check);
+  return word && users.includes(word) ? word : "you";
+}
+
 /**
  * Warnings, never problems: a line that starts with "The <word> " where word
  * is not in users probably names someone the author forgot to list. Not when
@@ -183,8 +195,8 @@ export function warnV1(journey, at) {
     if (!Array.isArray(steps)) return;
     steps.forEach((step, i) => {
       const sentence = typeof step === "string" ? step : step?.check;
-      const [, subject, next] = (typeof sentence === "string" && sentence.trim().match(/^the ([a-z][a-z0-9_-]*) (\S+)/i)) || [];
-      const word = subject?.toLowerCase();
+      if (typeof sentence !== "string") return;
+      const { word, next } = openingSubject(sentence);
       if (word && !users.includes(word) && !THING.test(next)) {
         warnings.push(`${at([...path, i])}this line starts with "The ${word}", but ${word} is not in users. If the ${word} acts or looks, add them to users.`);
       }

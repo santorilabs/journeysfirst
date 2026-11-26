@@ -11,6 +11,8 @@ export type Say = (path: Array<string | number>, message: string) => void;
  * @returns {string[]}
  */
 export declare function validateV1(journey: import("./format.js").Journey, at: (path: Array<string | number>) => string): string[];
+/** @param {import("./format.js").PlanLine} line @param {string[]} users */
+export declare function lineOwner(line: import("./format.js").PlanLine, users: string[]): string;
 /**
  * Warnings, never problems: a line that starts with "The <word> " where word
  * is not in users probably names someone the author forgot to list. Not when

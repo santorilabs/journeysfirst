@@ -23,4 +23,4 @@ steps:
     id: custom-agent-no-mcp-stated
   - check: You see the launcher name the fixture check that was not checked, and the saved fixture run did not pass.
     id: custom-agent-unchecked-named
-notes: Run init --terminal in the fresh fixture. Set users to [agent] in the fixture journey. Put the fixture's TMPDIR outside its project but inside the outer workspace. Capture the init output, fixture result, review output, interrupt outcome and launcher messages as evidence in this journey.
+notes: Run init --terminal in the fresh fixture. Set users to [agent] in the fixture journey and start each action and check with "The agent". Put the fixture's TMPDIR outside its project but inside the outer workspace. Capture the init output, fixture result, review output, interrupt outcome and launcher messages as evidence in this journey.

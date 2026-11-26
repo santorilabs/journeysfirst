@@ -18,7 +18,7 @@ The first thing you do is find out who you are playing. Then you run the journey
 
 Choose the runner before writing any recording code:
 
-- If one agent CLI plays the whole journey, start with `npx journeysfirst run journeys/<name>.journey.yaml`. Leave out `users` to record as `you`, or write `users: [agent]` to record as `agent`. This includes terminal and MCP journeys, launcher tests, and reruns after an abort. Do not replace this top-level run with `RunRecorder`.
+- If one agent CLI plays the whole journey, start with `npx journeysfirst run journeys/<name>.journey.yaml`. Leave out `users` to record as `you`. To record as `agent`, write `users: [agent]` and start every action and check with “The agent”. This includes terminal and MCP journeys, launcher tests, and reruns after an abort. Do not replace this top-level run with `RunRecorder`.
 - If the journey has a named human role or multiple seats to play, do not use the agent launcher. Replay the saved Playwright script if there is one. Otherwise, drive the journey as each user and use Playwright for browser runs or the recorder directly for other runs.
 
 ## 2. Get a safe environment

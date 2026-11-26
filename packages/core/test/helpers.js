@@ -22,6 +22,12 @@ steps:
     id: viewer-blocked
 `;
 
+export const AGENT_JOURNEY = JOURNEY.split("steps:\n")[0].replace("users: [viewer]", "users: [agent]") + `steps:
+  - The agent turns on link sharing.
+  - check: The agent sees that link sharing is still on after a reload.
+    id: link-on
+`;
+
 // The journey in spec/journey-v1.cases.example.yaml.
 export const CASES = `format: journeysfirst/v1
 title: Turn on two-step sign-in

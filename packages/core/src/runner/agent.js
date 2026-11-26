@@ -3,7 +3,9 @@ import { closeSync, constants, copyFileSync, cpSync, fstatSync, lstatSync, mkdir
 import { tmpdir } from "node:os";
 import { basename, isAbsolute, join, relative, resolve, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
+import { FORMAT } from "../format/format.js";
 import { CAUSES } from "../format/runfile.js";
+import { lineOwner } from "../format/validate-journey.js";
 import { RunRecorder, recording } from "./recorder.js";
 import { preflightTranscript } from "./recording.js";
 import { CAPTURE_LIMIT } from "./capture.js";
@@ -54,6 +56,14 @@ export async function withAgentRun({ journey, caseId, project, agent, label, log
     throw new Error(`The ${label} launcher plays one seat: 'you', or 'agent' with users: [agent]. To record human or multiple seats, use Playwright or RunRecorder directly.`);
   }
   const actor = named.length ? "agent" : "you";
+  if (run.journey.format === FORMAT) {
+    for (const line of run.plan.lines) {
+      const owner = lineOwner(line, run.plan.everyone);
+      if (owner !== actor) {
+        throw new Error(`Line ${line.n} belongs to '${owner}', but the ${label} launcher plays '${actor}'. To record multiple seats, use Playwright or RunRecorder directly.`);
+      }
+    }
+  }
   run.playedBy(actor, label);
   const base = realpathSync(mkdtempSync(join(tmpdir(), "journeysfirst-run-")));
   const work = join(base, "work"), state = join(work, ".journeysfirst");

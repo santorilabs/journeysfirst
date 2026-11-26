@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { RunRecorder } from "../src/runner/recorder.js";
 import { recording } from "../src/runner/recording.js";
-import { DRAFT_0, JOURNEY, findings, recordAllPassed, recorder } from "./helpers.js";
+import { AGENT_JOURNEY, DRAFT_0, JOURNEY, findings, recordAllPassed, recorder } from "./helpers.js";
 
 const BIN = new URL("../bin/journeysfirst.js", import.meta.url).pathname;
 const cli = (args, cwd) => spawnSync(process.execPath, [BIN, ...args], { cwd, encoding: "utf8" });
@@ -253,7 +253,7 @@ const capture = spawnSync(process.execPath, [".journeysfirst/capture.mjs", "capt
   process.execPath, "-e", "console.log('Sharing is on')"], { encoding: "utf8" });
 if (capture.status !== 0) process.exit(9);
 const results = [{ line: 1, status: "done" }];
-if (prompt.includes("Check link-on: Link sharing is still on after a reload.")) {
+if (prompt.includes("Check link-on:")) {
   results.push({ id: "link-on", verdict: "passed", proof: "The command showed it.", refs: [{ file: "command.txt", line: 1 }] });
 }
 fs.writeFileSync(".journeysfirst/results.jsonl", results.map((r) => JSON.stringify(r)).join("\\n"));
@@ -262,7 +262,7 @@ console.log("login " + (process.env.JF_TEST_AGENT_LOGIN ?? "missing") + ", env f
 process.exitCode = Number(process.argv[2] ?? 0);
 `;
 
-function agentRun(extra = [], exitCode = 0, script = fakeAgent, users = "") {
+function agentRun(extra = [], exitCode = 0, script = fakeAgent, users = "", journey = JOURNEY) {
   const dir = mkdtempSync(join(tmpdir(), "jf-agent-"));
   mkdirSync(join(dir, "project"));
   writeFileSync(join(dir, "project", ".env.local"), "Private product login");
@@ -270,7 +270,7 @@ function agentRun(extra = [], exitCode = 0, script = fakeAgent, users = "") {
     example: { command: process.execPath, args: ["-e", "process.stdin.once('data', () => process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:1,result:{}})+'\\n'))"] },
   } }));
   writeFileSync(join(dir, "agent.mjs"), script);
-  writeFileSync(join(dir, "share.journey.yaml"), JOURNEY.replace("users: [viewer]\n", users));
+  writeFileSync(join(dir, "share.journey.yaml"), journey.replace("users: [viewer]\n", users));
   const command = `node ${JSON.stringify(join(dir, "agent.mjs"))} ${exitCode}`;
   const result = spawnSync(process.execPath, [BIN, "run", "share.journey.yaml", "--agent", command, "--project", "project", ...extra],
     { cwd: dir, encoding: "utf8", env: { ...process.env, JF_TEST_AGENT_LOGIN: "kept" } });
@@ -300,7 +300,7 @@ test("run --agent gives any agent command the journey on stdin and saves what it
 test("the launcher records actions, checks, and captures as the named agent seat", () => {
   const script = fakeAgent.replace('const prompt = fs.readFileSync(0, "utf8");',
     'const prompt = fs.readFileSync(0, "utf8"); if (!prompt.includes("Play the \'agent\' seat.")) process.exit(10);');
-  const { result, folder, run } = agentRun([], 0, script, "users: [agent]\n");
+  const { result, folder, run } = agentRun([], 0, script, "", AGENT_JOURNEY);
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(run.played_by, { agent: "node" });
   assert.ok(run.steps.slice(0, 2).every((step) => step.by === "agent"));
@@ -316,6 +316,18 @@ test("the launcher points journeys with named human or multiple seats to other r
     assert.equal(result.status, 1);
     assert.match(result.stderr, /plays one seat: 'you', or 'agent'.*use Playwright or RunRecorder/);
     assert.equal(run, undefined);
+  }
+});
+
+test("the launcher refuses to play a line owned by you as the agent seat", () => {
+  for (const [line, journey] of [
+    [1, AGENT_JOURNEY.replace("The agent turns", "You turn")],
+    [2, AGENT_JOURNEY.replace("The agent sees that link", "Link")],
+  ]) {
+    const { result, run } = agentRun([], 0, fakeAgent, "", journey);
+    assert.equal(run, undefined, JSON.stringify(run?.steps[line - 1]));
+    assert.equal(result.status, 1, result.stderr);
+    assert.match(result.stderr, new RegExp(`Line ${line} belongs to 'you'.*use Playwright or RunRecorder`));
   }
 });
 

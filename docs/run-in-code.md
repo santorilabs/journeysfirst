@@ -43,7 +43,7 @@ The full example is [examples/share-by-link/tests/share-by-link.spec.js](../exam
 
 ### Let an agent run a journey
 
-Start with `journeysfirst run` when one agent CLI plays the whole journey. Leave out `users` to record as `you`, or write `users: [agent]` to record as `agent`. Use it even if the journey is testing the launcher itself, a custom command, or what happens after an interrupted run. Do not write the top-level run with `RunRecorder` instead: that does not exercise the launcher.
+Start with `journeysfirst run` when one agent CLI plays the whole journey. Leave out `users` to record as `you`. To record as `agent`, write `users: [agent]` and start every action and check with “The agent”. Use it even if the journey is testing the launcher itself, a custom command, or what happens after an interrupted run. Do not write the top-level run with `RunRecorder` instead: that does not exercise the launcher.
 
 ```sh
 npx journeysfirst run journeys/onboarding.journey.yaml
