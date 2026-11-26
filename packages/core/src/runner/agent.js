@@ -175,7 +175,7 @@ export function agentPrompt(run) {
   return [
     run.journey.promise, start, "",
     ...run.plan.lines.map((line) => line.kind === "action" ? `${line.n}. ${line.says}`
-      : `${line.n}. Check ${line.id}: ${line.check}${line.launcher ? ` (cite launcher probe: ${line.launcher})` : ""}`), "",
+      : `${line.n}. Check ${line.id}: ${line.check}${line.launcher_probe ? ` (cite launcher probe: ${line.launcher_probe})` : ""}`), "",
     "Work only in this folder. It is a fresh copy of the project, without local logins. Do not sign in to the product unless a step says to.",
     "To record selected command output, run node .journeysfirst/capture.mjs capture NAME.txt -- COMMAND ARGS.",
     "For a command that uses a service key, put --key ENV_NAME before --. Use the variable name, not its value. A key capture cannot prove a pass.",

@@ -49,7 +49,7 @@ export type CheckStep = {
     cause?: string;
     reason?: string;
     added?: boolean;
-    launcher?: string;
+    launcher_probe?: string;
 };
 export type Finding = {
     id: string;
@@ -118,7 +118,7 @@ export type Run = {
  * @typedef {{source: string, login?: string, key?: string, [field: string]: unknown}} Evidence a user's own login, or the name of the admin or service key used
  * @typedef {string | {file: string, url?: string}} Screenshot a file name in the run folder, or the file and the full address of the page it shows
  * @typedef {{says: string, by: string, status: string, at?: number, took?: number, screenshots?: Screenshot[], cause?: string, reason?: string}} ActionStep
- * @typedef {{check: string, id: string, by: string, verdict: string, claimed?: string, proof?: string, evidence?: Evidence[], at?: number, took?: number, screenshots?: Screenshot[], cause?: string, reason?: string, added?: boolean, launcher?: string}} CheckStep
+ * @typedef {{check: string, id: string, by: string, verdict: string, claimed?: string, proof?: string, evidence?: Evidence[], at?: number, took?: number, screenshots?: Screenshot[], cause?: string, reason?: string, added?: boolean, launcher_probe?: string}} CheckStep
  * @typedef {{id: string, criterion: string, says: string, evidence: Evidence[], step?: number, ask?: string}} Finding what a review against fixed criteria found. With ask, it is a question for a person.
  * @typedef {{status: "complete", reason?: string} | {status: "aborted", reason: string}} Attempt
  * @typedef {{

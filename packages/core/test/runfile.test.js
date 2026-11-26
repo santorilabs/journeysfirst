@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { journeyPlan, parseJourney } from "../src/format/format.js";
+import { journeyPlan, parseJourney, validateJourney } from "../src/format/format.js";
 import { checkRun } from "../src/format/run-check.js";
 import { runDigest, runFiles, runResult, settle, settleCheck, validateRun, verifiedLists } from "../src/format/runfile.js";
 import { JOURNEY, findings, recordAllPassed, recorder, specRun } from "./helpers.js";
@@ -25,6 +25,16 @@ test("attempt status can prevent a pass without hiding a recorded failure", () =
 
 test("a recorded run is valid, and matches the journey's lines", () => {
   assert.deepEqual(validateRun(goodRun(), plan()), []);
+});
+
+test("v1 checks can still use launcher as metadata without changing the proof needed", () => {
+  const journey = parseJourney(JOURNEY.replace("    id: link-on\n", "    id: link-on\n    launcher: codex\n"));
+  assert.deepEqual(validateJourney(journey), []);
+  assert.deepEqual(journeyPlan(journey), plan());
+  const run = goodRun();
+  run.steps[1].launcher = "codex";
+  assert.deepEqual(validateRun(run, journeyPlan(journey)), []);
+  assert.equal(settleCheck(run.steps[1]).verdict, "passed");
 });
 
 test("journeysfirst is optional, and a version string when present", () => {

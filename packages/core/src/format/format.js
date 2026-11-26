@@ -15,10 +15,10 @@ export const FORMAT_V0 = v0.FORMAT;
 /** @typedef {import("./draft0/format-v0.js").V0Journey} V0Journey */
 
 /**
- * @typedef {string | {check: string, id: string, added?: boolean, launcher?: string, [field: string]: unknown}} Line
+ * @typedef {string | {check: string, id: string, added?: boolean, launcher_probe?: string, [field: string]: unknown}} Line
  * @typedef {{name: string, id: string, start: string, steps: Line[], users?: string[], setup?: string, added?: boolean}} Case
  * @typedef {{format: string, title: string, promise: string, users?: string[], start?: string, setup?: string, steps?: Line[], cases?: Case[], notes?: string, [field: string]: unknown}} Journey
- * @typedef {{kind: "action", n: number, says: string} | {kind: "check", n: number, check: string, id: string, added?: boolean, launcher?: string}} PlanLine
+ * @typedef {{kind: "action", n: number, says: string} | {kind: "check", n: number, check: string, id: string, added?: boolean, launcher_probe?: string}} PlanLine
  * @typedef {{version: string, case: string|null, everyone: string[], lines: PlanLine[]}} Plan
  */
 
@@ -97,7 +97,7 @@ export function journeyWarnings(journey) {
  */
 export function journeyVersion(journey) {
   if (journey.format === FORMAT_V0) return v0.journeyVersion(/** @type {V0Journey} */ (/** @type {unknown} */ (journey)));
-  const line = (/** @type {Line} */ step) => (typeof step === "string" ? step : { check: step.check, id: step.id, added: step.added, launcher: step.launcher });
+  const line = (/** @type {Line} */ step) => (typeof step === "string" ? step : { check: step.check, id: step.id, added: step.added, launcher_probe: step.launcher_probe });
   const intent = {
     title: journey.title,
     promise: journey.promise,
@@ -144,7 +144,7 @@ export function journeyPlan(journey, caseId = null) {
   const lines = (source.steps ?? []).map((step) =>
     typeof step === "string"
       ? { kind: "action", says: step }
-      : { kind: "check", check: step.check, id: step.id, ...(step.added ? { added: true } : {}), ...(step.launcher ? { launcher: step.launcher } : {}) },
+      : { kind: "check", check: step.check, id: step.id, ...(step.added ? { added: true } : {}), ...(step.launcher_probe ? { launcher_probe: step.launcher_probe } : {}) },
   );
   return { version: journeyVersion(journey), case: caseId, everyone: ["you", ...users], lines: number(lines) };
 }

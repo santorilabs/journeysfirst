@@ -243,7 +243,7 @@ export declare class RunRecorder {
         check: string;
         id: string;
         added?: boolean;
-        launcher?: string;
+        launcher_probe?: string;
     };
 }
 /** The repo in the current folder, as run results `repos`. Empty outside git. */

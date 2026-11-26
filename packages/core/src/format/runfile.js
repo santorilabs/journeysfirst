@@ -21,7 +21,7 @@ export const FULL_URL = /^https?:\/\/[^/?#\s]+/;
  * @typedef {{source: string, login?: string, key?: string, [field: string]: unknown}} Evidence a user's own login, or the name of the admin or service key used
  * @typedef {string | {file: string, url?: string}} Screenshot a file name in the run folder, or the file and the full address of the page it shows
  * @typedef {{says: string, by: string, status: string, at?: number, took?: number, screenshots?: Screenshot[], cause?: string, reason?: string}} ActionStep
- * @typedef {{check: string, id: string, by: string, verdict: string, claimed?: string, proof?: string, evidence?: Evidence[], at?: number, took?: number, screenshots?: Screenshot[], cause?: string, reason?: string, added?: boolean, launcher?: string}} CheckStep
+ * @typedef {{check: string, id: string, by: string, verdict: string, claimed?: string, proof?: string, evidence?: Evidence[], at?: number, took?: number, screenshots?: Screenshot[], cause?: string, reason?: string, added?: boolean, launcher_probe?: string}} CheckStep
  * @typedef {{id: string, criterion: string, says: string, evidence: Evidence[], step?: number, ask?: string}} Finding what a review against fixed criteria found. With ask, it is a question for a person.
  * @typedef {{status: "complete", reason?: string} | {status: "aborted", reason: string}} Attempt
  * @typedef {{
@@ -45,8 +45,8 @@ export { isCheck, screenshotFile };
 function missingProof(step) {
   const evidence = Array.isArray(step.evidence) ? step.evidence : [];
   if (evidence.length === 0) return "No evidence was attached.";
-  if (step.launcher !== undefined) {
-    return evidence.some((e) => e?.source === "launcher" && e.probe === step.launcher && e.login === undefined && e.key === undefined)
+  if (step.launcher_probe !== undefined) {
+    return evidence.some((e) => e?.source === "launcher" && e.probe === step.launcher_probe && e.login === undefined && e.key === undefined)
       ? null : "No evidence came from the matching launcher probe.";
   }
   if (step.by && !evidence.some((e) => e?.source !== "launcher" && e?.login === step.by)) return `No evidence came from ${step.by === "you" ? "your" : `the ${step.by}'s`} own login.`;
@@ -217,10 +217,10 @@ export function stepProblems(step, n, users) {
     need(isText(step.id), "has no id.");
     need(VERDICTS.includes(step.verdict), `verdict must be one of: ${VERDICTS.join(", ")}.`);
     need(step.evidence === undefined || Array.isArray(step.evidence), "evidence must be a list.");
-    need(step.launcher === undefined || LAUNCHER_CHECKS.includes(step.launcher), "launcher must be login-reuse or protected-files.");
+    need(step.launcher_probe === undefined || LAUNCHER_CHECKS.includes(step.launcher_probe), "launcher_probe must be login-reuse or protected-files.");
     for (const item of Array.isArray(step.evidence) ? step.evidence : []) {
       for (const p of evidenceProblems(item, users)) problems.push(`${label}: ${p}`);
-      if (item?.source === "launcher") need(item.probe === step.launcher, "can cite launcher evidence only for its declared probe.");
+      if (item?.source === "launcher") need(item.probe === step.launcher_probe, "can cite launcher evidence only for its declared probe.");
     }
     if (["passed", "failed"].includes(step.verdict)) need(isText(step.proof), "has no proof: say how it was proven, in one plain sentence.");
     need(step.claimed === undefined || (step.claimed === "passed" && step.verdict === "not_checked"), 'claimed can only be "passed", on a not_checked check.');
@@ -400,7 +400,7 @@ function planProblems(run, steps, plan) {
     } else {
       if (step.check !== line.check || step.id !== line.id) problems.push(`step ${n} should be the check "${line.check}" with id "${line.id}".`);
       if (Boolean(step.added) !== Boolean(line.added)) problems.push(`step ${n} (check "${line.id}") must copy added: true from the journey${line.added ? "" : " only when the journey has it"}.`);
-      if (step.launcher !== line.launcher) problems.push(`step ${n} (check "${line.id}") must copy launcher from the journey.`);
+      if (step.launcher_probe !== line.launcher_probe) problems.push(`step ${n} (check "${line.id}") must copy launcher_probe from the journey.`);
     }
   });
   return problems;

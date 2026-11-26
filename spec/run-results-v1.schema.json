@@ -183,7 +183,7 @@
         "proof": { "description": "How it was proven, in one plain sentence.", "$ref": "#/$defs/text" },
         "evidence": { "description": "What was collected, for engineers.", "type": "array", "items": { "$ref": "#/$defs/evidence" } },
         "added": { "description": "true when an agent added the check. Copied from the journey.", "type": "boolean" },
-        "launcher": { "description": "The required preflight probe, copied from the journey.", "enum": ["login-reuse", "protected-files"] }
+        "launcher_probe": { "description": "The required preflight probe, copied from the journey.", "enum": ["login-reuse", "protected-files"] }
       },
       "allOf": [
         { "if": { "properties": { "verdict": { "enum": ["passed", "failed"] } } }, "then": { "required": ["proof"] } },

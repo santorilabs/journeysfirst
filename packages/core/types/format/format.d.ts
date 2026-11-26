@@ -5,7 +5,7 @@ export type Line = string | {
     check: string;
     id: string;
     added?: boolean;
-    launcher?: string;
+    launcher_probe?: string;
     [field: string]: unknown;
 };
 export type Case = {
@@ -39,7 +39,7 @@ export type PlanLine = {
     check: string;
     id: string;
     added?: boolean;
-    launcher?: string;
+    launcher_probe?: string;
 };
 export type Plan = {
     version: string;

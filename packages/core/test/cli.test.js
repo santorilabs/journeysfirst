@@ -406,8 +406,8 @@ fs.writeFileSync(${JSON.stringify(observed)}, JSON.stringify({
 }));
 }`, { mode: 0o700 });
   writeFileSync(join(dir, "share.journey.yaml"), JOURNEY.replace("users: [viewer]\n", "") +
-    "  - check: You see the launcher reuse its login.\n    id: launcher-login\n    launcher: login-reuse\n" +
-    "  - check: You see the launcher verify protected files.\n    id: launcher-protected\n    launcher: protected-files\n");
+    "  - check: You see the launcher reuse its login.\n    id: launcher-login\n    launcher_probe: login-reuse\n" +
+    "  - check: You see the launcher verify protected files.\n    id: launcher-protected\n    launcher_probe: protected-files\n");
   const { OPENAI_API_KEY, ...hostEnv } = process.env;
   const env = { ...hostEnv, HOME: home, CODEX_HOME: auth, TMPDIR: dir, PATH: bin + ":" + process.env.PATH,
     TEST_API_KEY: "named-test-value", NOT_REQUESTED: "unselected-test-value", CI: "1", FIXTURE_SHORT: "qZ7x", FIXTURE_LONG: "wX3zRt7Y" };
