@@ -77,6 +77,8 @@ export function compareRuns(main, change, { head, why: noMain, against = "main",
   const add = (item) => {
     // The id carries what was measured, so a person's call on one loss never lands on a different one.
     const id = `${item.criterion}-${item.step ?? "run"}-${createHash("sha256").update(JSON.stringify([item.by, item.measured])).digest("hex").slice(0, 6)}`;
+    // The same measurement twice, like 2 clicks on one button that both show nothing, is one finding.
+    if (items.some((other) => other.id === id)) return;
     items.push({ ...item, id, evidence: [{ login: item.by, ...item.evidence, measured: item.measured }], calls: reviews.filter((r) => r?.on === id).map(({ by, at, says }) => ({ by, at, says })) });
   };
   if (main && !why) {

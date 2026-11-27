@@ -86,6 +86,8 @@ test("a click that crosses 1 second, or stops changing the screen, is got worse"
   assert.deepEqual(quick.items, [], "slower but under 1 second is not said");
   const dead = compareRuns(MAIN(), side([[1, measure([CODE, 'button "Approve"'], [{ name: "Claim 1042", ms: null }])], [2, MAIN().measures.get(2)]]));
   assert.deepEqual(dead.items.map((item) => item.criterion), ["compare-slow"]);
+  const twice = compareRuns(side([[1, measure([], [click("Save"), click("Save")])]]), side([[1, measure([], [{ name: "Save", ms: null }, { name: "Save", ms: null }])]]));
+  assert.equal(new Set(twice.items.map((item) => item.id)).size, twice.items.length, "2 clicks that measure the same are one finding, so every id is its own");
 });
 
 test("a failed check is broke, whatever was measured, and a check that was not decided is not verified", () => {
