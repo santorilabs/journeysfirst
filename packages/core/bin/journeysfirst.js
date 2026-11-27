@@ -59,7 +59,7 @@ const USAGE = `Usage:
       Got worse is a control gone from a screen or further away, more clicks or fields, a click or tool call that crosses 1 second, or a new tool error.
       It never changes a verdict. --markdown prints a table for a pull request. --head marks a run from an older commit as stale.
       --add-findings writes what it found into one run as findings. A person answers each with add-review.
-      When a person's call on every one starts with "Accepted", that run is what later runs of the change are compared with.
+      When a person's call on every question among them starts with "Accepted", that run is what later runs of the change are compared with.
   journeysfirst review [runs folder] [--port <n>] [--host <address>] [--main <main's runs folder>] [--head <commit>]   (default port 4400, or PORT; host 127.0.0.1)
       With --main, /compare shows each user against main, and each line that differs with main beside the change.
   journeysfirst review [runs folder] --out <new folder> [--include-transcripts] [--main <main's runs folder>] [--head <commit>]

@@ -68,14 +68,15 @@ export type Comparison = {
 /**
  * @param {Side|null} main main's run of the journey, or null when there is none
  * @param {Side} change the run of the change
- * @param {{head?: string, why?: string, against?: string}} [options] head: the commit the change is at now. why: why there is no main run.
- *   against: what the first run is called, when it is not main's.
+ * @param {{head?: string, why?: string, against?: string, replies?: boolean}} [options] head: the commit the change is at now. why: why there is no main run.
+ *   against: what the first run is called, when it is not main's. replies: false leaves a tool's reply text out, for a page shared without transcripts.
  * @returns {Comparison}
  */
-export declare function compareRuns(main: Side | null, change: Side, { head, why: noMain, against }?: {
+export declare function compareRuns(main: Side | null, change: Side, { head, why: noMain, against, replies }?: {
     head?: string;
     why?: string;
     against?: string;
+    replies?: boolean;
 }): Comparison;
 /**
  * The run a run of a change is compared with: the newest of main's runs of the
@@ -93,22 +94,24 @@ export declare function baselineFor(folder: string, mainDir?: string): {
 /**
  * Compare a run folder with its baseline.
  * @param {string} folder the run folder of the change
- * @param {{mainDir?: string, head?: string}} [options]
+ * @param {{mainDir?: string, head?: string, replies?: boolean}} [options]
  * @returns {Comparison}
  */
-export declare function compareFolder(folder: string, { mainDir, head }?: {
+export declare function compareFolder(folder: string, { mainDir, head, replies }?: {
     mainDir?: string;
     head?: string;
+    replies?: boolean;
 }): Comparison;
 /**
  * The newest run of each journey and case in a runs folder, each compared with its baseline.
  * @param {string} runsDir
- * @param {{mainDir?: string, head?: string}} [options]
+ * @param {{mainDir?: string, head?: string, replies?: boolean}} [options]
  * @returns {Comparison[]}
  */
 export declare function compareAll(runsDir: string, options?: {
     mainDir?: string;
     head?: string;
+    replies?: boolean;
 }): Comparison[];
 /**
  * What `journeysfirst compare` prints: each journey, then one line for each user.

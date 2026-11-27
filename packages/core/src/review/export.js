@@ -42,7 +42,7 @@ export function exportReview(dir, out, { includeTranscripts = false, mainDir, he
       for (const shot of step.screenshots ?? []) copy(screenshotFile(shot), IMAGE);
     }
     if (mainDir && !run.legacy) {
-      const compared = compareFolder(source, { mainDir: resolve(mainDir), head });
+      const compared = compareFolder(source, { mainDir: resolve(mainDir), head, replies: includeTranscripts });
       writeFileSync(join(dest, "compare.html"), comparePage(compared, {
         file: (name) => name && files.has(name) ? "assets/" + name : undefined,
         mainFile: (name) => compared.main?.folder && copy(name, IMAGE, compared.main.folder, "main-") ? "assets/main-" + name : undefined,
@@ -64,7 +64,7 @@ export function exportReview(dir, out, { includeTranscripts = false, mainDir, he
     `runs/${encodeURIComponent(journey)}/${encodeURIComponent(id)}/index.html`));
   if (mainDir) {
     const shown = new Map(runs.map(({ journey, id, run }) => [join(root, journey, id), run]));
-    writeFileSync(join(target, "compare.html"), changePage(compareAll(root, { mainDir: resolve(mainDir), head }),
+    writeFileSync(join(target, "compare.html"), changePage(compareAll(root, { mainDir: resolve(mainDir), head, replies: includeTranscripts }),
       (c) => `runs/${encodeURIComponent(c.change.run.journey.name)}/${encodeURIComponent(c.change.run.id)}/compare.html`, (c) => shown.get(c.change.folder ?? "")));
   }
   return target;

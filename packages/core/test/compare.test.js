@@ -69,6 +69,10 @@ test("a control that no screen in the run shows is got worse, and a new control 
   const gone = compareRuns(MAIN(), side([[1, measure(['button "Approve"'], [click("Claim 1042")])], [2, measure(['button "Approve"'])]]));
   assert.equal(outcome(gone, "you").outcome, "worse");
   assert.equal(gone.items.filter((item) => item.criterion === "compare-gone").length, 1, "said once, at the first screen it left");
+  const both = (controls) => side([[1, measure(controls, [click("Claim 1042")])], [2, measure(controls)], [3, measure(controls)], [4, measure(controls)]]);
+  const lost = compareRuns(both(['button "Print"']), both([]));
+  assert.deepEqual(lost.users.map((u) => [u.user, u.outcome]), [["you", "worse"], ["agent", "worse"]], "each user who lost it is told");
+  assert.notEqual(gone.items[0].id, lost.items[0].id, "a call on one loss never lands on a different loss at the same step");
   const added = compareRuns(MAIN(), side([[1, measure([CODE, 'button "Approve"', 'button "Print"'], [click("Claim 1042")], "z9")], [2, measure([CODE, 'button "Approve"'])]]));
   assert.equal(outcome(added, "you").outcome, "changed");
   assert.deepEqual(added.items.map((item) => item.kind), ["changed"]);
@@ -113,6 +117,8 @@ test("an agent is compared by its tool calls: a new error or a call that crosses
   assert.equal(outcome(worse, "agent").outcome, "worse");
   assert.deepEqual(worse.items.map((item) => [item.criterion, item.kind, item.by]), [["compare-error", "worse", "agent"], ["compare-slow", "worse", "agent"], ["compare-more-calls", "changed", "agent"]]);
   assert.equal(outcome(worse, "you").outcome, "same", "one user's loss is not another's");
+  assert.match(worse.items[0].says, /No billing code/);
+  assert.doesNotMatch(compareRuns(main(), worse.change, { replies: false }).items[0].says, /No billing code/, "a page shared without transcripts leaves a tool's reply out");
   const more = compareRuns(main(), side([...MAIN().measures], {}, {}, calls([call("claims.read"), call("claims.file", { reply: 4 })])));
   assert.equal(outcome(more, "agent").outcome, "changed", "an agent takes a different path each run, so a count alone needs no person");
 });
@@ -154,10 +160,12 @@ test("the baseline is main's newest run of the same journey version, until a per
   const second = folderOf(runs, MOVED({ id: "pr-2", started_at: "2026-11-26T11:00:00Z" }));
   assert.equal(baselineFor(second, mainDir).folder, mainFolder, "findings nobody answered accept nothing");
   assert.match(compareFolder(first, { mainDir }).stale, /newer run/, "an older run of the change is never shown as current");
-  addReview(first, { on: written.findings[0].id, by: "pat@example.test", says: "No. Put it back." });
-  for (const f of written.findings.slice(1)) addReview(first, { on: f.id, by: "pat@example.test", says: "Accepted: fine." });
+  const asked = written.findings.filter((f) => f.ask);
+  assert.ok(asked.length >= 1 && asked.length < written.findings.length, "a finding that asks nothing needs no call");
+  addReview(first, { on: asked[0].id, by: "pat@example.test", says: "No. Put it back." });
+  for (const f of asked.slice(1)) addReview(first, { on: f.id, by: "pat@example.test", says: "Accepted: fine." });
   assert.equal(baselineFor(second, mainDir).folder, mainFolder, "a call that says no accepts nothing");
-  addReview(first, { on: written.findings[0].id, by: "pat@example.test", says: "Accepted: billing moved on purpose." });
+  addReview(first, { on: asked[0].id, by: "pat@example.test", says: "Accepted: billing moved on purpose." });
   assert.equal(baselineFor(second, mainDir).folder, first, "a person accepting every finding makes that run the baseline");
   const after = compareFolder(second, { mainDir });
   assert.deepEqual([outcome(after, "you").outcome, after.stale, after.against], ["same", null, "the accepted run"]);
@@ -167,7 +175,7 @@ test("the baseline is main's newest run of the same journey version, until a per
   mkdirSync(join(runs, "old", "draft"), { recursive: true });
   writeFileSync(join(runs, "old", "draft", "run.json"), JSON.stringify({ id: "draft", started_at: "2026-11-01T10:00:00Z", steps: [], outcomes: [] }));
   assert.deepEqual(compareAll(runs, { mainDir }).map((c) => c.change.run.id), ["pr-2"], "a stray file and a draft 0 run are left out");
-  assert.match(compareFolder(first, { mainDir }).items[0].calls[0].by, /pat/, "the page can say who accepted");
+  assert.match(compareFolder(first, { mainDir }).questions[0].calls[0].by, /pat/, "the page can say who accepted");
 
   const text = compareReport(compareAll(runs, { mainDir }));
   assert.match(text, /review-a-claim/);

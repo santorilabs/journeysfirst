@@ -10,6 +10,7 @@
 // whatever was measured. With no main run, a changed journey, or nothing
 // measured, a user is "not compared", never "same". Each item has the shape of
 // a finding, so it never changes a verdict and a person answers it with add-review.
+import { createHash } from "node:crypto";
 import { existsSync, readdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { checkRun } from "../format/run-check.js";
@@ -57,11 +58,11 @@ const isLegacy = (raw) => Array.isArray(raw?.outcomes);
 /**
  * @param {Side|null} main main's run of the journey, or null when there is none
  * @param {Side} change the run of the change
- * @param {{head?: string, why?: string, against?: string}} [options] head: the commit the change is at now. why: why there is no main run.
- *   against: what the first run is called, when it is not main's.
+ * @param {{head?: string, why?: string, against?: string, replies?: boolean}} [options] head: the commit the change is at now. why: why there is no main run.
+ *   against: what the first run is called, when it is not main's. replies: false leaves a tool's reply text out, for a page shared without transcripts.
  * @returns {Comparison}
  */
-export function compareRuns(main, change, { head, why: noMain, against = "main" } = {}) {
+export function compareRuns(main, change, { head, why: noMain, against = "main", replies = true } = {}) {
   const steps = change.run.steps;
   const users = [...new Set(steps.map(byOf))];
   const on = against === "main" ? "On main" : `In ${against}`;
@@ -74,9 +75,8 @@ export function compareRuns(main, change, { head, why: noMain, against = "main" 
   const reviews = Array.isArray(change.run.reviews) ? change.run.reviews : [];
   /** @param {Omit<Item, "id" | "calls" | "evidence"> & {evidence: {source: string, [field: string]: unknown}}} item */
   const add = (item) => {
-    const base = `${item.criterion}-${item.step ?? "run"}`;
-    const n = items.filter((other) => other.id === base || other.id.startsWith(`${base}-`)).length;
-    const id = n ? `${base}-${n + 1}` : base;
+    // The id carries what was measured, so a person's call on one loss never lands on a different one.
+    const id = `${item.criterion}-${item.step ?? "run"}-${createHash("sha256").update(JSON.stringify([item.by, item.measured])).digest("hex").slice(0, 6)}`;
     items.push({ ...item, id, evidence: [{ login: item.by, ...item.evidence, measured: item.measured }], calls: reviews.filter((r) => r?.on === id).map(({ by, at, says }) => ({ by, at, says })) });
   };
   if (main && !why) {
@@ -91,8 +91,8 @@ export function compareRuns(main, change, { head, why: noMain, against = "main" 
       const evidence = { source: "page", url: now.url ?? was.url ?? "not captured", file: `measure-${n}.txt` };
       const before = items.length;
       for (const name of names(was)) {
-        if (names(now).has(name) || said.has(name)) continue;
-        said.add(name);
+        if (names(now).has(name) || said.has(`${by} gone ${name}`)) continue;
+        said.add(`${by} gone ${name}`);
         const later = steps.findIndex((s, j) => j > i && byOf(s) === by && names(change.measures.get(j + 1)).has(name)) + 1;
         const between = steps.flatMap((s, j) => (j > i && j < later && byOf(s) === by ? clicksOf(change.measures.get(j + 1)) : []));
         if (later) add({ criterion: "compare-moved", kind: "worse", by, step: n, says: `${name} is not on this screen. ${on} it was. It first shows at step ${later}${between.length ? `, ${count(between.length, "click")} later (${between.map((a) => a.name).join(", ")})` : ""}.`, measured: { control: name, at: later, clicks: between.length }, evidence });
@@ -106,11 +106,11 @@ export function compareRuns(main, change, { head, why: noMain, against = "main" 
         if (!earlier || earlier.ms === null || /** @type {number} */ (earlier.ms) >= SLOW_MS || !slow) continue;
         add({ criterion: "compare-slow", kind: "worse", by, step: n, says: a.ms === null ? `Nothing on the screen changes after "${a.name}". ${on} it changed in ${earlier.ms} ms.` : `"${a.name}" shows nothing for ${a.ms} ms. ${on} it took ${earlier.ms} ms.`, measured: { click: a.name, ms: a.ms, main: earlier.ms }, evidence });
       }
-      const fresh = [...names(now)].filter((name) => !names(was).has(name) && !said.has(`new ${name}`));
-      for (const name of fresh) said.add(`new ${name}`);
+      const fresh = [...names(now)].filter((name) => !names(was).has(name) && !said.has(`${by} new ${name}`));
+      for (const name of fresh) said.add(`${by} new ${name}`);
       if (fresh.length) add({ criterion: "compare-new", kind: "changed", by, step: n, says: `New on this screen: ${fresh.join(", ")}.`, measured: { new: fresh }, evidence });
       // A screen that only carries a difference already said, like a button that stays, is not said again.
-      else if (items.length === before && outline(now) !== outline(was) && ![...names(now), ...names(was)].some((name) => said.has(name) || said.has(`new ${name}`))) add({ criterion: "compare-differs", kind: "changed", by, step: n, says: `This screen's words or look differ. ${on} they were not these.`, measured: {}, evidence });
+      else if (items.length === before && outline(now) !== outline(was) && ![...names(now), ...names(was)].some((name) => said.has(`${by} gone ${name}`) || said.has(`${by} new ${name}`))) add({ criterion: "compare-differs", kind: "changed", by, step: n, says: `This screen's words or look differ. ${on} they were not these.`, measured: {}, evidence });
     });
     // An agent's calls are not tied to a line, so they are compared for the whole run.
     const caller = users.includes("agent") ? "agent" : users[0];
@@ -120,12 +120,12 @@ export function compareRuns(main, change, { head, why: noMain, against = "main" 
       measured.add(caller);
       const evidence = (/** @type {ToolCall} */ call) => ({ source: "log", query: `${file}, line ${call.reply ?? "none"}` });
       for (const call of calls.filter((c) => c.error && !was.some((b) => b.tool === c.tool && b.error))) {
-        add({ criterion: "compare-error", kind: "worse", by: caller, says: `${call.tool} returned an error: ${call.says || "Error"} ${on} no ${call.tool} call did.`, measured: { tool: call.tool }, evidence: evidence(call) });
+        add({ criterion: "compare-error", kind: "worse", by: caller, says: `${call.tool} returned an error${replies && call.says ? `: ${call.says}` : "."} ${on} no ${call.tool} call did.`, measured: { tool: call.tool, reply: call.reply }, evidence: evidence(call) });
       }
       for (const call of calls) {
         const slowest = Math.max(-1, ...was.filter((b) => b.tool === call.tool && b.ms !== undefined).map((b) => /** @type {number} */ (b.ms)));
         if (call.ms === undefined || call.ms < SLOW_MS || slowest < 0 || slowest >= SLOW_MS) continue;
-        add({ criterion: "compare-slow", kind: "worse", by: caller, says: `${call.tool} took ${seconds(call.ms)}. ${on} it took ${seconds(slowest)}.`, measured: { tool: call.tool, ms: call.ms, main: slowest }, evidence: evidence(call) });
+        add({ criterion: "compare-slow", kind: "worse", by: caller, says: `${call.tool} took ${seconds(call.ms)}. ${on} it took ${seconds(slowest)}.`, measured: { tool: call.tool, reply: call.reply, ms: call.ms, main: slowest }, evidence: evidence(call) });
       }
       if (calls.length !== was.length) add({ criterion: calls.length > was.length ? "compare-more-calls" : "compare-fewer-calls", kind: "changed", by: caller, says: `The agent made ${count(calls.length, "tool call")}. ${on} it made ${was.length}.`, measured: { calls: calls.length, main: was.length }, evidence: evidence(calls[calls.length - 1]) });
     }
@@ -174,13 +174,13 @@ function readSide(folder) {
 }
 
 /**
- * A run of the change a person accepted: it has comparison findings, and on
+ * A run of the change a person accepted: it has comparison questions, and on
  * each a person made a call that starts with "Accept". Any other call, like
- * "No, put it back", accepts nothing.
+ * "No, put it back", accepts nothing. A finding that asks nothing needs no call.
  * @param {any} raw a stored run.json
  */
 function accepted(raw) {
-  const found = (Array.isArray(raw.findings) ? raw.findings : []).filter((/** @type {any} */ f) => String(f?.criterion).startsWith("compare-"));
+  const found = (Array.isArray(raw.findings) ? raw.findings : []).filter((/** @type {any} */ f) => String(f?.criterion).startsWith("compare-") && f.ask !== undefined);
   const called = new Set((Array.isArray(raw.reviews) ? raw.reviews : []).filter((/** @type {any} */ r) => /^\s*accept/i.test(String(r?.says))).map((/** @type {any} */ r) => r.on));
   return found.length > 0 && found.every((/** @type {any} */ f) => called.has(f.id));
 }
@@ -208,14 +208,14 @@ export function baselineFor(folder, mainDir) {
 /**
  * Compare a run folder with its baseline.
  * @param {string} folder the run folder of the change
- * @param {{mainDir?: string, head?: string}} [options]
+ * @param {{mainDir?: string, head?: string, replies?: boolean}} [options]
  * @returns {Comparison}
  */
-export function compareFolder(folder, { mainDir, head } = {}) {
+export function compareFolder(folder, { mainDir, head, replies } = {}) {
   const raw = readRunJson(folder);
   if (isLegacy(raw)) throw new Error(`${folder} is a draft 0 run. Run the journey again to write a v1 run, then compare.`);
   const baseline = baselineFor(folder, mainDir);
-  const result = compareRuns(baseline.folder ? readSide(baseline.folder) : null, readSide(folder), { head, why: baseline.why, against: baseline.accepted ? "the accepted run" : "main" });
+  const result = compareRuns(baseline.folder ? readSide(baseline.folder) : null, readSide(folder), { head, replies, why: baseline.why, against: baseline.accepted ? "the accepted run" : "main" });
   const newer = newestRunFolder(dirname(resolve(folder)), (other) => sameCase(other, raw));
   return { ...result, stale: result.stale ?? (newer && newer !== resolve(folder) ? "A newer run of this journey is in the same folder. This one is not the current run." : null) };
 }
@@ -223,7 +223,7 @@ export function compareFolder(folder, { mainDir, head } = {}) {
 /**
  * The newest run of each journey and case in a runs folder, each compared with its baseline.
  * @param {string} runsDir
- * @param {{mainDir?: string, head?: string}} [options]
+ * @param {{mainDir?: string, head?: string, replies?: boolean}} [options]
  * @returns {Comparison[]}
  */
 export function compareAll(runsDir, options = {}) {
