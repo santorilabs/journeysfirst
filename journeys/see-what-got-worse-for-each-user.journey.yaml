@@ -3,7 +3,7 @@ format: journeysfirst/v1
 title: See what got worse for each user
 promise: |
   When a change makes a user's work harder and every check still passes, I want to see that before I merge.
-  I want to see main next to the change, and what differs in words.
+  I want to flip between main's screen and the change's, and read what differs in words.
 users: [agent]
 start: The claims example has a change that moves the billing code 2 clicks further into a claim. The change was planted for this journey. Every check still passes.
 steps:
@@ -16,8 +16,11 @@ steps:
   - You open the compare page.
   - check: You see that your work got worse, and that every check still passes.
     id: you-see-got-worse
-  - check: You see the lines that differ with main beside the change, and the extra clicks on the change's side.
+  - check: You see the clicks main took and the clicks the change took on the line that differs, and the change's screen under them.
     id: you-see-both-sides
+  - Flip that line's screen to main.
+  - check: You see main's screen in the same place, and the change's screen again after you flip back.
+    id: you-flip-to-main
   - check: You see that the change was planted.
     id: you-see-it-was-planted
 notes: The agent reads what the compare command prints. You read the compare page. Nothing here is decided by a model.

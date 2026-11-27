@@ -61,7 +61,7 @@ const USAGE = `Usage:
       --add-findings writes what it found into one run as findings. A person answers each with add-review.
       When a person's call on every question among them starts with "Accepted", that run is what later runs of the change are compared with.
   journeysfirst review [runs folder] [--port <n>] [--host <address>] [--main <main's runs folder>] [--head <commit>]   (default port 4400, or PORT; host 127.0.0.1)
-      With --main, /compare shows each user against main, and each line that differs with main beside the change.
+      With --main, /compare shows each user against main, and each line that differs with a switch between main's screen and the change's.
   journeysfirst review [runs folder] --out <new folder> [--include-transcripts] [--main <main's runs folder>] [--head <commit>]
       Export a static review. Check the pages and recordings for private data before hosting the folder.
       Include attached transcripts only with --include-transcripts, after checking them for private data.

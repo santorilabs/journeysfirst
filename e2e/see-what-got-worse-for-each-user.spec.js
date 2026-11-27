@@ -73,14 +73,38 @@ test.journey("journeys/see-what-got-worse-for-each-user.journey.yaml", { measure
       return { passed, proof: "Read your line at the top of the compare page.", evidence: seen(row || "no line for you"), reason: "The page does not say that your work got worse while the checks pass.", caption: passed ? "you got worse, and every check still passes." : "the page does not say what got worse." };
     });
 
-    await journey.check("you-see-both-sides", { by: "you", caption: "Checking the lines that differ." }, async () => {
-      const step = you.locator(".cmp-step", { hasText: "billing code" }).last();
+    const step = you.locator(".cmp-step", { hasText: "billing code" }).last();
+    /** The screen that shows in the line's frame: whose it is, its address and its box. */
+    const showing = () => step.locator(".cmp-frame figure").evaluateAll((list) => list.filter((f) => getComputedStyle(f).visibility === "visible").map((f) => {
+      const img = f.querySelector("img");
+      const [box, frame] = [img?.getBoundingClientRect(), /** @type {Element} */ (f.parentElement).getBoundingClientRect()];
+      // Where the screen sits in its frame, so a page that scrolled does not read as a screen that moved.
+      return { side: f.dataset.side, src: img?.getAttribute("src") ?? "", box: box ? [box.left - frame.left, box.top - frame.top, box.width].map(Math.round) : [] };
+    }));
+
+    await journey.check("you-see-both-sides", { by: "you", caption: "Checking the line that differs." }, async () => {
       const clicks = await step.locator(".cmp-side").evaluateAll((list) => list.map((side) => side.querySelectorAll(".cmp-actions li").length));
-      const boxes = await step.locator(".cmp-side").evaluateAll((list) => list.map((e) => e.getBoundingClientRect()).map((r) => [r.left, r.top]));
-      const beside = boxes.length === 2 && boxes[0][1] === boxes[1][1] && boxes[0][0] < boxes[1][0];
-      const passed = beside && clicks[1] - clicks[0] === 2 && (await step.locator("img").count()) === 2 && /unchanged|same/i.test(await you.locator("main").innerText());
+      const shown = await showing();
+      const wide = shown.length === 1 && shown[0].side === "change" && shown[0].box[2] > (await step.evaluate((e) => e.getBoundingClientRect().width)) * 0.9;
+      const passed = wide && clicks.length === 2 && clicks[1] - clicks[0] === 2 && /same/i.test(await you.locator("main").innerText());
       if (passed) await step.scrollIntoViewIfNeeded();
-      return { passed, proof: "Read both sides of the line where you see the billing code.", evidence: seen(`main ${clicks[0] ?? "no"} clicks, the change ${clicks[1] ?? "no"} clicks, ${beside ? "side by side" : "not side by side"}`), reason: "The page does not show main beside the change with the extra clicks.", caption: passed ? "main is beside the change, with 2 more clicks." : "the two sides are not there." };
+      return { passed, proof: "Read the clicks on each side of the line where you see the billing code, and the screen under them.", evidence: seen(`main ${clicks[0] ?? "no"} clicks, the change ${clicks[1] ?? "no"} clicks, ${wide ? "the change's screen at full width" : "no full-width screen of the change"}`), reason: "The page does not show the extra clicks and the change's screen.", caption: passed ? "the change took 2 more clicks, and its screen is under them." : "the clicks or the screen are not there." };
+    });
+
+    const before = (await showing())[0];
+    /** @type {Awaited<ReturnType<typeof showing>>} */
+    let flipped = [];
+    await journey.step("Flip that line's screen to main.", { by: "you", caption: "You flip the screen to main." }, async () => {
+      await step.getByRole("tab").first().click();
+      flipped = await showing();
+    });
+
+    await journey.check("you-flip-to-main", { by: "you", caption: "Checking that the screen flips in place." }, async () => {
+      await step.getByRole("tab", { selected: true }).press("ArrowRight");
+      const back = await showing();
+      const inPlace = flipped.length === 1 && flipped[0].side === "main" && flipped[0].src !== before?.src && String(flipped[0].box) === String(before?.box);
+      const passed = inPlace && back.length === 1 && back[0].src === before?.src;
+      return { passed, proof: "Flipped the line's screen to main with a click, and back with an arrow key.", evidence: seen(`main's screen ${inPlace ? "in the same place" : "not in the same place"}, then ${back[0]?.side === "change" ? "the change's again" : "no change screen"}`), reason: "The screen does not flip to main in place and back.", caption: passed ? "main's screen shows in the same place, then the change's again." : "the screen does not flip in place." };
     });
 
     await journey.check("you-see-it-was-planted", { by: "you", caption: "Checking that the page says the change was planted." }, async () => {

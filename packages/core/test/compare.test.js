@@ -188,7 +188,9 @@ test("the baseline is main's newest run of the same journey version, until a per
   exportReview(runs, out, { mainDir });
   const page = readFileSync(join(out, "runs", "review-a-claim", "pr-1", "compare.html"), "utf8");
   assert.match(page, /Got worse/);
-  assert.match(page, /src="assets\/main-step-1\.png"/, "main's screen is beside the change's, from a file in the export");
+  assert.match(page, /src="assets\/main-step-1\.png"/, "main's screen is in the page with the change's, from a file in the export");
+  assert.ok(page.indexOf('data-side="main"') < page.indexOf('data-side="change"'), "with scripts off both screens show, main first");
+  assert.doesNotMatch(page, /<script[^>]+src=/, "the switch needs nothing but the page");
   assert.doesNotMatch(page, /(?:href|src)="\//, "the export opens from a folder, with no server");
   assert.match(readFileSync(join(out, "compare.html"), "utf8"), /runs\/review-a-claim\/pr-2\/compare\.html/);
 });

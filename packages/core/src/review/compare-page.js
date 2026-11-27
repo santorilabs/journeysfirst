@@ -1,12 +1,14 @@
 // The compare pages. One page for a change: each journey, with one sentence
 // for each user. One page for a journey: the same sentences, then only the
-// lines that differ, each with main on the left and the change on the right,
-// both showing the clicks taken and the screen they end on. What differs is
-// written under them in words. compare.js decides everything shown here.
+// lines that differ. Each has the clicks main took and the clicks the change
+// took, then one screen at the full width of the page with a switch between
+// main's and the change's. Both sit in the same box at the same scale, so
+// flipping shows only what differs. What differs is written under it in
+// words. compare.js decides everything shown here.
 import { esc, isCheck, runTitle, screenshotFile } from "../shared/display.js";
 import { MAX_QUESTIONS, OUTCOMES } from "./compare.js";
 import { layout } from "./layout.js";
-import { badge } from "./primitives.js";
+import { badge, tabs } from "./primitives.js";
 import { roleName } from "./run-player.js";
 import { count, seconds } from "./tool-calls.js";
 
@@ -63,19 +65,20 @@ export function comparePage(c, links) {
   const { run } = c.change;
   const planted = typeof run.tags?.planted === "string" ? `<section class="problems cmp-callout"><p><b>Planted for a demo.</b> ${esc(run.tags.planted)}</p></section>` : "";
   const facts = [c.main ? tested(c.main, c.against) : "main: no run", tested(c.change, "this change"), run.started_at && new Date(run.started_at).toLocaleString(), run.ran_by?.agent].filter(Boolean);
+  const base = esc(c.against);
   const pairs = c.steps.map((pair) => {
-    const shot = (/** @type {import("./compare.js").Side | null} */ side, /** @type {Links["file"]} */ file) => {
-      const src = file(screenshotFile(side?.run.steps[pair.n - 1]?.screenshots?.[0]));
-      return src ? `<img src="${esc(src)}" alt="The screen after step ${pair.n}">` : '<p class="empty">No screenshot of this step.</p>';
-    };
-    const column = (/** @type {string} */ name, /** @type {typeof pair.main} */ { actions }, /** @type {string} */ image) => `<div class="cmp-side"><p class="line-kind">${name}</p>
-      ${actions.length ? `<ol class="cmp-actions">${actions.map((a) => `<li>${a.field ? "fill" : a.name.startsWith("open ") ? "" : "click"} ${esc(a.name)}${typeof a.ms === "number" && !a.field ? ` <span class="how">${esc(a.ms)} ms</span>` : ""}</li>`).join("")}</ol>` : '<p class="how">No click or field.</p>'}${image}</div>`;
+    const shot = (/** @type {string} */ side, /** @type {string} */ name, /** @type {string | undefined} */ src) => `<figure data-side="${side}"><figcaption class="line-kind">${name}</figcaption>${src ? `<img src="${esc(src)}" alt="The screen after step ${pair.n}, on ${name}">` : '<p class="empty">No screenshot of this step.</p>'}</figure>`;
+    const file = (/** @type {import("./compare.js").Side | null} */ side) => screenshotFile(side?.run.steps[pair.n - 1]?.screenshots?.[0]);
+    const column = (/** @type {string} */ name, /** @type {typeof pair.main} */ { actions }) => `<div class="cmp-side"><p class="line-kind">${name}</p>
+      ${actions.length ? `<ol class="cmp-actions">${actions.map((a) => `<li>${a.field ? "fill" : a.name.startsWith("open ") ? "" : "click"} ${esc(a.name)}${typeof a.ms === "number" && !a.field ? ` <span class="how">${esc(a.ms)} ms</span>` : ""}</li>`).join("")}</ol>` : '<p class="how">No click or field.</p>'}</div>`;
     return `<section class="cmp-step" id="step-${pair.n}"><p class="line-kind">Step ${pair.n} · ${pair.isCheck ? "Check" : "Action"}${pair.by ? ` · ${esc(roleName(pair.by))}` : ""} · ${badge(pair.state)}</p><h2>${esc(pair.text)}</h2>
-      <div class="cmp-cols">${column(esc(c.against), pair.main, shot(c.main, links.mainFile))}${column("this change", pair.change, shot(c.change, links.file))}</div>
+      <div class="cmp-cols">${column(base, pair.main)}${column("this change", pair.change)}</div>
+      <div class="cmp-flip">${tabs(`Whose screen at step ${pair.n}`, [{ name: "main", label: base }, { name: "change", label: "this change" }])}
+        <div class="cmp-frame">${shot("main", base, links.mainFile(file(c.main)))}${shot("change", "this change", links.file(file(c.change)))}</div></div>
       <ul class="findings">${pair.items.map(itemHtml).join("")}</ul></section>`;
   });
   const whole = c.items.filter((item) => item.step === undefined);
-  const sides = /** @type {Array<[string, import("./compare.js").Side | null]>} */ ([[esc(c.against), c.main], ["this change", c.change]]);
+  const sides = /** @type {Array<[string, import("./compare.js").Side | null]>} */ ([[base, c.main], ["this change", c.change]]);
   const calls = whole.length ? `<section class="cmp-step"><p class="line-kind">The whole run · Agent</p><h2>The agent's tool calls</h2>
     <div class="cmp-cols">${sides.map(([name, side]) => `<div class="cmp-side"><p class="line-kind">${name}</p><ol class="cmp-actions">${[...(side?.calls.values() ?? [])].flat().map((call) => `<li>${esc(call.tool)} <span class="${call.error ? "error" : "how"}">${call.error ? "error" : call.ms === undefined ? "" : esc(seconds(call.ms))}</span></li>`).join("")}</ol></div>`).join("")}</div>
     <ul class="findings">${whole.map(itemHtml).join("")}</ul></section>` : "";
@@ -92,10 +95,35 @@ export function comparePage(c, links) {
     <div class="cmp-body">${staleNote(c)}${planted}${c.why ? `<section class="problems cmp-callout"><p><b>Not compared.</b> ${esc(c.why)}</p></section>` : ""}
     <div class="rows">${userRows(c)}</div>
     <p class="how cmp-note">${c.why ? "" : `${count(c.steps.length, "step")} of ${run.steps.length} differ from ${esc(c.against)}. ${c.same} ${c.same === 1 ? "is" : "are"} the same and not shown. `}${checks.filter((s) => s.verdict === "passed").length} of ${count(checks.length, "check")} passed. A change that makes a user's work harder never fails a check. <a href="${esc(links.run)}">Open the run</a></p>
-    ${pairs.join("")}${calls}${questions}${PRIVATE}</div>`, [{ text: "Compared with main", href: links.all }, { text: name }]);
+    ${pairs.join("")}${calls}${questions}${PRIVATE}</div>${pairs.length ? `<script>${FLIP_SCRIPT}</script>` : ""}`, [{ text: "Compared with main", href: links.all }, { text: name }]);
 }
 
 /** One measured change, in words, with any call a person made on it. @param {import("./compare.js").Item} item */
 const itemHtml = (item) => `<li><p class="says">${badge(item.kind, item.kind === "worse" ? OUTCOMES.worse : OUTCOMES.changed)} ${esc(item.says)}</p>${callsHtml(item)}</li>`;
 /** @param {import("./compare.js").Item} item */
 const callsHtml = (item) => item.calls.map((r) => `<p class="call"><b>${esc(r.by)}</b>: ${esc(r.says)} <span class="how">${esc(new Date(r.at).toLocaleString())}</span></p>`).join("");
+
+/**
+ * The switch between main's screen and the change's. Without it, a page shows
+ * both, main first. With it, both sit in one box and one is shown. The change
+ * is shown first. An arrow key on the switch flips it.
+ */
+const FLIP_SCRIPT = `for (const flip of document.querySelectorAll(".cmp-flip")) {
+  const show = (side, focus) => {
+    for (const tab of flip.querySelectorAll(".tab")) {
+      const on = tab.dataset.tab === side;
+      tab.setAttribute("aria-selected", String(on));
+      tab.tabIndex = on ? 0 : -1;
+      if (on && focus) tab.focus();
+    }
+    for (const figure of flip.querySelectorAll("figure")) figure.classList.toggle("shown", figure.dataset.side === side);
+  };
+  flip.classList.add("on");
+  show("change");
+  flip.addEventListener("click", (e) => { const tab = e.target.closest(".tab"); if (tab) show(tab.dataset.tab); });
+  flip.addEventListener("keydown", (e) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    show(flip.querySelector(".tab[aria-selected=true]").dataset.tab === "main" ? "change" : "main", true);
+  });
+}`;
