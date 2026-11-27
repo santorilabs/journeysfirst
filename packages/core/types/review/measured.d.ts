@@ -1,3 +1,5 @@
+/** A click that shows nothing for this long is slow, in ms. */
+export declare const SLOW_MS = 1000;
 export type Tally = Record<string, {
     n: number;
     on: string;
@@ -79,6 +81,16 @@ export declare function measuredFacts({ lines, earlier }: {
     notMeasured: string[];
     differ: number[];
 };
+/**
+ * What makes two measurements the same screen: the words, the controls, the values and what each click did.
+ * A page the script opened is left out: its paint can land on either side of a line's start.
+ * @param {Measure|undefined} measure
+ */
+export declare const outline: (measure: Measure | undefined) => string;
+/** The clicks of a line. A page the script opened is not one. @param {Measure|undefined} measure */
+export declare const clicksOf: (measure: Measure | undefined) => import("../runner/measure.js").ActionTime[];
+/** The fields a line filled or set. @param {Measure|undefined} measure */
+export declare const fieldsOf: (measure: Measure | undefined) => import("../runner/measure.js").ActionTime[];
 /**
  * The report `journeysfirst measured` prints for a run folder.
  * @param {string} folder

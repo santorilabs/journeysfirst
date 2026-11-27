@@ -73,8 +73,8 @@ const tone = (step) => (!step.isCheck && step.state === "done" ? "plain" : statu
 const statusTone = (step) => (step.state === "passed" || step.state === "done" ? "good" : step.state === "failed" ? "bad" : "wait");
 /** @param {PlayerStep} step */
 const statusLabel = (step) => LABELS[/** @type {keyof typeof LABELS} */ (step.state)] ?? (step.isCheck ? "Not checked" : "Not run");
-/** @param {string} user */
-const roleName = (user) => user.charAt(0).toUpperCase() + user.slice(1);
+/** A user's name as a page shows it, like Viewer. @param {string} user */
+export const roleName = (user) => user.charAt(0).toUpperCase() + user.slice(1);
 
 /** Styles for runPlayerHtml. */
 export const RUN_PLAYER_CSS = `${PLAYER_CSS}

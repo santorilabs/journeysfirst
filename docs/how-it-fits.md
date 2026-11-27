@@ -33,6 +33,8 @@ packages/core/
  captions.js                                         player.js
  measure.js                                          run-player.js
                                                      measured.js
+                                                     compare.js
+                                                     compare-page.js
                                                      tool-calls.js
                                                      video-lines.js
         │                       │                          │
@@ -132,6 +134,9 @@ Files, in `src/review/`:
 - `export.js`: `journeysfirst review <runs folder> --out <new folder>` writes the same index and run pages with relative links. Open `index.html` or host the folder on GitHub Pages or another static host. The export includes the screenshots, videos, and captions the pages use. It leaves out raw run files, traces, and other attachments. Add `--include-transcripts` to include the transcript text in the pages after checking it for private data. Check the exported pages and recordings before posting them.
 - `report.js`: `writeReport` writes `report.html` into a run folder, and `summaryMarkdown` is the pull request summary. Neither copies a video or a trace.
 - `measured.js`: `measuredReport`, what a run's `measure-<step>.txt` files show against the earlier reviewed run. The `journey-review` skill has the criteria. This file settles only the ones a number can.
+- `compare.js`: a run of a change against a run from before it, of the same journey, case and journey version. That is the newest earlier run in the same folder from a different commit (or the newest earlier run), or main's newest run when main's runs are given with `--main`. `compareRuns` gives each user one outcome: broke, got worse, not verified, not compared, changed or same. Only what both runs measured decides it. Got worse is a control gone from a screen or further away, more clicks or fields, a click or tool call that crosses 1 second, or a new tool error. Each item has the shape of a finding, so it never changes a verdict. `journeysfirst compare` prints it, and `--add-findings` writes the items into the run, where a person answers each with `add-review`. A run where a person's call on every question among them starts with "Accepted" is what later runs of the change are compared with.
+- `compare-page.js`: the compare pages. `/compare` is the change: each journey, with one sentence for each user. `/compare/<journey>/<run>` is one journey: only the lines that differ, each with the clicks the change took and the clicks the run before took, then one screen at full width with a switch between the two and side by side. A page names the run before as what it is: main only when it came from `--main`. `review --out` writes them as `compare.html`.
+- `layout.js`: the frame every review page sits in.
 - `tool-calls.js`: the tool calls an agent made through an MCP proxy, read from a run's transcripts. Each call's start and wait, the errors and whether the agent recovered, and the average of earlier passed runs. `measured.js` prints them.
 - `session.js`: an agent's saved session as rows on the run page, where the video would be: what it said, each command and each tool call, under the step each was done for. The files the run kept are tabs beside it.
 - `run-player.js`: the run player on the review page: one user's video at a time, a switch between users, and each step as a mark on the timeline.
@@ -153,7 +158,7 @@ Files, in `src/shared/`. None of them imports another source file.
 
 ### The rest
 
-- `bin/journeysfirst.js`: the CLI (`validate`, `validate-run`, `merge-check`, `measured`, `add-findings`, `add-review`, `review`, `capture`, `mcp-proxy`, `report`, `summary`, `publish`, `dev-server`, `doctor`, `init`, `upgrade`, `--version`). It uses the runner for terminal and MCP capture. Playwright uses the runner for browser journeys.
+- `bin/journeysfirst.js`: the CLI (`validate`, `validate-run`, `merge-check`, `measured`, `compare`, `add-findings`, `add-review`, `review`, `capture`, `mcp-proxy`, `report`, `summary`, `publish`, `dev-server`, `doctor`, `init`, `upgrade`, `--version`). It uses the runner for terminal and MCP capture. Playwright uses the runner for browser journeys.
 - `prepack` copies `skills/`, `spec/` and `docs/` from the repo root into this package, and `postpack` removes the copies. An install then has them at `node_modules/journeysfirst/spec` and `node_modules/journeysfirst/docs`.
 - `src/doctor.js`: `doctor`. Checks Node, Playwright, Chromium, the Playwright config, whether `baseURL` answers, and each journey file. The CLI is the only caller.
 - `src/setup.js`: `init` and `upgrade`. They copy the skills, add `playwright.config.js` when there is none, ignore `journey-runs/`, and add the upgrade workflow. Only `init --agent-instructions` adds the proposed Journeys section. `upgrade` refreshes existing managed sections. With no app to start, `init` also adds an example page, journey and script that pass.

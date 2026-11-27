@@ -6,9 +6,10 @@ import { LABELS, esc } from "../shared/display.js";
 /**
  * A result as a tag, like "Failed". In a list it shows as a tick or a cross.
  * @param {string | undefined} state
+ * @param {string} [label] its words, for a state that is not a verdict
  */
-export function badge(state) {
-  return state ? `<span class="verdict ${esc(state)}">${esc(LABELS[/** @type {keyof typeof LABELS} */ (state)] ?? state)}</span>` : "";
+export function badge(state, label) {
+  return state ? `<span class="verdict ${esc(state)}">${esc(label ?? LABELS[/** @type {keyof typeof LABELS} */ (state)] ?? state)}</span>` : "";
 }
 
 /**
@@ -33,7 +34,7 @@ export function panel(name, html, hidden = false) {
 /** Styles for the pieces above, and for the text roles. */
 export const PRIMITIVES_CSS = `.meta,.how,.empty{color:var(--text-3);font-size:var(--fs-sm)}
 .verdict{display:inline-flex;align-items:center;height:var(--s-lg);padding:0 var(--s-sm);border-radius:var(--r-xs);vertical-align:middle;white-space:nowrap;font:var(--label-strong);letter-spacing:.01em;color:var(--text-2);background:var(--chalk)}
-.verdict.passed,.verdict.done{color:var(--text);background:none;box-shadow:inset 0 0 0 1px var(--line)}.verdict.failed{color:var(--white);background:var(--error)}
+.verdict.passed,.verdict.done{color:var(--text);background:none;box-shadow:inset 0 0 0 1px var(--line)}.verdict.failed,.verdict.broke{color:var(--white);background:var(--error)}.verdict.worse{color:var(--text);background:var(--yellow-300)}
 .error{color:var(--error);font-size:var(--fs-sm)}
 .evidence dl,.run-details dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--s-xs) var(--s-md);margin:var(--s-sm) 0}
 .evidence dt,.run-details dt{color:var(--text-3)}.evidence dd,.run-details dd{margin:0;overflow-wrap:anywhere;white-space:pre-wrap}

@@ -1,0 +1,15 @@
+{
+  "name": "example-claims-review",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:moved": "DEMO_MOVED_FIELD=1 playwright test"
+  },
+  "dependencies": {
+    "journeysfirst": "file:../../packages/core"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  }
+}

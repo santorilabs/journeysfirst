@@ -7,9 +7,11 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { earlierRuns, readRunJson } from "../format/run-folder.js";
-import { toolCallReport } from "./tool-calls.js";
+import { count, toolCallReport } from "./tool-calls.js";
 
 const VALUE_KINDS = /** @type {const} */ (["spacing", "type", "fonts", "radius"]);
+/** A click that shows nothing for this long is slow, in ms. */
+export const SLOW_MS = 1000;
 
 /**
  * @typedef {Record<string, {n: number, on: string}>} Tally
@@ -73,16 +75,16 @@ export function measuredFacts({ lines, earlier = null }) {
   const reported = new Set();
   const differ = [...lines].filter(([step, measure]) => earlier && outline(measure) !== outline(earlier.get(step))).map(([step]) => step);
   for (const [step, measure] of lines) {
-    const clicks = measure.actions.filter((a) => !a.field && !a.name.startsWith("open "));
-    const fields = measure.actions.filter((a) => a.field);
+    const clicks = clicksOf(measure);
+    const fields = fieldsOf(measure);
     for (const a of clicks) {
       if (a.ms === null) facts.push({ criterion: "intuitive-feedback", step, says: `Nothing on the screen changes after "${a.name}".`, measured: a });
-      else if (/** @type {number} */ (a.ms) >= 1000) facts.push({ criterion: "simple-fast", step, says: `"${a.name}" shows nothing for ${a.ms} ms.`, measured: a });
+      else if (/** @type {number} */ (a.ms) >= SLOW_MS) facts.push({ criterion: "simple-fast", step, says: `"${a.name}" shows nothing for ${a.ms} ms.`, measured: a });
     }
     if (clicks.length || fields.length) counts.push(`step ${step}: ${count(clicks.length, "click")}, ${count(fields.length, "field")}`);
     const before = earlier?.get(step);
     if (before) {
-      const was = { clicks: before.actions.filter((a) => !a.field && !a.name.startsWith("open ")).length, fields: before.actions.filter((a) => a.field).length };
+      const was = { clicks: clicksOf(before).length, fields: fieldsOf(before).length };
       if (clicks.length + fields.length > was.clicks + was.fields) {
         facts.push({ criterion: "simple-no-longer", step, says: `This line takes ${count(clicks.length, "click")} and ${count(fields.length, "field")}. In the earlier run it took ${count(was.clicks, "click")} and ${count(was.fields, "field")}.`, measured: { now: measure.actions.map((a) => a.name), earlier: before.actions.map((a) => a.name) } });
       }
@@ -138,20 +140,23 @@ export function measuredFacts({ lines, earlier = null }) {
  * A page the script opened is left out: its paint can land on either side of a line's start.
  * @param {Measure|undefined} measure
  */
-const outline = (measure) =>
+export const outline = (measure) =>
   JSON.stringify([
     measure?.actions.filter((a) => !a.name.startsWith("open ")).map((a) => [a.name, a.changed, a.ms === null]),
     screens(measure).map((s) => [s.text, s.pageWidth > s.width, s.controls.map((c) => [c.name, c.in, c.small, c.strong]), s.cut.length, VALUE_KINDS.map((kind) => Object.keys(s[kind] ?? {})), Object.keys(s.effects ?? {})]),
   ]);
+
+/** The clicks of a line. A page the script opened is not one. @param {Measure|undefined} measure */
+export const clicksOf = (measure) => (measure?.actions ?? []).filter((a) => !a.field && !a.name.startsWith("open "));
+
+/** The fields a line filled or set. @param {Measure|undefined} measure */
+export const fieldsOf = (measure) => (measure?.actions ?? []).filter((a) => a.field);
 
 /** @param {Measure|undefined} measure */
 const screens = (measure) => /** @type {Screen[]} */ ([measure?.wide, measure?.phone].filter(Boolean));
 
 /** The words in a control's name, like Share from button "Share". @param {string} name */
 const quoted = (name) => /"(.*)"$/.exec(name)?.[1] ?? name;
-
-/** @param {number} n @param {string} word */
-const count = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 /**
  * The report `journeysfirst measured` prints for a run folder.

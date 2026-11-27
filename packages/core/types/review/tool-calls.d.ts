@@ -31,6 +31,10 @@ export type ToolCalls = {
  * @returns {Map<string, ToolCall[]>} by transcript file. A transcript with no tool call is left out.
  */
 export declare function readToolCalls(folder: string): Map<string, ToolCall[]>;
+/** @param {number} n @param {string} word */
+export declare const count: (n: number, word: string) => string;
+/** A wait in words. Under a tenth of a second it is in ms, so a fast call does not read as 0.0 s. @param {number} ms */
+export declare const seconds: (ms: number) => string;
 /**
  * One line for a transcript's tool calls: how many, how many returned an error, the wait, and the slowest.
  * @param {ToolCall[]} calls

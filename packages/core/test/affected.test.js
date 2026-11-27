@@ -16,6 +16,7 @@ const JOURNEYS = [
   "run-the-journeys-a-change-covers",
   "see-why-a-run-failed",
   "watch-a-fast-run-line-by-line",
+  "see-what-got-worse-for-each-user",
   "let-an-agent-run-a-journey",
   "keep-an-aborted-agent-rerun",
   "run-a-custom-agent-command",
@@ -34,7 +35,8 @@ test("a path selects the journeys that list it, and leaves the others", () => {
   assert.ok(setup.selected.includes("journeys/run-a-custom-agent-command.journey.yaml"));
   assert.deepEqual(setup.skipped, [
     "journeys/keep-an-aborted-agent-rerun.journey.yaml", "journeys/let-an-agent-run-a-journey.journey.yaml",
-    "journeys/run-the-journeys-a-change-covers.journey.yaml", "journeys/see-why-a-run-failed.journey.yaml",
+    "journeys/run-the-journeys-a-change-covers.journey.yaml", "journeys/see-what-got-worse-for-each-user.journey.yaml",
+    "journeys/see-why-a-run-failed.journey.yaml",
     "journeys/watch-a-fast-run-line-by-line.journey.yaml",
   ]);
   const readme = affectedLines(REPO, ["README.md"]);

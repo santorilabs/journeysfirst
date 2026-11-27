@@ -52,9 +52,9 @@ export function readToolCalls(folder) {
 }
 
 /** @param {number} n @param {string} word */
-const count = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+export const count = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 /** A wait in words. Under a tenth of a second it is in ms, so a fast call does not read as 0.0 s. @param {number} ms */
-const seconds = (ms) => (ms < 100 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(1)} s`);
+export const seconds = (ms) => (ms < 100 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(1)} s`);
 
 /**
  * One line for a transcript's tool calls: how many, how many returned an error, the wait, and the slowest.

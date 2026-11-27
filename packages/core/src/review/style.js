@@ -40,6 +40,16 @@ a.row:hover{background:var(--chalk)}
 .start .findings{list-style:none;padding:0;margin:var(--s-xs) 0 var(--s-sm)}.findings li{padding:var(--s-sm) 0;border-top:1px solid var(--line)}.findings li:first-child{border-top:0}
 .reported{border-top:1px solid var(--line);margin-top:var(--s-md);padding-top:var(--s-xs)}.reported-user{padding:var(--s-xs) 0}.reported-user p{margin:var(--s-xs) 0}.reported code{font:var(--label);word-break:break-all}
 .findings p{margin:var(--s-xs) 0}.findings .says{font-weight:500}.findings a{color:var(--text-3)}
+/* The compare pages. A screen has the full width. With the switch on, main's and the change's sit in one box, as tall as the taller, and one shows. Both is the 2 columns the clicks use. */
+.cmp-strip{padding-left:0;padding-right:0}.cmp-strip.stale{opacity:.55}.cmp-callout{border-color:var(--line)}.cmp-note{margin:var(--s-md) 0}.day a{text-decoration:none}
+.cmp-step{border-top:1px solid var(--line);padding:var(--s-lg) 0}.cmp-step h2{font:500 var(--fs-lg)/1.4 var(--body);margin:var(--s-xs) 0 var(--s-md)}
+.cmp-cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s-md)}.cmp-side{min-width:0}
+.cmp-actions{margin:var(--s-xs) 0;padding-left:var(--s-lg);font:var(--label);line-height:1.75;overflow-wrap:anywhere}
+.cmp-flip{margin-top:var(--s-md)}.cmp-flip:not(.on) .tabs{display:none}.cmp-flip .tabs{padding:0}.cmp-frame figure{margin:0 0 var(--s-md)}
+.cmp-flip.on .cmp-frame{display:grid}.cmp-flip.on figure{margin:0}.cmp-flip.on:not(.both) figure{grid-area:1/1;visibility:hidden}.cmp-flip.on:not(.both) figure.shown{visibility:visible}.cmp-flip.on:not(.both) figcaption{display:none}
+.cmp-all{display:flex;flex-wrap:wrap;align-items:center;gap:0 var(--s-lg);margin-top:var(--s-md)}.cmp-all:not(.on){display:none}.cmp-all .tabs{flex:1 1 auto;min-width:0;padding:0}
+@media(max-width:54em){.cmp-cols{grid-template-columns:minmax(0,1fr)}}
+.cmp-step .findings{list-style:none;padding:0;margin:var(--s-md) 0 0}
 /* A window no wider than the frame has no room for its side rules or corner marks. */
 @media(max-width:81rem){.frame{border-left:0;border-right:0}.bar::before,.bar::after,.foot::before,.foot::after{display:none}}
 @media(max-width:54em){

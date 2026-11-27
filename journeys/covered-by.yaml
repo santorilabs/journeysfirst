@@ -61,3 +61,10 @@ run-a-custom-agent-command:
   - packages/core/src/format/run-folder.js
   - packages/core/src/format/runfile.js
   - packages/core/src/review/**
+
+see-what-got-worse-for-each-user:
+  - packages/core/src/review/compare.js
+  - packages/core/src/review/compare-page.js
+  - packages/core/src/review/measured.js
+  - packages/core/src/runner/measure.js
+  - examples/claims-review/**
