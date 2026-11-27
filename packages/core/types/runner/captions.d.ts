@@ -1,5 +1,3 @@
-/** After a check, its verdict stays up for this many pauses, so it can be read. */
-export declare const CHECK_PAUSES = 5;
 /** The longest caption, in characters. A longer one is cut at a word. */
 export declare const CAPTION_LENGTH = 90;
 /** Where the caption bar goes when nobody says. */

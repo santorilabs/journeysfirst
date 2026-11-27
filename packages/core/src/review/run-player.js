@@ -16,7 +16,7 @@ import { panel, tabs } from "./primitives.js";
  * @typedef {{n: number, text: string, isCheck: boolean, state?: string, by?: string,
  *   at?: number, card: string, shot?: string}} PlayerStep at: seconds into the video of `by`. card: the step's details, as HTML.
  *   shot: the step's screenshots, as HTML, when the step is in no video.
- * @typedef {{user: string, src: string, captions?: string}} PlayerVideo
+ * @typedef {{user: string, src: string, captions?: string, holds?: import("./player.js").Hold[]}} PlayerVideo
  * @typedef {{name: string, label: string, html: string}} SidePanel one more tab beside the steps
  */
 
@@ -41,7 +41,7 @@ export function runPlayerHtml({ steps, videos, openAt, panels = [], log = "" }) 
         .map((s) => `<button type="button" class="tick ${tone(s)}${s.isCheck ? "" : " dot"}" data-step="${s.n}" data-at="${s.at}" aria-label="Step ${s.n}, at ${clock(/** @type {number} */ (s.at))}">${s.isCheck ? s.n : ""}</button>`)
         .join("");
       return `<div class="screen" data-user="${esc(v.user)}"${v.user === shown ? "" : " hidden"}>
-        ${playerHtml({ id: `video-${esc(v.user)}`, src: v.src, label: esc(v.user), captions: v.captions })}
+        ${playerHtml({ id: `video-${esc(v.user)}`, src: v.src, label: esc(v.user), captions: v.captions, holds: v.holds })}
         ${ticks ? `<div class="track" role="group" aria-label="Steps in the video of ${esc(v.user)}">${ticks}</div>` : ""}
       </div>`;
     })
@@ -120,7 +120,7 @@ if (root) {
   const showUser = (user) => {
     for (const s of screens) {
       const on = s.dataset.user === user;
-      if (!on) s.querySelector("video").pause();
+      if (!on) s.querySelector(".player").stop();
       s.hidden = !on;
     }
     for (const b of all(".users button")) b.setAttribute("aria-pressed", String(b.dataset.user === user));

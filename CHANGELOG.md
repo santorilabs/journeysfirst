@@ -2,6 +2,14 @@
 
 Each released version is on npm (`journeysfirst`). Newest first.
 
+## Unreleased
+
+Upgrade steps: none for most projects. If a test sets `pause` without `video: "paced"`, remove `pause`: the run would still wait, and the review page holds on each line as well. If you share a run's video as a raw file, pass `video: "paced"` (or set `journeyVideo: "paced"`) to get the captions and pauses in the video as before.
+
+- A replay no longer waits so its video can be watched. It still records a video for every user. The review page shows the line in progress under the video and holds on each line: half a second after an action, 2.5 seconds after a check. A video from an earlier version plays as before.
+- `video: "paced"` on `test.journey`, or `journeyVideo: "paced"` in the config's `use`, records the video as before: the run waits after each line, and the video shows the caption bar and click marks. `captions` and a step's `caption` apply to a paced video. `pause` defaults to 500 for a paced video and 0 for any other run.
+- A step's `at` and `took` are written to the millisecond.
+
 ## 0.0.7
 
 Upgrade steps: if you import `journeysfirst/runfile` or `journeysfirst/run-folder`, change the import (see the last line). Nothing else needs a change. Every v1 journey and run stays valid.

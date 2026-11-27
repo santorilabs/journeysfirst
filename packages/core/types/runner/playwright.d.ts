@@ -1,4 +1,5 @@
 import { RunRecorder } from "./recorder.js";
+import { DEFAULT_PAUSE } from "../shared/display.js";
 export { expect } from "@playwright/test";
 export declare const RUN_ATTACHMENT = "journeysfirst-run";
 export declare const FILE_ATTACHMENT = "journeysfirst-file:";
@@ -6,8 +7,7 @@ export declare const FILE_ATTACHMENT = "journeysfirst-file:";
 export declare const SECRET_ATTACHMENT = "journeysfirst-secrets";
 export declare const THREW = "The check threw an error before it could prove anything.";
 export declare const NO_PROOF = "The runner did not say how it was proven.";
-/** The pause after each line while video records, in ms, so a person watching can follow. */
-export declare const DEFAULT_PAUSE = 500;
+export { DEFAULT_PAUSE };
 export type CheckResult = {
     passed?: boolean;
     verdict?: "passed" | "failed" | "blocked" | "not_checked";
@@ -29,16 +29,19 @@ export type UserPage = {
     actions: import("./measure.js").Watch | null;
     app: import("./reported.js").AppWatch;
 };
+export type VideoOption = boolean | "paced";
 export type MeasureOption = boolean | "wide";
 /**
  * @typedef {{passed?: boolean, verdict?: "passed"|"failed"|"blocked"|"not_checked", proof?: string,
  *   evidence?: import("../format/runfile.js").Evidence[], cause?: "product"|"test"|"environment", reason?: string,
- *   caption?: string}} CheckResult caption: one plain sentence for the video after the verdict word,
+ *   caption?: string}} CheckResult caption: one plain sentence for a paced video after the verdict word,
  *   like "the new project is not in Your projects." It shows as "Failed: the new project is not in Your projects."
  * @typedef {import("@playwright/test").BrowserContextOptions} BrowserContextOptions
  * @typedef {{context: import("@playwright/test").BrowserContext, page: import("@playwright/test").Page, startsAt: number,
  *   captioned: boolean, caption: {dispose: () => Promise<void>} | null, actions: import("./measure.js").Watch | null,
  *   app: import("./reported.js").AppWatch}} UserPage
+ * @typedef {boolean | "paced"} VideoOption true: record each user's screen with no waiting; the review page holds on each line.
+ *   "paced": the run waits after each line and draws the caption bar and click marks into the video, for a clip shared as a raw file.
  * @typedef {boolean | "wide"} MeasureOption true: measure each user's screen after every line, at the run's width and at 375 px.
  *   "wide": never resize the page. false: do not measure.
  */
@@ -48,6 +51,8 @@ export declare class JourneyRun {
     browser: import("@playwright/test").Browser;
     testInfo: import("@playwright/test").TestInfo;
     video: boolean;
+    /** A paced video carries its own captions and pauses. For any other, the review page shows the lines and holds on each. */
+    paced: boolean;
     /** Where the caption bar goes, or null for no captions. */
     captions: {
         position: import("./captions.js").Position;
@@ -86,11 +91,11 @@ export declare class JourneyRun {
     finished: Promise<import("../format/runfile.js").Run> | null;
     /**
      * @param {{file: string, caseId: string|null, browser: import("@playwright/test").Browser, testInfo: import("@playwright/test").TestInfo,
-     *   video: boolean, captions?: import("./captions.js").CaptionsOption, pause?: number, measure?: MeasureOption, delay?: number,
+     *   video: VideoOption, captions?: import("./captions.js").CaptionsOption, pause?: number, measure?: MeasureOption, delay?: number,
      *   repos?: Array<{repo: string, commit?: string, branch?: string}>, tags?: Record<string, unknown>}} options
-     *   captions: show the line in progress on each user's video (default on, at the top, when video is on).
+     *   captions: show the line in progress on each user's paced video (default on, at the top).
      *   false turns them off; {position: "bottom"} moves the bar.
-     *   pause: ms to wait after each action, and five times that after a check so its verdict can be read (default 500 when video is on, else 0).
+     *   pause: ms to wait after each action, and five times that after a check so its verdict can be read (default 500 for a paced video, else 0).
      *   measure: save measure-<line>.txt after each line, for a review (default on).
      *   delay: ms to hold each data request, for a slow replay. A slow replay prints each action's time and writes no run.
      */
@@ -99,7 +104,7 @@ export declare class JourneyRun {
         caseId: string | null;
         browser: import("@playwright/test").Browser;
         testInfo: import("@playwright/test").TestInfo;
-        video: boolean;
+        video: VideoOption;
         captions?: import("./captions.js").CaptionsOption;
         pause?: number;
         measure?: MeasureOption;
@@ -160,7 +165,7 @@ export declare class JourneyRun {
      * A thrown error marks the step failed with cause "test" and stops the test.
      * @param {number|string} line the line number (from 1) or the action's sentence
      * @param {{by: string, caption?: string}} who who does it: "you" or a name from the journey's users.
-     *   caption: one plain sentence for the video, like "You sign up with your email." Without one, the video shows the line.
+     *   caption: one plain sentence for a paced video, like "You sign up with your email." Without one, the video shows the line.
      * @param {() => Promise<unknown>} action
      */
     step(line: number | string, { by, caption }: {
@@ -175,7 +180,7 @@ export declare class JourneyRun {
      * and the run can still be written.
      * @param {string} id the check's id from the journey
      * @param {{by: string, caption?: string}} who whose view it is about: "you" or a name from the journey's users.
-     *   caption: one plain sentence for the video while it runs, like "Checking that the new project shows in Your projects."
+     *   caption: one plain sentence for a paced video while it runs, like "Checking that the new project shows in Your projects."
      * @param {() => Promise<CheckResult>} prove may return caption too: the verdict's sentence, like "the new project is not in Your projects."
      */
     check(id: string, { by, caption }: {
@@ -195,11 +200,11 @@ export type JourneyFixtures = {
         run: JourneyRun | null;
     };
     journeyCaptions: import("./captions.js").CaptionsOption | undefined;
-    journeyVideo: boolean | undefined;
+    journeyVideo: VideoOption | undefined;
 };
 export type JourneyOptions = {
     case?: string;
-    video?: boolean;
+    video?: VideoOption;
     captions?: import("./captions.js").CaptionsOption;
     pause?: number;
     measure?: MeasureOption;
@@ -216,7 +221,7 @@ export type JourneyBody = (args: {
     request: import("@playwright/test").APIRequestContext;
 }) => Promise<void>;
 /**
- * @typedef {{case?: string, video?: boolean, captions?: import("./captions.js").CaptionsOption, pause?: number, measure?: MeasureOption,
+ * @typedef {{case?: string, video?: VideoOption, captions?: import("./captions.js").CaptionsOption, pause?: number, measure?: MeasureOption,
  *   repos?: Array<{repo: string, commit?: string, branch?: string}>, tags?: Record<string, unknown>}} JourneyOptions
  * @typedef {(args: {journey: JourneyRun, browser: import("@playwright/test").Browser, request: import("@playwright/test").APIRequestContext}) => Promise<void>} JourneyBody
  */
@@ -225,12 +230,14 @@ export type JourneyBody = (args: {
  * result is passed.
  *   test.journey("journeys/x.journey.yaml", async ({ journey }) => { ... })
  *   test.journey("journeys/x.journey.yaml", { case: "not-now", video: false }, async ({ journey }) => { ... })
- * With video on, each user's video shows the line in progress at the top.
- * Pass captions: false to turn that off, captions: { position: "bottom" } to
+ * Each user's screen is recorded with no waiting. The review page shows each
+ * line under the video and holds on it.
+ * Pass video: "paced" for a video to share as a raw file: the run waits after
+ * each line, and the video shows the line in progress at the top.
+ * For a paced video, pass captions: false to turn that off, captions: { position: "bottom" } to
  * move it (or set journeyCaptions in the config's use for every test), and pause (ms after each action; a
  * check's verdict stays five times as long) to change the pacing.
- * Set journeyVideo: false in the config's use to record no video for every test;
- * with no video the run does not pause either, unless pause is set.
+ * Set journeyVideo in the config's use for every test: "paced", or false to record no video.
  * After each line the user's screen is measured for a review and saved as
  * measure-<line>.txt. Measuring sets the page 375 px wide for a moment. Pass
  * measure: "wide" when that breaks a line, or measure: false for none.

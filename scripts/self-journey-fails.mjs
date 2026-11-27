@@ -12,6 +12,7 @@ const cases = [
   { file: "e2e/hand-a-project-to-a-new-agent.spec.js", broken: "main", id: "agent-sees-the-pass", reason: "The first run did not pass.", folder: "hand-a-project-to-a-new-agent" },
   { file: "e2e/run-the-journeys-a-change-covers.spec.js", broken: "selection", id: "other-journey-stays", reason: "The notes journey ran.", folder: "run-the-journeys-a-change-covers" },
   { file: "e2e/see-why-a-run-failed.spec.js", broken: "main", id: "agent-sees-the-refusal", reason: "The run does not say what the app told the viewer.", folder: "see-why-a-run-failed" },
+  { file: "e2e/watch-a-fast-run-line-by-line.spec.js", broken: "main", id: "run-does-not-wait", reason: "The run waited after its lines", folder: "watch-a-fast-run-line-by-line" },
 ];
 
 mkdirSync("/tmp/jf-self", { recursive: true });

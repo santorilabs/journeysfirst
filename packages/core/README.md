@@ -47,7 +47,7 @@ steps:
 npx journeysfirst validate journeys/share-by-link.journey.yaml
 ```
 
-Run it with Playwright using `test.journey` from `journeysfirst/playwright` and the `journeysfirst/reporter` reporter. Each run is written to `journey-runs/<journey name>/<run id>/`, with a video per user. The videos have captions for each line; pass `captions: false` to turn them off. Then:
+Run it with Playwright using `test.journey` from `journeysfirst/playwright` and the `journeysfirst/reporter` reporter. Each run is written to `journey-runs/<journey name>/<run id>/`, with a video per user. The run does not wait for the videos: the review page shows each line under the video and holds on it. Pass `video: "paced"` for a video with the captions and pauses in it, to share as a raw file. Then:
 
 ```bash
 npx journeysfirst validate-run journey-runs/share-by-link/<run id>

@@ -100,12 +100,3 @@ export declare function runPage(run: ShownRun, journey: string, id: string, fold
     captions: (name: string) => string | undefined;
     includeTranscripts?: boolean;
 }): string;
-/**
- * Each line in a video as a WebVTT captions track: from its time in the video
- * to the next line's, or to its own end for the last. A video recorded on a
- * page that refused the caption bar (Trusted Types) still has captions this way.
- * @param {StepFields[]} steps
- * @param {MediaItem} video
- * @returns {string}
- */
-export declare function captionTrack(steps: StepFields[], video: MediaItem): string;

@@ -2,7 +2,8 @@ import { copyFileSync, lstatSync, mkdirSync, realpathSync, writeFileSync } from 
 import { join, resolve } from "node:path";
 import { FILE_NAME } from "../format/runfile.js";
 import { screenshotFile } from "../shared/display.js";
-import { captionTrack, indexPage, listRuns, runPage } from "./review.js";
+import { indexPage, listRuns, runPage } from "./review.js";
+import { captionTrack } from "./video-lines.js";
 
 /**
  * Write review HTML and the images, videos, and captions it uses to a new folder.

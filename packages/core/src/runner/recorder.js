@@ -486,4 +486,4 @@ function compact(object) {
 }
 
 /** @param {number} seconds */
-const round = (seconds) => Math.round(seconds * 10) / 10;
+const round = (seconds) => Math.round(seconds * 1000) / 1000;
