@@ -1,5 +1,5 @@
 // Shared pieces for the self-journey replays. No model calls.
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -116,6 +116,21 @@ export function linkProject(coreDir) {
 /** @param {string} dir */
 export function binOf(dir) {
   return join(dir, "node_modules/journeysfirst/bin/journeysfirst.js");
+}
+
+/**
+ * Start the review page for a project's runs. Resolves once it is listening.
+ * @param {string} dir the project
+ * @returns {Promise<{url: string, stop: () => void}>}
+ */
+export async function openReview(dir) {
+  const port = freePort();
+  const review = spawn(process.execPath, [binOf(dir), "review", "journey-runs", "--port", port], { cwd: dir, stdio: "pipe" });
+  await new Promise((done, fail) => {
+    review.stdout?.on("data", (chunk) => String(chunk).includes("journeysfirst review:") && done(undefined));
+    review.on("exit", () => fail(new Error("The review page did not start.")));
+  });
+  return { url: `http://127.0.0.1:${port}`, stop: () => void review.kill() };
 }
 
 /** @param {string} dir */

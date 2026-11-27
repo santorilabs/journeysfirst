@@ -1,8 +1,7 @@
-import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { test } from "journeysfirst/playwright";
-import { REPO, binOf, freePort, install, linkProject, markTime, newestRun, packs, playwrightOf, run, show } from "./support.js";
+import { REPO, freePort, install, linkProject, markTime, newestRun, openReview, packs, playwrightOf, run, show } from "./support.js";
 
 const broken = process.env.JF_BROKEN === "main";
 
@@ -36,7 +35,7 @@ steps:
     id: viewer-sees-it
 `;
 const SPEC = `import { test } from "journeysfirst/playwright";
-test.journey("journeys/open-a-doc.journey.yaml", { video: false, measure: false }, async ({ journey }) => {
+test.journey("journeys/open-a-doc.journey.yaml", { recording: false, measure: false }, async ({ journey }) => {
   const viewer = await journey.page("viewer", { account: "signed out" });
   await journey.step("The viewer opens the doc.", { by: "viewer" }, async () => {
     await viewer.goto("/doc/q3");
@@ -49,10 +48,10 @@ test.journey("journeys/open-a-doc.journey.yaml", { video: false, measure: false 
 });
 `;
 
-test.journey("journeys/see-why-a-run-failed.journey.yaml", { video: true, pause: 0, measure: false }, async ({ journey }) => {
+test.journey("journeys/see-why-a-run-failed.journey.yaml", { measure: false }, async ({ journey }) => {
   test.setTimeout(180_000);
   const started = Date.now();
-  /** @type {import("node:child_process").ChildProcess | null} */
+  /** @type {Awaited<ReturnType<typeof openReview>> | null} */
   let review = null;
   try {
     const agent = await journey.page("agent");
@@ -89,14 +88,9 @@ test.journey("journeys/see-why-a-run-failed.journey.yaml", { video: true, pause:
       return { passed, proof: "Read failure.md in the run folder.", evidence: [{ source: "page", url: "http://127.0.0.1:9/", login: "agent", saw: passed ? "a 403 from GET /api/doc/q3 at line 1" : "no word of the 403" }], reason: "The run does not say what the app told the viewer.", caption: passed ? "the agent reads that the viewer got a 403." : "the run does not say what the app told the viewer." };
     });
 
-    const port = freePort();
     await journey.step("You open the run.", { by: "you", caption: "You open the run." }, async () => {
-      review = spawn(process.execPath, [binOf(dir), "review", "journey-runs", "--port", port], { cwd: dir, stdio: "pipe" });
-      await new Promise((done, fail) => {
-        review?.stdout?.on("data", (chunk) => String(chunk).includes("journeysfirst review:") && done(undefined));
-        review?.on("exit", () => fail(new Error("The review page did not start.")));
-      });
-      await you.goto(`http://127.0.0.1:${port}/runs/open-a-doc/${basename(/** @type {string} */ (folder))}`);
+      review = await openReview(dir);
+      await you.goto(`${review.url}/runs/open-a-doc/${basename(/** @type {string} */ (folder))}`);
     });
 
     await journey.check("you-see-what-the-app-said", { by: "you", caption: "Checking what you see under the failed line." }, async () => {
@@ -107,7 +101,7 @@ test.journey("journeys/see-why-a-run-failed.journey.yaml", { video: true, pause:
       return { passed, proof: "Opened the run's page and read the block under the failed line.", evidence: [{ source: "page", url: you.url(), login: "you", saw: passed ? "What the app reported: the viewer got a 403" : "no report under the failed line" }], reason: "You do not see what the app told the viewer.", caption: passed ? "you see the 403 under the failed line." : "you do not see what the app said." };
     });
   } finally {
-    /** @type {import("node:child_process").ChildProcess | null} */ (review)?.kill();
+    /** @type {Awaited<ReturnType<typeof openReview>> | null} */ (review)?.stop();
     markTime(`see-why-a-run-failed ${broken ? "fail" : "pass"}`, Date.now() - started);
   }
 });

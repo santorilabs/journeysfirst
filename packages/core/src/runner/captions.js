@@ -1,4 +1,4 @@
-// Captions for journey videos. While a run records, each user's page shows
+// Captions for paced journey videos. While a paced run records, each user's page shows
 // a bar at the top (or bottom) with the line in progress, so a person watching a video
 // can tell which step is happening. Playwright draws the bar with
 // page.screencast. A Playwright without it shows no captions, and nothing else
@@ -13,9 +13,6 @@
 // itself, so it shows no bar; the review page still shows each line as a
 // captions track.
 import { LABELS } from "../shared/display.js";
-
-/** After a check, its verdict stays up for this many pauses, so it can be read. */
-export const CHECK_PAUSES = 5;
 
 /** The longest caption, in characters. A longer one is cut at a word. */
 export const CAPTION_LENGTH = 90;

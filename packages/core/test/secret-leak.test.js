@@ -57,7 +57,7 @@ steps:
 const PASSWORD = ${JSON.stringify(PASSWORD)};
 const API_KEY = ${JSON.stringify(API_KEY)};
 const SECRET = ${JSON.stringify(SECRET)};
-test.journey("journeys/sign-in.journey.yaml", { video: false, measure: false }, async ({ journey }) => {
+test.journey("journeys/sign-in.journey.yaml", { recording: false, measure: false }, async ({ journey }) => {
   journey.value("code", SECRET, { secret: true });
   const page = await journey.page("you");
   await journey.step("Enter the password and the key.", { by: "you" }, async () => {
@@ -132,7 +132,7 @@ steps:
     id: viewer-sees-it
 `);
   writeFileSync(join(dir, "e2e/view-a-doc.spec.js"), `import { test } from "journeysfirst/playwright";
-test.journey("journeys/view-a-doc.journey.yaml", { video: false, measure: false }, async ({ journey }) => {
+test.journey("journeys/view-a-doc.journey.yaml", { recording: false, measure: false }, async ({ journey }) => {
   journey.value("code", ${JSON.stringify(DECLARED)}, { secret: true });
   const viewer = await journey.page("viewer", { account: "signed out" });
   await journey.step("The viewer opens the link.", { by: "viewer" }, async () => {

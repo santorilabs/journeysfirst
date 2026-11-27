@@ -2,7 +2,7 @@
 // once by driving the browser; after that it replays with no model.
 // Each line of the journey is one journey.step (by its sentence) or one
 // journey.check (by its id), and says who did it. Each user has their own
-// browser context. Each caption is one plain sentence for the video.
+// browser context. Each caption is one plain sentence for a paced video.
 import { expect, test } from "journeysfirst/playwright";
 
 test.journey("journeys/share-by-link.journey.yaml", async ({ journey }) => {

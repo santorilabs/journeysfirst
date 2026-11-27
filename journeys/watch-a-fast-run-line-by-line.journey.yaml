@@ -1,0 +1,21 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/santorilabs/journeysfirst/main/spec/journey-v1.schema.json
+format: journeysfirst/v1
+title: Watch a fast run line by line
+promise: |
+  When a journey runs, I do not want it to wait so that its video can be watched.
+  When I open the run, I still want to follow each user's video line by line.
+users: [agent]
+start: The project has a journey where you and a viewer each open a page. It has not been run.
+steps:
+  - The agent runs the journey.
+  - check: The agent sees a video for you and a video for the viewer.
+    id: video-for-every-user
+  - check: The agent sees that the run did not wait after its lines.
+    id: run-does-not-wait
+  - You open the run and play your video.
+  - check: You see each line stay up long enough to read it.
+    id: each-line-stays-up
+  - You pick the viewer's last line.
+  - check: You see the viewer's video at that line.
+    id: line-opens-its-video
+notes: The agent reads the run folder. You read the run's review page. Long enough to read is about half a second for an action and two seconds for a check.

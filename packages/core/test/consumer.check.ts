@@ -40,9 +40,10 @@ test.journey("journeys/share-by-link.journey.yaml", async ({ journey, request })
   });
   await request.get("/health");
 });
-test.journey("journeys/share-by-link.journey.yaml", { case: "not-now", video: false }, async ({ journey }) => {
+test.journey("journeys/share-by-link.journey.yaml", { case: "not-now", recording: false }, async ({ journey }) => {
   journey.value("link", "https://app.example.test/p/q3-plan");
 });
+test.journey("journeys/share-by-link.journey.yaml", { recording: "paced" }, async () => {});
 test("Playwright's own test still works", async ({ page }) => {
   await page.goto("/");
 });

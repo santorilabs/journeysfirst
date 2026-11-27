@@ -41,7 +41,8 @@ test("the example passes against the good app", () => {
   assert.deepEqual(run.verified.length, 3);
   assert.deepEqual(run.steps.map((s) => s.by), ["you", "you", "viewer", "viewer", "you", "viewer", "viewer"]);
   assert.match(run.values.link.value, /\/view\/q3-plan$/);
-  assert.deepEqual(run.media.filter((m) => m.kind === "video").map((m) => [m.file, m.tags.user]), [["you.webm", "you"], ["viewer.webm", "viewer"]]);
+  assert.deepEqual(run.media.filter((m) => m.kind === "video").map((m) => [m.file, m.tags.user, m.tags.paced]), [["you.webm", "you", false], ["viewer.webm", "viewer", false]], "a video for every user, recorded with no waiting");
+  assert.ok(run.steps.at(-1).at < 5, `the run does not wait after each line: its last line starts ${run.steps.at(-1).at} s in`);
   assert.deepEqual(run.media.filter((m) => m.kind === "capture").map((m) => m.file), [1, 2, 3, 4, 5, 6, 7].map((n) => `measure-${n}.txt`), "every line's screen is measured for the review");
   const line1 = JSON.parse(files.get("measure-1.txt").toString());
   assert.match(line1.url, /^http:\/\/localhost:\d+\/$/);
@@ -62,10 +63,10 @@ test("the example passes against the good app", () => {
   assert.ok(!run.media.some((m) => m.kind === "trace") && !files.has("trace.zip"), "a passing run keeps no trace");
 });
 
-test("journeyVideo: false in the config's use records no video for any user", () => {
+test("recording: false in the config's use records no video for any user", () => {
   // A config beside the example's, so its testDir and webServer resolve the same.
   const config = join(EXAMPLE, `playwright.no-video-${process.pid}.config.js`);
-  writeFileSync(config, 'import base from "./playwright.config.js";\nexport default { ...base, use: { ...base.use, journeyVideo: false } };\n');
+  writeFileSync(config, 'import base from "./playwright.config.js";\nexport default { ...base, use: { ...base.use, recording: false } };\n');
   try {
     const { status, output, run, files } = runExample({}, ["--config", config]);
     assert.equal(status, 0, output);

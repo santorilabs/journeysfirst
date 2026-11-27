@@ -9,7 +9,7 @@ import { extname, isAbsolute, join, normalize, relative, resolve, sep } from "no
 import { hostAllowed, wrongHostMessage } from "../shared/local-host.js";
 import { checkRun } from "../format/run-check.js";
 import { findJourney } from "../format/run-folder.js";
-import { LABELS, REVIEW_PASSES, batchResult, esc, isCheck, reviewCountText, runTitle, screenshotFile, screenshotPage, stepState, videoAt } from "../shared/display.js";
+import { REVIEW_PASSES, batchResult, esc, isCheck, reviewCountText, runTitle, screenshotFile, screenshotPage, stepState, videoAt } from "../shared/display.js";
 import { FILE_NAME, runResult } from "../format/runfile.js";
 import { VERSION } from "../shared/version.js";
 import { RUN_PLAYER_SCRIPT, runPlayerHtml } from "./run-player.js";
@@ -18,6 +18,7 @@ import { PAGE_CSS } from "./style.js";
 import { FONTS, MARK } from "./tokens.js";
 import { readSession, sessionHtml } from "./session.js";
 import { transcriptPanels } from "./transcripts.js";
+import { captionTrack, videoHolds } from "./video-lines.js";
 
 /**
  * @typedef {import("node:http").IncomingMessage} Request
@@ -272,7 +273,7 @@ export function runPage(run, journey, id, folder, assets) {
   const fileUrl = assets?.file ?? liveFile;
   const media = (run.media ?? []).filter((m) => m.kind === "video" && typeof m.tags?.user === "string" && fileUrl(m.file));
   const videos = media.map((v) => ({ user: String(v.tags?.user), src: /** @type {string} */ (fileUrl(v.file)),
-    captions: assets ? assets.captions(v.file) : `/captions/${esc(journey)}/${esc(id)}/${esc(v.file)}.vtt` }));
+    captions: assets ? assets.captions(v.file) : `/captions/${esc(journey)}/${esc(id)}/${esc(v.file)}.vtt`, holds: videoHolds(run.steps, v, fileUrl) }));
   const report = assets ? null : appReport(run, folder);
   const showTranscripts = !assets || assets.includeTranscripts;
   // An agent's run with no video shows its session where the video would be, with the files it kept as tabs beside it.
@@ -370,38 +371,6 @@ function reportedSection(report) {
   });
   return `<section class="reported"><p class="how">What the app reported</p><p>${esc(report.summary)}</p>${users.join("")}</section>`;
 }
-
-/**
- * Each line in a video as a WebVTT captions track: from its time in the video
- * to the next line's, or to its own end for the last. A video recorded on a
- * page that refused the caption bar (Trusted Types) still has captions this way.
- * @param {StepFields[]} steps
- * @param {MediaItem} video
- * @returns {string}
- */
-export function captionTrack(steps, video) {
-  const start = video.starts_at ?? 0;
-  const shown = steps.filter((step) => step.at !== undefined && step.at >= start);
-  const cues = shown.map((step, i) => {
-    const from = /** @type {number} */ (step.at) - start;
-    const next = shown[i + 1]?.at;
-    const to = next !== undefined ? next - start : from + Math.max(step.took ?? 0, 3);
-    const label = LABELS[/** @type {keyof typeof LABELS} */ (step.verdict)] ?? step.verdict;
-    const words = isCheck(step) ? `${label ? `${label}: ` : "Check: "}${step.check}` : `${step.by ? `${step.by}: ` : ""}${step.says}`;
-    return `${cueTime(from)} --> ${cueTime(Math.max(to, from + 0.5))}\n${vttText(words)}`;
-  });
-  return `WEBVTT\n\n${cues.join("\n\n")}\n`;
-}
-
-/** @param {number} s */
-const cueTime = (s) => {
-  const ms = Math.round(s * 1000);
-  const pad = (/** @type {number} */ n, /** @type {number} */ w = 2) => String(n).padStart(w, "0");
-  return `${pad(Math.floor(ms / 3600000))}:${pad(Math.floor(ms / 60000) % 60)}:${pad(Math.floor(ms / 1000) % 60)}.${pad(ms % 1000, 3)}`;
-};
-
-/** Cue text: no markup, and never an arrow that would end the cue's line. @param {string} text */
-const vttText = (text) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\s*\n\s*/g, " ");
 
 /** @param {unknown} value @param {ReadonlyArray<string | undefined>} repeated @returns {string} */
 function evidenceValue(value, repeated) {

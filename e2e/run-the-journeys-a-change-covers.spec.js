@@ -5,7 +5,7 @@ import { REPO, binOf, linkProject, markTime, newestRun, playwrightOf, run, show 
 
 const broken = process.env.JF_BROKEN === "selection";
 
-test.journey("journeys/run-the-journeys-a-change-covers.journey.yaml", { video: true, pause: 0, measure: false }, async ({ journey }) => {
+test.journey("journeys/run-the-journeys-a-change-covers.journey.yaml", { measure: false }, async ({ journey }) => {
   test.setTimeout(180_000);
   const started = Date.now();
   try {
@@ -113,7 +113,7 @@ function writeFixture(dir) {
 /** @param {string} file @param {string} step @param {string} word @param {string} id */
 function innerSpec(file, step, word, id) {
   return `import { test } from "journeysfirst/playwright";
-test.journey(${JSON.stringify(file)}, { video: false, measure: false }, async ({ journey }) => {
+test.journey(${JSON.stringify(file)}, { recording: false, measure: false }, async ({ journey }) => {
   const page = await journey.page("you");
   await journey.step(${JSON.stringify(step)}, { by: "you" }, async () => {
     await page.setContent("<h1>${word}</h1>");

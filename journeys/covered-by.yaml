@@ -32,6 +32,13 @@ see-why-a-run-failed:
   - packages/core/src/review/review.js
   - skills/journey-fix/**
 
+watch-a-fast-run-line-by-line:
+  - packages/core/src/runner/playwright.js
+  - packages/core/src/runner/captions.js
+  - packages/core/src/review/player.js
+  - packages/core/src/review/run-player.js
+  - packages/core/src/review/video-lines.js
+
 let-an-agent-run-a-journey:
   - packages/core/bin/journeysfirst.js
   - packages/core/src/runner/**

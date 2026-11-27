@@ -34,6 +34,7 @@ packages/core/
  measure.js                                          run-player.js
                                                      measured.js
                                                      tool-calls.js
+                                                     video-lines.js
         │                       │                          │
         └───────────────────────┼──────────────────────────┘
                                 ▼
@@ -96,7 +97,7 @@ Files, in `src/runner/`:
 - `agent.js`: prepares the scratch project, gives an agent the journey, and saves evidence and the handoff. It also runs custom agent commands.
 - `agents/`: known adapters implement `detect`, `authProbe`, `sandboxArgs`, `mcpConfig`, and `start`. The registry picks the first installed, signed-in adapter.
 - `playwright.js`: `test.journey` and the `journey` fixture (`page`, `step`, `check`, `value`). It uses `RunRecorder`.
-- `captions.js`: the caption bar each user's video shows for the line in progress, and screenshots taken without it. Only `playwright.js` uses it.
+- `captions.js`: the caption bar each user's paced video shows for the line in progress, and screenshots taken without it. Only `playwright.js` uses it.
 - `measure.js`: what the runner reads from a user's screen after each line, for a review: the values in use, each control's box, and each click with the ms until the page first changed. It also holds the slow replay (`JOURNEYS_DELAY_MS`). Only `playwright.js` uses it.
 - `mask.js`: covers password fields and secret values in a screenshot, and redacts them in a trace zip and in the run file. `playwright.js`, `recorder.js` and `reporter.js` use it.
 - `reporter.js`: the Playwright reporter that writes each run to a folder.
@@ -134,7 +135,8 @@ Files, in `src/review/`:
 - `tool-calls.js`: the tool calls an agent made through an MCP proxy, read from a run's transcripts. Each call's start and wait, the errors and whether the agent recovered, and the average of earlier passed runs. `measured.js` prints them.
 - `session.js`: an agent's saved session as rows on the run page, where the video would be: what it said, each command and each tool call, under the step each was done for. The files the run kept are tabs beside it.
 - `run-player.js`: the run player on the review page: one user's video at a time, a switch between users, and each step as a mark on the timeline.
-- `player.js`: the review page's video player. Its controls sit under the video, so they never cover the captions.
+- `player.js`: the review page's video player. Its controls sit under the video, so they never cover the captions. It holds on each line of a video that recorded with no waiting.
+- `video-lines.js`: where each line is in a video: the captions track, and where the player holds.
 
 May import: the format layer and `src/shared`. `run-answer.js` imports no Node modules (a test checks this).
 

@@ -63,6 +63,15 @@ export function runTitle(run, journey) {
 export const clock = (seconds) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;
 
 /**
+ * How long a line stays up after an action, in ms, so a person watching can follow.
+ * A paced video waits this long while it records. For any other video the review page waits, not the run.
+ */
+export const DEFAULT_PAUSE = 500;
+
+/** After a check, its verdict stays up for this many pauses, so it can be read. */
+export const CHECK_PAUSES = 5;
+
+/**
  * The video of the user who did a step, and how far into it the step
  * starts. Undefined when the step has no time or that user has no video.
  * @param {{by?: string, at?: number}} step

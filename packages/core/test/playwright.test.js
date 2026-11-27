@@ -5,7 +5,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { DEFAULT_PAUSE, JourneyRun, NO_PROOF, THREW } from "../src/runner/playwright.js";
+import { DEFAULT_PAUSE, JourneyRun, NO_PROOF, THREW, recordingSetting } from "../src/runner/playwright.js";
 import { validateRun } from "../src/format/runfile.js";
 import { CAPTION_CSS, adoptCaptionStyles } from "../src/runner/captions.js";
 import { WATCH_BINDING, watchPage } from "../src/runner/measure.js";
@@ -73,7 +73,7 @@ function journeyRun({ screencast, ...options } = {}) {
   const browser = fakeBrowser({ screencast });
   const attached = [];
   const testInfo = { project: { use: { baseURL: "http://localhost:4321" } }, outputPath: (p) => join(dir, p), attach: async (name) => attached.push(name) };
-  return { browser, attached, testInfo, run: new JourneyRun({ file, caseId: null, browser, testInfo, video: true, pause: 0, ...options }) };
+  return { browser, attached, testInfo, run: new JourneyRun({ file, caseId: null, browser, testInfo, recording: "paced", pause: 0, ...options }) };
 }
 
 test("each user gets their own context, with clipboard access and video", async () => {
@@ -348,7 +348,7 @@ test("a slow replay holds each data request, prints each action's time and write
   assert.deepEqual(context.sizes, [], "a slow replay does not measure the screen");
 });
 
-test("with video on, every user's page shows the line in progress, dimmed on the pages of users it isn't about", async () => {
+test("in a paced video, every user's page shows the line in progress, dimmed on the pages of users it isn't about", async () => {
   const { browser, run } = journeyRun();
   await run.page("you");
   await run.page("viewer");
@@ -418,15 +418,15 @@ test("with captions on, each user's context adopts the caption stylesheet on eve
   const captionScripts = (context) => context.initScripts.filter(([script]) => script !== watchPage);
   for (const context of on.browser.contexts) assert.deepEqual(captionScripts(context), [[adoptCaptionStyles, CAPTION_CSS]]);
   for (const context of on.browser.contexts) assert.deepEqual(context.initScripts.filter(([script]) => script === watchPage), [[watchPage, WATCH_BINDING]]);
-  for (const options of [{ captions: false }, { video: false }]) {
+  for (const options of [{ captions: false }, { recording: true }, { recording: false }]) {
     const off = journeyRun(options);
     await off.run.page("you");
     assert.deepEqual(captionScripts(off.browser.contexts[0]), [], JSON.stringify(options));
   }
 });
 
-test("captions: false, video off, or a Playwright without page.screencast shows no captions", async () => {
-  for (const options of [{ captions: false }, { video: false }, { screencast: false }]) {
+test("captions: false, a video that is not paced, video off, or a Playwright without page.screencast shows no captions", async () => {
+  for (const options of [{ captions: false }, { recording: true }, { recording: false }, { screencast: false }]) {
     const { browser, run } = journeyRun(options);
     await run.page("you");
     await run.step(1, { by: "you" }, async () => {});
@@ -436,9 +436,20 @@ test("captions: false, video off, or a Playwright without page.screencast shows 
   }
 });
 
-test("with video on, the run pauses after each action, five times as long after a check", async () => {
+test("recording is one key for a test and for the config's use, and the test's wins", () => {
+  assert.equal(recordingSetting(undefined, undefined), true, "a video for every user, with no waiting, when nobody says");
+  assert.equal(recordingSetting("paced", false), "paced");
+  assert.equal(recordingSetting(undefined, "paced"), "paced");
+  assert.equal(recordingSetting(false, "paced"), false);
+  assert.throws(() => recordingSetting(undefined, "slow"), /recording must be true, false or "paced", not "slow"\./);
+  assert.equal(journeyRun({ recording: undefined }).run.video, true);
+  assert.equal(journeyRun({ recording: false }).run.video, false);
+});
+
+test("a paced video pauses after each action, five times as long after a check; any other run does not wait", async () => {
   assert.equal(journeyRun({ pause: undefined }).run.pause, DEFAULT_PAUSE);
-  assert.equal(journeyRun({ pause: undefined, video: false }).run.pause, 0);
+  assert.equal(journeyRun({ pause: undefined, recording: true }).run.pause, 0);
+  assert.equal(journeyRun({ pause: undefined, recording: false }).run.pause, 0);
   const { run } = journeyRun({ pause: 40 });
   await run.page("you");
   // Node timers run on a clock rounded to whole ms, so a 40 ms wait can measure 39 ms. Allow that 1 ms.
@@ -494,7 +505,7 @@ test("a screenshot does not restore the page when nothing was covered", async ()
 });
 
 test("finish gives the reporter the secret values, and the run file does not contain them", async () => {
-  const { run, testInfo } = journeyRun({ measure: false, video: false });
+  const { run, testInfo } = journeyRun({ measure: false, recording: false });
   /** @type {Map<string, Buffer>} */
   const bodies = new Map();
   testInfo.attach = async (name, options) => bodies.set(name, options?.body);

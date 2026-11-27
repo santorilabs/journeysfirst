@@ -233,7 +233,7 @@
         "kind": { "description": "Like video, trace or capture. publish leaves out every trace.", "$ref": "#/$defs/text" },
         "starts_at": { "description": "When this file starts, in seconds from the start of the run. A step starts at - starts_at seconds into the video.", "$ref": "#/$defs/seconds" },
         "tags": {
-          "description": "Like {user: \"viewer\"} on that user's video.",
+          "description": "Like {user: \"viewer\"} on that user's video. paced: false on a video means the run did not wait after each line, so the review page holds on each line.",
           "type": "object",
           "properties": { "person": { "description": "Renamed to user.", "not": {} } }
         }

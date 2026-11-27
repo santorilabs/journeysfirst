@@ -87,7 +87,7 @@ async function record(kind, { slowOpen = 0 } = {}) {
   }
   try {
     const testInfo = { project: { use: {} }, outputPath: (/** @type {string} */ p) => join(dir, p), attach: async () => {} };
-    const run = new JourneyRun({ file, caseId: null, browser, testInfo, video: true, pause: 0 });
+    const run = new JourneyRun({ file, caseId: null, browser, testInfo, recording: "paced", pause: 0 });
     const page = await run.page("you");
     const refused = [];
     page.on("console", (message) => {

@@ -8,6 +8,8 @@ import { execFileSync } from "node:child_process";
 import { test } from "node:test";
 import { chromium } from "@playwright/test";
 import { fromLegacy, listRuns, serveReview } from "../src/review/review.js";
+import { playerHtml } from "../src/review/player.js";
+import { captionTrack, videoHolds } from "../src/review/video-lines.js";
 import { parseJourney } from "../src/format/format.js";
 import { RunRecorder } from "../src/runner/recorder.js";
 import { JOURNEY, PNG, VIEWER_SAW, findings, recordAllPassed, recorder } from "./helpers.js";
@@ -516,6 +518,36 @@ test("a video's controls sit under it, not over it: play, position, time, speed 
   } finally {
     server.close();
   }
+});
+
+test("a video recorded with no waiting holds at the end of each line, with its captions on; a paced video plays as it is", () => {
+  const dir = mkdtempSync(join(tmpdir(), "jf-review-"));
+  const run = recorder({ outputDir: dir, id: "2026-11-08-1900-holds" });
+  run.step(1, { by: "you", at: 0.2, took: 0.18, screenshots: [{ image: PNG }] });
+  run.check("link-on", { by: "you", verdict: "passed", at: 0.45, took: 0.09, proof: "Reloaded the page.", evidence: [{ source: "page", login: "you", url: "http://localhost:4321/", saw: "the box is checked" }] });
+  run.step(3, { by: "viewer", at: 0.63, took: 0.05 });
+  const steps = run.finish().run.steps;
+  const video = { file: "you.webm", kind: "video", starts_at: 0.04, tags: { user: "you", paced: false } };
+  const holds = videoHolds(steps, video, (name) => `/files/${name}`);
+  assert.deepEqual(holds.map((h) => h.ms), [500, 2500, 500], "as long as a paced run waits: 500 ms after an action, 2500 ms after a check");
+  holds.forEach((hold, i) => {
+    const from = steps[i].at - 0.04, to = steps[i + 1].at === undefined ? from + steps[i].took : steps[i + 1].at - 0.04;
+    assert.ok(hold.at > from && hold.at <= to, `the hold for line ${i + 1} is inside the line: ${hold.at} in ${from} to ${to}`);
+  });
+  assert.deepEqual(holds.map((h) => h.shot), ["/files/step-1.png", undefined, undefined], "the user's own line holds on its screenshot");
+  assert.match(captionTrack(steps, video), /00:00:00\.160 --> 00:00:00\.410\nyou: Turn on link sharing/, "a line's caption ends where the next line starts");
+  const html = playerHtml({ id: "v", src: "you.webm", label: "you", captions: "you.vtt", holds });
+  assert.deepEqual(JSON.parse(html.match(/data-holds="([^"]*)"/)[1].replaceAll("&quot;", '"')), JSON.parse(JSON.stringify(holds)));
+  assert.match(html, /<img class="still"/);
+  assert.match(html, /<p class="caption"><\/p>/, "the line in progress shows under the video");
+  assert.match(html, /class="cc" aria-label="Hide captions" aria-pressed="true"/);
+
+  const paced = { ...video, tags: { user: "you" } };
+  assert.equal(videoHolds(steps, paced, (name) => name), undefined, "a video with no tag is from a run that waited");
+  assert.equal(videoHolds(steps, { ...video, tags: { user: "you", paced: true } }, (name) => name), undefined);
+  const pacedHtml = playerHtml({ id: "v", src: "you.webm", label: "you", captions: "you.vtt", holds: undefined });
+  assert.doesNotMatch(pacedHtml, /data-holds|class="still"/);
+  assert.match(pacedHtml, /<p class="caption" hidden><\/p>/);
 });
 
 test("each video has its lines as a captions track, off at first, with a CC button to show it", async () => {
