@@ -5,7 +5,7 @@ import { REPO, binOf, freePort, install, markTime, newestRun, packs, playwrightO
 
 const broken = process.env.JF_BROKEN === "main";
 
-test.journey("journeys/start-from-an-empty-project.journey.yaml", { video: true, pause: 0, measure: false }, async ({ journey }) => {
+test.journey("journeys/start-from-an-empty-project.journey.yaml", { measure: false }, async ({ journey }) => {
   test.setTimeout(240_000);
   const started = Date.now();
   try {

@@ -29,7 +29,7 @@ export type UserPage = {
     actions: import("./measure.js").Watch | null;
     app: import("./reported.js").AppWatch;
 };
-export type VideoOption = boolean | "paced";
+export type RecordingOption = boolean | "paced";
 export type MeasureOption = boolean | "wide";
 /**
  * @typedef {{passed?: boolean, verdict?: "passed"|"failed"|"blocked"|"not_checked", proof?: string,
@@ -40,11 +40,19 @@ export type MeasureOption = boolean | "wide";
  * @typedef {{context: import("@playwright/test").BrowserContext, page: import("@playwright/test").Page, startsAt: number,
  *   captioned: boolean, caption: {dispose: () => Promise<void>} | null, actions: import("./measure.js").Watch | null,
  *   app: import("./reported.js").AppWatch}} UserPage
- * @typedef {boolean | "paced"} VideoOption true: record each user's screen with no waiting; the review page holds on each line.
+ * @typedef {boolean | "paced"} RecordingOption true: record each user's screen with no waiting; the review page holds on each line.
  *   "paced": the run waits after each line and draws the caption bar and click marks into the video, for a clip shared as a raw file.
+ *   false: record no video.
  * @typedef {boolean | "wide"} MeasureOption true: measure each user's screen after every line, at the run's width and at 375 px.
  *   "wide": never resize the page. false: do not measure.
  */
+/**
+ * How a run records: the test's own recording option, else the project's, else a video with no waiting.
+ * @param {RecordingOption | undefined} test the test.journey option
+ * @param {RecordingOption | undefined} project the recording option from the Playwright config's use
+ * @returns {RecordingOption}
+ */
+export declare function recordingSetting(test: RecordingOption | undefined, project: RecordingOption | undefined): RecordingOption;
 export declare class JourneyRun {
     #private;
     recorder: RunRecorder;
@@ -91,7 +99,7 @@ export declare class JourneyRun {
     finished: Promise<import("../format/runfile.js").Run> | null;
     /**
      * @param {{file: string, caseId: string|null, browser: import("@playwright/test").Browser, testInfo: import("@playwright/test").TestInfo,
-     *   video: VideoOption, captions?: import("./captions.js").CaptionsOption, pause?: number, measure?: MeasureOption, delay?: number,
+     *   recording?: RecordingOption, captions?: import("./captions.js").CaptionsOption, pause?: number, measure?: MeasureOption, delay?: number,
      *   repos?: Array<{repo: string, commit?: string, branch?: string}>, tags?: Record<string, unknown>}} options
      *   captions: show the line in progress on each user's paced video (default on, at the top).
      *   false turns them off; {position: "bottom"} moves the bar.
@@ -99,12 +107,12 @@ export declare class JourneyRun {
      *   measure: save measure-<line>.txt after each line, for a review (default on).
      *   delay: ms to hold each data request, for a slow replay. A slow replay prints each action's time and writes no run.
      */
-    constructor({ file, caseId, browser, testInfo, video, captions, pause, measure, delay, repos, tags }: {
+    constructor({ file, caseId, browser, testInfo, recording, captions, pause, measure, delay, repos, tags }: {
         file: string;
         caseId: string | null;
         browser: import("@playwright/test").Browser;
         testInfo: import("@playwright/test").TestInfo;
-        video: VideoOption;
+        recording?: RecordingOption;
         captions?: import("./captions.js").CaptionsOption;
         pause?: number;
         measure?: MeasureOption;
@@ -200,11 +208,11 @@ export type JourneyFixtures = {
         run: JourneyRun | null;
     };
     journeyCaptions: import("./captions.js").CaptionsOption | undefined;
-    journeyVideo: VideoOption | undefined;
+    recording: RecordingOption | undefined;
 };
 export type JourneyOptions = {
     case?: string;
-    video?: VideoOption;
+    recording?: RecordingOption;
     captions?: import("./captions.js").CaptionsOption;
     pause?: number;
     measure?: MeasureOption;
@@ -221,7 +229,7 @@ export type JourneyBody = (args: {
     request: import("@playwright/test").APIRequestContext;
 }) => Promise<void>;
 /**
- * @typedef {{case?: string, video?: VideoOption, captions?: import("./captions.js").CaptionsOption, pause?: number, measure?: MeasureOption,
+ * @typedef {{case?: string, recording?: RecordingOption, captions?: import("./captions.js").CaptionsOption, pause?: number, measure?: MeasureOption,
  *   repos?: Array<{repo: string, commit?: string, branch?: string}>, tags?: Record<string, unknown>}} JourneyOptions
  * @typedef {(args: {journey: JourneyRun, browser: import("@playwright/test").Browser, request: import("@playwright/test").APIRequestContext}) => Promise<void>} JourneyBody
  */
@@ -229,15 +237,15 @@ export type JourneyBody = (args: {
  * Declare a Playwright test for a journey file. The test fails unless the run's
  * result is passed.
  *   test.journey("journeys/x.journey.yaml", async ({ journey }) => { ... })
- *   test.journey("journeys/x.journey.yaml", { case: "not-now", video: false }, async ({ journey }) => { ... })
+ *   test.journey("journeys/x.journey.yaml", { case: "not-now", recording: false }, async ({ journey }) => { ... })
  * Each user's screen is recorded with no waiting. The review page shows each
  * line under the video and holds on it.
- * Pass video: "paced" for a video to share as a raw file: the run waits after
+ * Pass recording: "paced" for a video to share as a raw file: the run waits after
  * each line, and the video shows the line in progress at the top.
  * For a paced video, pass captions: false to turn that off, captions: { position: "bottom" } to
  * move it (or set journeyCaptions in the config's use for every test), and pause (ms after each action; a
  * check's verdict stays five times as long) to change the pacing.
- * Set journeyVideo in the config's use for every test: "paced", or false to record no video.
+ * Pass recording: false to record no video. Set recording in the config's use for every test.
  * After each line the user's screen is measured for a review and saved as
  * measure-<line>.txt. Measuring sets the page 375 px wide for a moment. Pass
  * measure: "wide" when that breaks a line, or measure: false for none.

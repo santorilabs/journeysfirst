@@ -33,16 +33,29 @@ export { DEFAULT_PAUSE };
  * @typedef {{context: import("@playwright/test").BrowserContext, page: import("@playwright/test").Page, startsAt: number,
  *   captioned: boolean, caption: {dispose: () => Promise<void>} | null, actions: import("./measure.js").Watch | null,
  *   app: import("./reported.js").AppWatch}} UserPage
- * @typedef {boolean | "paced"} VideoOption true: record each user's screen with no waiting; the review page holds on each line.
+ * @typedef {boolean | "paced"} RecordingOption true: record each user's screen with no waiting; the review page holds on each line.
  *   "paced": the run waits after each line and draws the caption bar and click marks into the video, for a clip shared as a raw file.
+ *   false: record no video.
  * @typedef {boolean | "wide"} MeasureOption true: measure each user's screen after every line, at the run's width and at 375 px.
  *   "wide": never resize the page. false: do not measure.
  */
 
+/**
+ * How a run records: the test's own recording option, else the project's, else a video with no waiting.
+ * @param {RecordingOption | undefined} test the test.journey option
+ * @param {RecordingOption | undefined} project the recording option from the Playwright config's use
+ * @returns {RecordingOption}
+ */
+export function recordingSetting(test, project) {
+  const recording = test ?? project ?? true;
+  if (recording !== true && recording !== false && recording !== "paced") throw new Error(`recording must be true, false or "paced", not ${JSON.stringify(recording)}.`);
+  return recording;
+}
+
 export class JourneyRun {
   /**
    * @param {{file: string, caseId: string|null, browser: import("@playwright/test").Browser, testInfo: import("@playwright/test").TestInfo,
-   *   video: VideoOption, captions?: import("./captions.js").CaptionsOption, pause?: number, measure?: MeasureOption, delay?: number,
+   *   recording?: RecordingOption, captions?: import("./captions.js").CaptionsOption, pause?: number, measure?: MeasureOption, delay?: number,
    *   repos?: Array<{repo: string, commit?: string, branch?: string}>, tags?: Record<string, unknown>}} options
    *   captions: show the line in progress on each user's paced video (default on, at the top).
    *   false turns them off; {position: "bottom"} moves the bar.
@@ -50,7 +63,8 @@ export class JourneyRun {
    *   measure: save measure-<line>.txt after each line, for a review (default on).
    *   delay: ms to hold each data request, for a slow replay. A slow replay prints each action's time and writes no run.
    */
-  constructor({ file, caseId, browser, testInfo, video, captions, pause, measure = true, delay = 0, repos, tags }) {
+  constructor({ file, caseId, browser, testInfo, recording, captions, pause, measure = true, delay = 0, repos, tags }) {
+    recording = recordingSetting(recording, undefined);
     this.recorder = RunRecorder.start({
       journey: file,
       case: caseId,
@@ -60,9 +74,9 @@ export class JourneyRun {
     });
     this.browser = browser;
     this.testInfo = testInfo;
-    this.video = Boolean(video);
+    this.video = recording !== false;
     /** A paced video carries its own captions and pauses. For any other, the review page shows the lines and holds on each. */
-    this.paced = video === "paced";
+    this.paced = recording === "paced";
     /** Where the caption bar goes, or null for no captions. */
     this.captions = this.paced ? captionSettings(captions, undefined) : null;
     this.pause = pause ?? (this.paced ? DEFAULT_PAUSE : 0);
@@ -450,15 +464,15 @@ export class JourneyRun {
 /**
  * @typedef {import("@playwright/test").PlaywrightTestArgs & import("@playwright/test").PlaywrightTestOptions} TestArgs
  * @typedef {import("@playwright/test").PlaywrightWorkerArgs & import("@playwright/test").PlaywrightWorkerOptions} WorkerArgs
- * @typedef {{_journeyRun: {run: JourneyRun | null}, journeyCaptions: import("./captions.js").CaptionsOption | undefined, journeyVideo: VideoOption | undefined}} JourneyFixtures
+ * @typedef {{_journeyRun: {run: JourneyRun | null}, journeyCaptions: import("./captions.js").CaptionsOption | undefined, recording: RecordingOption | undefined}} JourneyFixtures
  *   journeyCaptions: the project's default captions, set in the Playwright config's use, like
  *   use: { journeyCaptions: { position: "bottom" } }. A test's own captions option wins.
- *   journeyVideo: the project's default for video, like use: { journeyVideo: false } for a run
- *   that only needs pass or fail, or use: { journeyVideo: "paced" }. A test's own video option wins.
+ *   recording: the project's default for how a run records, like use: { recording: false } for a run
+ *   that only needs pass or fail, or use: { recording: "paced" }. A test's own recording option wins.
  */
 const journeyTest = base.extend(/** @type {import("@playwright/test").Fixtures<JourneyFixtures, {}, TestArgs, WorkerArgs>} */ ({
   journeyCaptions: [undefined, { option: true }],
-  journeyVideo: [undefined, { option: true }],
+  recording: [undefined, { option: true }],
   _journeyRun: async ({}, use) => {
     /** @type {{run: JourneyRun | null}} */
     const holder = { run: null };
@@ -468,7 +482,7 @@ const journeyTest = base.extend(/** @type {import("@playwright/test").Fixtures<J
 }));
 
 /**
- * @typedef {{case?: string, video?: VideoOption, captions?: import("./captions.js").CaptionsOption, pause?: number, measure?: MeasureOption,
+ * @typedef {{case?: string, recording?: RecordingOption, captions?: import("./captions.js").CaptionsOption, pause?: number, measure?: MeasureOption,
  *   repos?: Array<{repo: string, commit?: string, branch?: string}>, tags?: Record<string, unknown>}} JourneyOptions
  * @typedef {(args: {journey: JourneyRun, browser: import("@playwright/test").Browser, request: import("@playwright/test").APIRequestContext}) => Promise<void>} JourneyBody
  */
@@ -477,15 +491,15 @@ const journeyTest = base.extend(/** @type {import("@playwright/test").Fixtures<J
  * Declare a Playwright test for a journey file. The test fails unless the run's
  * result is passed.
  *   test.journey("journeys/x.journey.yaml", async ({ journey }) => { ... })
- *   test.journey("journeys/x.journey.yaml", { case: "not-now", video: false }, async ({ journey }) => { ... })
+ *   test.journey("journeys/x.journey.yaml", { case: "not-now", recording: false }, async ({ journey }) => { ... })
  * Each user's screen is recorded with no waiting. The review page shows each
  * line under the video and holds on it.
- * Pass video: "paced" for a video to share as a raw file: the run waits after
+ * Pass recording: "paced" for a video to share as a raw file: the run waits after
  * each line, and the video shows the line in progress at the top.
  * For a paced video, pass captions: false to turn that off, captions: { position: "bottom" } to
  * move it (or set journeyCaptions in the config's use for every test), and pause (ms after each action; a
  * check's verdict stays five times as long) to change the pacing.
- * Set journeyVideo in the config's use for every test: "paced", or false to record no video.
+ * Pass recording: false to record no video. Set recording in the config's use for every test.
  * After each line the user's screen is measured for a review and saved as
  * measure-<line>.txt. Measuring sets the page 375 px wide for a moment. Pass
  * measure: "wide" when that breaks a line, or measure: false for none.
@@ -501,12 +515,12 @@ function declareJourney(file, options, body) {
   if (typeof options === "function") [options, body] = [{}, options];
   const journey = loadJourney(file);
   const caseName = options.case ? journey.cases?.find((c) => c.id === options.case)?.name : null;
-  atCaller(journeyTest, declareJourney)(caseName ? `${journey.title}: ${caseName}` : journey.title, async ({ browser, request, _journeyRun, journeyCaptions, journeyVideo }, testInfo) => {
+  atCaller(journeyTest, declareJourney)(caseName ? `${journey.title}: ${caseName}` : journey.title, async ({ browser, request, _journeyRun, journeyCaptions, recording }, testInfo) => {
     const problem = missingTarget({ baseURL: testInfo.project.use?.baseURL, webServer: testInfo.config?.webServer });
     if (problem) throw new Error(problem);
     const captions = captionSettings(options.captions, journeyCaptions) ?? false;
     const delay = Number(process.env.JOURNEYS_DELAY_MS) || 0;
-    const run = new JourneyRun({ file, caseId: options.case ?? null, browser, testInfo, video: options.video ?? journeyVideo ?? true, captions, pause: options.pause, measure: options.measure, delay, repos: options.repos, tags: options.tags });
+    const run = new JourneyRun({ file, caseId: options.case ?? null, browser, testInfo, recording: recordingSetting(options.recording, recording), captions, pause: options.pause, measure: options.measure, delay, repos: options.repos, tags: options.tags });
     _journeyRun.run = run;
     // body is set: it is the last argument, or options when only two are given.
     await /** @type {JourneyBody} */ (body)({ journey: run, browser, request });

@@ -5,7 +5,7 @@ import { binOf, discoverInit, freePort, install, markTime, newestRun, outside, p
 
 const broken = process.env.JF_BROKEN === "main";
 
-test.journey("journeys/hand-a-project-to-a-new-agent.journey.yaml", { video: true, pause: 0, measure: false }, async ({ journey }) => {
+test.journey("journeys/hand-a-project-to-a-new-agent.journey.yaml", { measure: false }, async ({ journey }) => {
   test.setTimeout(240_000);
   const started = Date.now();
   try {

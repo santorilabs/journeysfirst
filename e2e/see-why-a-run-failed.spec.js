@@ -35,7 +35,7 @@ steps:
     id: viewer-sees-it
 `;
 const SPEC = `import { test } from "journeysfirst/playwright";
-test.journey("journeys/open-a-doc.journey.yaml", { video: false, measure: false }, async ({ journey }) => {
+test.journey("journeys/open-a-doc.journey.yaml", { recording: false, measure: false }, async ({ journey }) => {
   const viewer = await journey.page("viewer", { account: "signed out" });
   await journey.step("The viewer opens the doc.", { by: "viewer" }, async () => {
     await viewer.goto("/doc/q3");
@@ -48,7 +48,7 @@ test.journey("journeys/open-a-doc.journey.yaml", { video: false, measure: false 
 });
 `;
 
-test.journey("journeys/see-why-a-run-failed.journey.yaml", { video: true, pause: 0, measure: false }, async ({ journey }) => {
+test.journey("journeys/see-why-a-run-failed.journey.yaml", { measure: false }, async ({ journey }) => {
   test.setTimeout(180_000);
   const started = Date.now();
   /** @type {Awaited<ReturnType<typeof openReview>> | null} */

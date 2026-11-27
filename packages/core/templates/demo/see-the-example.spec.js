@@ -1,9 +1,9 @@
 // journeysfirst example. It passes against demo/index.html.
 // Delete this file when you point Playwright at your app.
-// video and measure are off so the first run is short. A journey for your product leaves both on.
+// recording and measure are off so the first run is short. A journey for your product leaves both on.
 import { test } from "journeysfirst/playwright";
 
-test.journey("journeys/see-the-example.journey.yaml", { video: false, measure: false }, async ({ journey }) => {
+test.journey("journeys/see-the-example.journey.yaml", { recording: false, measure: false }, async ({ journey }) => {
   const you = await journey.page("you", { account: "signed out" });
 
   await journey.step("Open the page and choose \"I am in\".", { by: "you" }, async () => {

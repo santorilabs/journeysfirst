@@ -125,7 +125,7 @@ test.journey("journeys/share-by-link.journey.yaml", async ({ journey }) => {
 - `journey.page(user, { account, login, storageState })` gives each user their own context, with clipboard access and video. No `login` means signed out.
 - `journey.step(sentence or line number, { by }, fn)` and `journey.check(id, { by }, fn)` follow the journey's lines.
 - Return `passed: false` with a `reason` when the product is wrong (cause `product`). A check that throws or returns nothing is `blocked` with cause `test`. The test fails unless the run's result is `passed`.
-- Give every step, check and check result a `caption`: one plain sentence, no ids. It shows in a paced video (`video: "paced"`).
+- Give every step, check and check result a `caption`: one plain sentence, no ids. It shows in a paced video (`recording: "paced"`).
 - The runner measures each user's screen after each line, for the review. You write no code for it.
 - Select a journey with `npx playwright test --grep "<journey title>"`. The port, `measure`, `repos`, captions and `pause`: `docs/run-in-code.md` in santorilabs/journeysfirst.
 

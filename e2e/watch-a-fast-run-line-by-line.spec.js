@@ -30,7 +30,7 @@ steps:
   - check: The viewer sees "Q3 plan".
     id: viewer-sees-it
 `;
-// No video option: the run records the way a new project's run does.
+// No recording option: the run records the way a new project's run does.
 const SPEC = `import { test } from "journeysfirst/playwright";
 test.journey("journeys/open-a-page.journey.yaml", { measure: false }, async ({ journey }) => {
   const pages = { you: await journey.page("you"), viewer: await journey.page("viewer", { account: "signed out" }) };
@@ -50,7 +50,7 @@ test.journey("journeys/open-a-page.journey.yaml", { measure: false }, async ({ j
 /** A check stays up about 2.5 s and an action about half a second. These leave room for a slow machine's clock. */
 const LONG_ENOUGH = { check: 2, action: 0.4 };
 
-test.journey("journeys/watch-a-fast-run-line-by-line.journey.yaml", { video: true, measure: false }, async ({ journey }) => {
+test.journey("journeys/watch-a-fast-run-line-by-line.journey.yaml", { measure: false }, async ({ journey }) => {
   test.setTimeout(180_000);
   const started = Date.now();
   /** @type {Awaited<ReturnType<typeof openReview>> | null} */

@@ -49,7 +49,7 @@ test("a journey with neither baseURL nor webServer fails with what to set", () =
   mkdirSync(join(dir, "e2e"), { recursive: true });
   writeFileSync(join(dir, "journeys/own.journey.yaml"), "format: journeysfirst/v1\ntitle: Open the page\npromise: You can open the page.\nstart: The page is what the browser will open.\nsteps:\n  - Open the page.\n");
   writeFileSync(join(dir, "e2e/own.spec.js"), `import { test } from "journeysfirst/playwright";
-test.journey("journeys/own.journey.yaml", { video: false, measure: false }, async ({ journey }) => {
+test.journey("journeys/own.journey.yaml", { recording: false, measure: false }, async ({ journey }) => {
   const page = await journey.page("you");
   await journey.step("Open the page.", { by: "you" }, async () => { await page.goto("/"); });
 });

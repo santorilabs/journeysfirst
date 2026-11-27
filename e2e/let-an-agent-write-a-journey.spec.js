@@ -5,7 +5,7 @@ import { REPO, binOf, freePort, linkProject, markTime, newestRun, packs, playwri
 
 const broken = process.env.JF_BROKEN === "main";
 
-test.journey("journeys/let-an-agent-write-a-journey.journey.yaml", { video: true, pause: 0, measure: false }, async ({ journey }) => {
+test.journey("journeys/let-an-agent-write-a-journey.journey.yaml", { measure: false }, async ({ journey }) => {
   test.setTimeout(180_000);
   const started = Date.now();
   try {
@@ -33,7 +33,7 @@ test.journey("journeys/let-an-agent-write-a-journey.journey.yaml", { video: true
       mkdirSync(join(dir, "journeys"), { recursive: true });
       mkdirSync(join(dir, "e2e"), { recursive: true });
       writeFileSync(join(dir, "journeys/see-that-you-are-in.journey.yaml"), `format: ${format || "missing"}\ntitle: See that you are in\npromise: I want to open the page and see that I am in.\nstart: The example page is what the browser will open.\nsteps:\n  - Open the page and choose I am in.\n  - check: The page says you are in.\n    id: you-are-in\n`);
-      writeFileSync(join(dir, "e2e/see-that-you-are-in.spec.js"), `import { test } from "journeysfirst/playwright";\ntest.journey("journeys/see-that-you-are-in.journey.yaml", { video: false, measure: false }, async ({ journey }) => {\n  const you = await journey.page("you", { account: "signed out" });\n  await journey.step("Open the page and choose I am in.", { by: "you" }, async () => {\n    await you.goto("/");\n    await you.getByRole("button", { name: "I am in" }).click();\n  });\n  await journey.check("you-are-in", { by: "you" }, async () => {\n    const text = await you.locator("#status").textContent();\n    return { passed: text === "You are in.", proof: "Read the status line.", evidence: [{ source: "page", url: "http://127.0.0.1:9/", login: "you", saw: text ?? "nothing" }], reason: "The page did not say you are in." };\n  });\n});\n`);
+      writeFileSync(join(dir, "e2e/see-that-you-are-in.spec.js"), `import { test } from "journeysfirst/playwright";\ntest.journey("journeys/see-that-you-are-in.journey.yaml", { recording: false, measure: false }, async ({ journey }) => {\n  const you = await journey.page("you", { account: "signed out" });\n  await journey.step("Open the page and choose I am in.", { by: "you" }, async () => {\n    await you.goto("/");\n    await you.getByRole("button", { name: "I am in" }).click();\n  });\n  await journey.check("you-are-in", { by: "you" }, async () => {\n    const text = await you.locator("#status").textContent();\n    return { passed: text === "You are in.", proof: "Read the status line.", evidence: [{ source: "page", url: "http://127.0.0.1:9/", login: "you", saw: text ?? "nothing" }], reason: "The page did not say you are in." };\n  });\n});\n`);
       await show(agent, "The agent writes a journey", readFileSync(join(dir, "journeys/see-that-you-are-in.journey.yaml"), "utf8"));
     });
 

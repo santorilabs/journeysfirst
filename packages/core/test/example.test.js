@@ -63,10 +63,10 @@ test("the example passes against the good app", () => {
   assert.ok(!run.media.some((m) => m.kind === "trace") && !files.has("trace.zip"), "a passing run keeps no trace");
 });
 
-test("journeyVideo: false in the config's use records no video for any user", () => {
+test("recording: false in the config's use records no video for any user", () => {
   // A config beside the example's, so its testDir and webServer resolve the same.
   const config = join(EXAMPLE, `playwright.no-video-${process.pid}.config.js`);
-  writeFileSync(config, 'import base from "./playwright.config.js";\nexport default { ...base, use: { ...base.use, journeyVideo: false } };\n');
+  writeFileSync(config, 'import base from "./playwright.config.js";\nexport default { ...base, use: { ...base.use, recording: false } };\n');
   try {
     const { status, output, run, files } = runExample({}, ["--config", config]);
     assert.equal(status, 0, output);
