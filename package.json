@@ -2,7 +2,7 @@
   "name": "journeysfirst-monorepo",
   "private": true,
   "type": "module",
-  "workspaces": ["packages/core", "examples/share-by-link", "examples/immich-shared-link", "examples/docmost-trash"],
+  "workspaces": ["packages/core", "examples/share-by-link", "examples/claims-review", "examples/immich-shared-link", "examples/docmost-trash"],
   "scripts": {
     "test": "npm test -w packages/core && npm run test:self",
     "test:self": "node node_modules/@playwright/test/cli.js test -c playwright.config.js && node scripts/self-journey-fails.mjs",

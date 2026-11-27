@@ -2,6 +2,7 @@
 //   /                      every run, newest first
 //   /runs/<journey>/<run>  one run: the promise, whether it held, and the run player (see run-player.js)
 //   /captions/<journey>/<run>/<video>.vtt  each line of a video as a captions track
+//   /compare, /compare/<journey>/<run>     with main's runs given: each user against main (see compare-page.js)
 // Reads run results v1. Older run files (draft 0) are shown in v1 terms.
 import { createServer } from "node:http";
 import { existsSync, lstatSync, readdirSync, readFileSync, statSync } from "node:fs";
@@ -11,11 +12,11 @@ import { checkRun } from "../format/run-check.js";
 import { findJourney } from "../format/run-folder.js";
 import { REVIEW_PASSES, batchResult, esc, isCheck, reviewCountText, runTitle, screenshotFile, screenshotPage, stepState, videoAt } from "../shared/display.js";
 import { FILE_NAME, runResult } from "../format/runfile.js";
-import { VERSION } from "../shared/version.js";
 import { RUN_PLAYER_SCRIPT, runPlayerHtml } from "./run-player.js";
 import { badge } from "./primitives.js";
-import { PAGE_CSS } from "./style.js";
-import { FONTS, MARK } from "./tokens.js";
+import { compareAll, compareFolder } from "./compare.js";
+import { changePage, comparePage } from "./compare-page.js";
+import { layout } from "./layout.js";
 import { readSession, sessionHtml } from "./session.js";
 import { transcriptPanels } from "./transcripts.js";
 import { captionTrack, videoHolds } from "./video-lines.js";
@@ -37,10 +38,11 @@ import { captionTrack, videoHolds } from "./video-lines.js";
 
 /**
  * Listens on 127.0.0.1 unless you pass another host, so the runs stay on this machine.
- * @param {{dir?: string, port?: number, host?: string}} [options]
+ * @param {{dir?: string, port?: number, host?: string, main?: string, head?: string}} [options] main: main's runs folder, to compare with. head: the commit the change is at now.
  */
-export function serveReview({ dir = "journey-runs", port = 4400, host = "127.0.0.1" } = {}) {
+export function serveReview({ dir = "journey-runs", port = 4400, host = "127.0.0.1", main, head } = {}) {
   const root = resolve(dir);
+  const mainDir = main ? resolve(main) : undefined;
   const server = createServer((req, res) => {
     const { port: listening } = /** @type {import("node:net").AddressInfo} */ (server.address());
     if (!hostAllowed(host, req.headers.host)) return res.writeHead(403, { "content-type": "text/plain" }).end(wrongHostMessage(host, listening));
@@ -61,14 +63,25 @@ export function serveReview({ dir = "journey-runs", port = 4400, host = "127.0.0
         if (!video) return res.writeHead(404).end("Not found");
         return res.writeHead(200, { "content-type": "text/vtt; charset=utf-8" }).end(captionTrack(shown.steps, video));
       }
-      const file = url.match(/^\/files\/([^/]+)\/([^/]+)\/([^/]+)$/);
-      if (file && FILE_NAME.test(file[3]) && file[3] !== "run.json") return sendFile(req, res, safeJoin(root, file[1], file[2], file[3]));
+      const file = url.match(/^\/(main-)?files\/([^/]+)\/([^/]+)\/([^/]+)$/);
+      if (file && FILE_NAME.test(file[4]) && file[4] !== "run.json" && (!file[1] || mainDir)) return sendFile(req, res, safeJoin(file[1] ? /** @type {string} */ (mainDir) : root, file[2], file[3], file[4]));
+      const pageOf = (/** @type {string} */ journey, /** @type {string} */ id) => `/compare/${encodeURIComponent(journey)}/${encodeURIComponent(id)}`;
+      if (url === "/compare") return html(res, changePage(compareAll(root, { mainDir, head }), (c) => pageOf(c.change.run.journey.name, c.change.run.id), (c) => forDisplay(c.change.run)));
+      const compared = url.match(/^\/compare\/([^/]+)\/([^/]+)\/?$/);
+      if (compared) {
+        const c = compareFolder(safeJoin(root, compared[1], compared[2]), { mainDir, head });
+        const files = (/** @type {string} */ from, /** @type {string | undefined} */ folder) => (/** @type {string | undefined} */ name) => (name && folder ? `/${from}/${[...folder.split(sep).slice(-2), name].map(encodeURIComponent).join("/")}` : undefined);
+        return html(res, comparePage(c, { file: files("files", c.change.folder), mainFile: files(c.against === "main" ? "main-files" : "files", c.main?.folder), run: `/runs/${encodeURIComponent(compared[1])}/${encodeURIComponent(compared[2])}`, all: "/compare", shown: readRun(root, compared[1], compared[2]), folder: relative(process.cwd(), /** @type {string} */ (c.change.folder)) }));
+      }
       res.writeHead(404).end("Not found");
     } catch (error) {
       res.writeHead(500, { "content-type": "text/plain" }).end(String(/** @type {Error | undefined} */ (error)?.message ?? error));
     }
   });
-  server.listen(port, host, () => console.log(`journeysfirst review: http://${host}:${/** @type {import("node:net").AddressInfo} */ (server.address()).port}  (reading ${root})`));
+  server.listen(port, host, () => {
+    const at = `http://${host}:${/** @type {import("node:net").AddressInfo} */ (server.address()).port}`;
+    console.log(`journeysfirst review: ${at}  (reading ${root})${mainDir ? `\nCompared with main: ${at}/compare  (main's runs in ${mainDir})` : ""}`);
+  });
   return server;
 }
 
@@ -490,18 +503,6 @@ const lowerFirst = (text) => text.charAt(0).toLowerCase() + text.slice(1);
 const when = (iso) => (iso ? new Date(iso).toLocaleString() : "");
 /** The day a run started, like "Nov 25, 2026". @param {string | undefined} iso */
 const dayOf = (iso) => (iso ? new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "");
-
-/**
- * @param {string} heading
- * @param {string} body
- * @param {Array<{text: string, href?: string}>} path where this page is, for the header bar. The last one is this page.
- * @param {boolean} [fit] the page fills one screen and its panels scroll, where a page otherwise scrolls as a whole
- */
-function layout(heading, body, path, fit = false) {
-  const crumbs = path.map(({ text, href }, i) => (href ? `<a href="${esc(href)}">${esc(text)}</a>` : `<span${i === path.length - 1 ? ' aria-current="page"' : ""}>${esc(text)}</span>`)).join("");
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(heading)}</title>
-${FONTS}<style>${PAGE_CSS}</style></head><body${fit ? ' class="fit"' : ""}><div class="frame"><header class="bar"><span class="logo">${MARK}</span>${crumbs}</header><main>${body}</main><footer class="foot"><span>Santori Labs</span><span>journeysfirst ${VERSION}</span></footer></div></body></html>`;
-}
 
 /**
  * @param {Response} res

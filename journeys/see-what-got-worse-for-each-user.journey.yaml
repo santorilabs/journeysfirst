@@ -1,0 +1,23 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/santorilabs/journeysfirst/main/spec/journey-v1.schema.json
+format: journeysfirst/v1
+title: See what got worse for each user
+promise: |
+  When a change makes a user's work harder and every check still passes, I want to see that before I merge.
+  I want to see main next to the change, and what differs in words.
+users: [agent]
+start: The claims example has a change that moves the billing code 2 clicks further into a claim. The change was planted for this journey. Every check still passes.
+steps:
+  - The agent runs the journey on main and on the change.
+  - check: The agent sees every check pass in both runs.
+    id: both-runs-pass
+  - The agent compares the change's run with main's.
+  - check: The agent reads that your work got worse, and that the billing code is 2 clicks further.
+    id: agent-reads-got-worse
+  - You open the compare page.
+  - check: You see that your work got worse, and that every check still passes.
+    id: you-see-got-worse
+  - check: You see the lines that differ with main beside the change, and the extra clicks on the change's side.
+    id: you-see-both-sides
+  - check: You see that the change was planted.
+    id: you-see-it-was-planted
+notes: The agent reads what the compare command prints. You read the compare page. Nothing here is decided by a model.

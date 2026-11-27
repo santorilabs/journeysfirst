@@ -1,0 +1,11 @@
+format: journeysfirst/v1
+title: Review a claim
+promise: You can open a claim, read its billing code, and approve it.
+start: Claim 1042 is waiting for review.
+steps:
+  - Open claim 1042.
+  - check: You see the billing code "4471-B".
+    id: sees-billing-code
+  - Approve the claim.
+  - check: The claim says "Approved" after a reload.
+    id: claim-approved

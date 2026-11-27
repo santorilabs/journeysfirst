@@ -40,6 +40,12 @@ a.row:hover{background:var(--chalk)}
 .start .findings{list-style:none;padding:0;margin:var(--s-xs) 0 var(--s-sm)}.findings li{padding:var(--s-sm) 0;border-top:1px solid var(--line)}.findings li:first-child{border-top:0}
 .reported{border-top:1px solid var(--line);margin-top:var(--s-md);padding-top:var(--s-xs)}.reported-user{padding:var(--s-xs) 0}.reported-user p{margin:var(--s-xs) 0}.reported code{font:var(--label);word-break:break-all}
 .findings p{margin:var(--s-xs) 0}.findings .says{font-weight:500}.findings a{color:var(--text-3)}
+/* The compare pages: a line that differs has main beside the change, at every width, so neither has to be remembered. */
+.cmp-strip{padding-left:0;padding-right:0}.cmp-strip.stale{opacity:.55}.cmp-callout{border-color:var(--line)}.cmp-note{margin:var(--s-md) 0}.day a{text-decoration:none}
+.cmp-step{border-top:1px solid var(--line);padding:var(--s-lg) 0}.cmp-step h2{font:500 var(--fs-lg)/1.4 var(--body);margin:var(--s-xs) 0 var(--s-md)}
+.cmp-cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s-md)}.cmp-side{min-width:0}
+.cmp-actions{margin:var(--s-xs) 0;padding-left:var(--s-lg);font:var(--label);line-height:1.75;overflow-wrap:anywhere}
+.cmp-step .findings{list-style:none;padding:0;margin:var(--s-md) 0 0}
 /* A window no wider than the frame has no room for its side rules or corner marks. */
 @media(max-width:81rem){.frame{border-left:0;border-right:0}.bar::before,.bar::after,.foot::before,.foot::after{display:none}}
 @media(max-width:54em){

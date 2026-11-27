@@ -1,5 +1,6 @@
 node_modules
 journey-runs
+main-runs
 journey-runs-broken
 test-results
 playwright-report

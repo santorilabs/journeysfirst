@@ -55,12 +55,14 @@ export type AppReport = {
  */
 /**
  * Listens on 127.0.0.1 unless you pass another host, so the runs stay on this machine.
- * @param {{dir?: string, port?: number, host?: string}} [options]
+ * @param {{dir?: string, port?: number, host?: string, main?: string, head?: string}} [options] main: main's runs folder, to compare with. head: the commit the change is at now.
  */
-export declare function serveReview({ dir, port, host }?: {
+export declare function serveReview({ dir, port, host, main, head }?: {
     dir?: string;
     port?: number;
     host?: string;
+    main?: string;
+    head?: string;
 }): import("node:http").Server<typeof import("node:http").IncomingMessage, typeof import("node:http").ServerResponse>;
 /**
  * Every run folder under root, newest first, in v1 terms.
