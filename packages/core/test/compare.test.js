@@ -193,6 +193,7 @@ test("the baseline is main's newest run of the same journey version, until a per
   assert.match(page, /src="assets\/main-step-1\.png"/, "main's screen is in the page with the change's, from a file in the export");
   assert.ok(page.indexOf('data-side="main"') < page.indexOf('data-side="change"'), "with scripts off both screens show, main first");
   assert.doesNotMatch(page, /<script[^>]+src=/, "the switch needs nothing but the page");
+  assert.deepEqual([...page.matchAll(/data-tab="(\w+)"/g)].slice(0, 3).map((m) => m[1]), ["change", "main", "both"], "the change first, then main, then side by side");
   assert.doesNotMatch(page, /(?:href|src)="\//, "the export opens from a folder, with no server");
   assert.match(readFileSync(join(out, "compare.html"), "utf8"), /runs\/review-a-claim\/pr-2\/compare\.html/);
 });

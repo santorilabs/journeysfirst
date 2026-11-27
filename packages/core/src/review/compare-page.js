@@ -2,8 +2,9 @@
 // for each user. One page for a journey: the same sentences, then only the
 // lines that differ. Each has the clicks main took and the clicks the change
 // took, then one screen at the full width of the page with a switch between
-// main's and the change's. Both sit in the same box at the same scale, so
-// flipping shows only what differs. What differs is written under it in
+// the change's, main's and side by side. One at a time, they sit in the same
+// box at the same scale, so flipping shows only what differs. Side by side is
+// the two next to each other, or stacked on a phone. What differs is written under it in
 // words. compare.js decides everything shown here.
 import { esc, isCheck, runTitle, screenshotFile } from "../shared/display.js";
 import { MAX_QUESTIONS, OUTCOMES } from "./compare.js";
@@ -73,7 +74,7 @@ export function comparePage(c, links) {
       ${actions.length ? `<ol class="cmp-actions">${actions.map((a) => `<li>${a.field ? "fill" : a.name.startsWith("open ") ? "" : "click"} ${esc(a.name)}${typeof a.ms === "number" && !a.field ? ` <span class="how">${esc(a.ms)} ms</span>` : ""}</li>`).join("")}</ol>` : '<p class="how">No click or field.</p>'}</div>`;
     return `<section class="cmp-step" id="step-${pair.n}"><p class="line-kind">Step ${pair.n} · ${pair.isCheck ? "Check" : "Action"}${pair.by ? ` · ${esc(roleName(pair.by))}` : ""} · ${badge(pair.state)}</p><h2>${esc(pair.text)}</h2>
       <div class="cmp-cols">${column(base, pair.main)}${column("this change", pair.change)}</div>
-      <div class="cmp-flip">${tabs(`Whose screen at step ${pair.n}`, [{ name: "main", label: base }, { name: "change", label: "this change" }])}
+      <div class="cmp-flip">${tabs(`Whose screen at step ${pair.n}`, choices(base))}
         <div class="cmp-frame">${shot("main", base, links.mainFile(file(c.main)))}${shot("change", "this change", links.file(file(c.change)))}</div></div>
       <ul class="findings">${pair.items.map(itemHtml).join("")}</ul></section>`;
   });
@@ -94,6 +95,7 @@ export function comparePage(c, links) {
     </section>
     <div class="cmp-body">${staleNote(c)}${planted}${c.why ? `<section class="problems cmp-callout"><p><b>Not compared.</b> ${esc(c.why)}</p></section>` : ""}
     <div class="rows">${userRows(c)}</div>
+    ${pairs.length > 1 ? `<div class="cmp-all"><span class="line-kind">Every step</span>${tabs("Whose screen in every step", choices(base))}</div>` : ""}
     <p class="how cmp-note">${c.why ? "" : `${count(c.steps.length, "step")} of ${run.steps.length} differ from ${esc(c.against)}. ${c.same} ${c.same === 1 ? "is" : "are"} the same and not shown. `}${checks.filter((s) => s.verdict === "passed").length} of ${count(checks.length, "check")} passed. A change that makes a user's work harder never fails a check. <a href="${esc(links.run)}">Open the run</a></p>
     ${pairs.join("")}${calls}${questions}${PRIVATE}</div>${pairs.length ? `<script>${FLIP_SCRIPT}</script>` : ""}`, [{ text: "Compared with main", href: links.all }, { text: name }]);
 }
@@ -103,27 +105,41 @@ const itemHtml = (item) => `<li><p class="says">${badge(item.kind, item.kind ===
 /** @param {import("./compare.js").Item} item */
 const callsHtml = (item) => item.calls.map((r) => `<p class="call"><b>${esc(r.by)}</b>: ${esc(r.says)} <span class="how">${esc(new Date(r.at).toLocaleString())}</span></p>`).join("");
 
+/** The choices of a screen switch. @param {string} base what the run compared with is called, safe for HTML */
+const choices = (base) => [{ name: "change", label: "this change" }, { name: "main", label: base }, { name: "both", label: "side by side" }];
+
 /**
- * The switch between main's screen and the change's. Without it, a page shows
- * both, main first. With it, both sit in one box and one is shown. The change
- * is shown first. An arrow key on the switch flips it.
+ * The switch between the change's screen, main's and side by side. Without it,
+ * a page shows both, main first. With it, one is shown in the box the two
+ * share, or both next to each other. The change is shown first. An arrow key on a switch
+ * steps through its choices. The switch at the top sets every step's.
  */
-const FLIP_SCRIPT = `for (const flip of document.querySelectorAll(".cmp-flip")) {
-  const show = (side, focus) => {
-    for (const tab of flip.querySelectorAll(".tab")) {
-      const on = tab.dataset.tab === side;
-      tab.setAttribute("aria-selected", String(on));
-      tab.tabIndex = on ? 0 : -1;
-      if (on && focus) tab.focus();
-    }
-    for (const figure of flip.querySelectorAll("figure")) figure.classList.toggle("shown", figure.dataset.side === side);
-  };
-  flip.classList.add("on");
-  show("change");
-  flip.addEventListener("click", (e) => { const tab = e.target.closest(".tab"); if (tab) show(tab.dataset.tab); });
-  flip.addEventListener("keydown", (e) => {
-    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+const FLIP_SCRIPT = `const flips = [...document.querySelectorAll(".cmp-flip")];
+const choose = (box, side, focus) => {
+  for (const tab of box.querySelectorAll(".tab")) {
+    const on = tab.dataset.tab === side;
+    tab.setAttribute("aria-selected", String(on));
+    tab.tabIndex = on ? 0 : -1;
+    if (on && focus) tab.focus();
+  }
+};
+const show = (flip, side, focus) => {
+  choose(flip, side, focus);
+  flip.classList.toggle("both", side === "both");
+  flip.querySelector(".cmp-frame").classList.toggle("cmp-cols", side === "both");
+  for (const figure of flip.querySelectorAll("figure")) figure.classList.toggle("shown", figure.dataset.side === side);
+};
+const wire = (box, pick) => {
+  box.classList.add("on");
+  pick("change");
+  box.addEventListener("click", (e) => { const tab = e.target.closest(".tab"); if (tab) pick(tab.dataset.tab); });
+  box.addEventListener("keydown", (e) => {
+    const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+    if (!step) return;
     e.preventDefault();
-    show(flip.querySelector(".tab[aria-selected=true]").dataset.tab === "main" ? "change" : "main", true);
+    const tabs = [...box.querySelectorAll(".tab")];
+    pick(tabs[(tabs.findIndex((tab) => tab.getAttribute("aria-selected") === "true") + step + tabs.length) % tabs.length].dataset.tab, true);
   });
-}`;
+};
+for (const flip of flips) wire(flip, (side, focus) => show(flip, side, focus));
+for (const all of document.querySelectorAll(".cmp-all")) wire(all, (side, focus) => { choose(all, side, focus); for (const flip of flips) show(flip, side); });`;

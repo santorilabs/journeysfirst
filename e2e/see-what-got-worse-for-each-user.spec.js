@@ -95,16 +95,26 @@ test.journey("journeys/see-what-got-worse-for-each-user.journey.yaml", { measure
     /** @type {Awaited<ReturnType<typeof showing>>} */
     let flipped = [];
     await journey.step("Flip that line's screen to main.", { by: "you", caption: "You flip the screen to main." }, async () => {
-      await step.getByRole("tab").first().click();
+      await step.locator('.tab[data-tab="main"]').click();
       flipped = await showing();
     });
 
     await journey.check("you-flip-to-main", { by: "you", caption: "Checking that the screen flips in place." }, async () => {
-      await step.getByRole("tab", { selected: true }).press("ArrowRight");
+      await step.getByRole("tab", { selected: true }).press("ArrowLeft");
       const back = await showing();
       const inPlace = flipped.length === 1 && flipped[0].side === "main" && flipped[0].src !== before?.src && String(flipped[0].box) === String(before?.box);
       const passed = inPlace && back.length === 1 && back[0].src === before?.src;
       return { passed, proof: "Flipped the line's screen to main with a click, and back with an arrow key.", evidence: seen(`main's screen ${inPlace ? "in the same place" : "not in the same place"}, then ${back[0]?.side === "change" ? "the change's again" : "no change screen"}`), reason: "The screen does not flip to main in place and back.", caption: passed ? "main's screen shows in the same place, then the change's again." : "the screen does not flip in place." };
+    });
+
+    await journey.step("Choose side by side for that line's screen.", { by: "you", caption: "You choose side by side." }, async () => {
+      await step.locator('.tab[data-tab="both"]').click();
+    });
+
+    await journey.check("you-see-side-by-side", { by: "you", caption: "Checking that both screens show at once." }, async () => {
+      const shown = await showing();
+      const passed = shown.length === 2 && shown[0].side === "main" && shown[1].side === "change" && shown[0].src !== shown[1].src && shown[0].box[2] === shown[1].box[2];
+      return { passed, proof: "Chose side by side on the line's switch and looked at its frame.", evidence: seen(`${shown.length} screens showing: ${shown.map((s) => s.side).join(", ") || "none"}`), reason: "The page does not show main's screen and the change's at once.", caption: passed ? "main's screen and the change's show at once, at the same size." : "the two screens do not show at once." };
     });
 
     await journey.check("you-see-it-was-planted", { by: "you", caption: "Checking that the page says the change was planted." }, async () => {
