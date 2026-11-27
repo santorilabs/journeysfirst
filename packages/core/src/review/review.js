@@ -2,7 +2,7 @@
 //   /                      every run, newest first
 //   /runs/<journey>/<run>  one run: the promise, whether it held, and the run player (see run-player.js)
 //   /captions/<journey>/<run>/<video>.vtt  each line of a video as a captions track
-//   /compare, /compare/<journey>/<run>     with main's runs given: each user against main (see compare-page.js)
+//   /compare, /compare/<journey>/<run>     each user against the earlier run, or against main's run when main's runs are given (see compare-page.js)
 // Reads run results v1. Older run files (draft 0) are shown in v1 terms.
 import { createServer } from "node:http";
 import { existsSync, lstatSync, readdirSync, readFileSync, statSync } from "node:fs";
@@ -38,7 +38,7 @@ import { captionTrack, videoHolds } from "./video-lines.js";
 
 /**
  * Listens on 127.0.0.1 unless you pass another host, so the runs stay on this machine.
- * @param {{dir?: string, port?: number, host?: string, main?: string, head?: string}} [options] main: main's runs folder, to compare with. head: the commit the change is at now.
+ * @param {{dir?: string, port?: number, host?: string, main?: string, head?: string}} [options] main: main's runs folder, to compare with in place of the earlier run. head: the commit the change is at now.
  */
 export function serveReview({ dir = "journey-runs", port = 4400, host = "127.0.0.1", main, head } = {}) {
   const root = resolve(dir);
@@ -80,7 +80,7 @@ export function serveReview({ dir = "journey-runs", port = 4400, host = "127.0.0
   });
   server.listen(port, host, () => {
     const at = `http://${host}:${/** @type {import("node:net").AddressInfo} */ (server.address()).port}`;
-    console.log(`journeysfirst review: ${at}  (reading ${root})${mainDir ? `\nCompared with main: ${at}/compare  (main's runs in ${mainDir})` : ""}`);
+    console.log(`journeysfirst review: ${at}  (reading ${root})\nCompared with ${mainDir ? `main: ${at}/compare  (main's runs in ${mainDir})` : `the earlier run: ${at}/compare`}`);
   });
   return server;
 }

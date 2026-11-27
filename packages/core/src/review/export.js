@@ -14,13 +14,14 @@ const IMAGE = /\.(png|jpe?g|gif|webp|avif)$/i;
  * @param {string} dir
  * @param {string} out
  * @param {{includeTranscripts?: boolean, mainDir?: string, head?: string}} [options] includeTranscripts: share only when the attached
- *   transcripts have been checked. mainDir: main's runs folder. With it, each run also gets compare.html, and the folder a compare.html
- *   for the whole change. head: the commit the change is at now.
+ *   transcripts have been checked. Each run also gets compare.html, and the folder a compare.html for the whole change.
+ *   mainDir: main's runs folder, to compare with in place of the earlier run. head: the commit the change is at now.
  */
 export function exportReview(dir, out, { includeTranscripts = false, mainDir, head } = {}) {
   const root = realpathSync(dir);
   const runs = listRuns(root, { followSymlinks: false });
   const target = resolve(out);
+  const options = { mainDir: mainDir ? resolve(mainDir) : undefined, head };
   mkdirSync(target);
   for (const { journey, id, run } of runs) {
     const source = join(root, journey, id);
@@ -41,11 +42,11 @@ export function exportReview(dir, out, { includeTranscripts = false, mainDir, he
     for (const step of run.steps) {
       for (const shot of step.screenshots ?? []) copy(screenshotFile(shot), IMAGE);
     }
-    if (mainDir && !run.legacy) {
-      const compared = compareFolder(source, { mainDir: resolve(mainDir), head, replies: includeTranscripts });
+    if (!run.legacy) {
+      const compared = compareFolder(source, { ...options, replies: includeTranscripts });
       writeFileSync(join(dest, "compare.html"), comparePage(compared, {
         file: (name) => name && files.has(name) ? "assets/" + name : undefined,
-        mainFile: (name) => compared.main?.folder && copy(name, IMAGE, compared.main.folder, "main-") ? "assets/main-" + name : undefined,
+        mainFile: (name) => compared.main?.folder && copy(name, IMAGE, compared.main.folder, "before-") ? "assets/before-" + name : undefined,
         run: "index.html", all: "../../../compare.html", shown: run,
       }));
     }
@@ -62,9 +63,9 @@ export function exportReview(dir, out, { includeTranscripts = false, mainDir, he
   }
   writeFileSync(join(target, "index.html"), indexPage(runs, (journey, id) =>
     `runs/${encodeURIComponent(journey)}/${encodeURIComponent(id)}/index.html`));
-  if (mainDir) {
+  {
     const shown = new Map(runs.map(({ journey, id, run }) => [join(root, journey, id), run]));
-    writeFileSync(join(target, "compare.html"), changePage(compareAll(root, { mainDir: resolve(mainDir), head, replies: includeTranscripts }),
+    writeFileSync(join(target, "compare.html"), changePage(compareAll(root, { ...options, replies: includeTranscripts }),
       (c) => `runs/${encodeURIComponent(c.change.run.journey.name)}/${encodeURIComponent(c.change.run.id)}/compare.html`, (c) => shown.get(c.change.folder ?? "")));
   }
   return target;

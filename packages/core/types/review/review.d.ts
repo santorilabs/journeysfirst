@@ -55,7 +55,7 @@ export type AppReport = {
  */
 /**
  * Listens on 127.0.0.1 unless you pass another host, so the runs stay on this machine.
- * @param {{dir?: string, port?: number, host?: string, main?: string, head?: string}} [options] main: main's runs folder, to compare with. head: the commit the change is at now.
+ * @param {{dir?: string, port?: number, host?: string, main?: string, head?: string}} [options] main: main's runs folder, to compare with in place of the earlier run. head: the commit the change is at now.
  */
 export declare function serveReview({ dir, port, host, main, head }?: {
     dir?: string;

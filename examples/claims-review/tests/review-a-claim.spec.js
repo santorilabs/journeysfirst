@@ -1,5 +1,5 @@
-// The saved script for "Review a claim". It runs against the app as it is on
-// main, and against the app with the planted change (DEMO_MOVED_FIELD=1). With
+// The saved script for "Review a claim". It runs against the app as it is, and
+// then against the app with the planted change (DEMO_MOVED_FIELD=1). With
 // the change, the billing code is under Details, then Billing, so the script
 // clicks there to read it. Every check passes both ways.
 import { test } from "journeysfirst/playwright";

@@ -1,4 +1,4 @@
-// A run compared with main's run of the same journey: what each user lost or pays for, from measurements only.
+// A run compared with a run from before it, of the same journey: what each user lost or pays for, from measurements only.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -42,7 +42,7 @@ test("a line that names no one is yours, so a check nobody did is never same", (
   assert.equal(outcome(compareRuns(MAIN(), side([...MAIN().measures], { steps })), "you").outcome, "not_verified");
 });
 
-test("the same clicks and screens as main is same, and no step is listed", () => {
+test("the same clicks and screens as the run before is same, and no step is listed", () => {
   const result = compareRuns(MAIN(), side([...MAIN().measures]));
   assert.equal(outcome(result, "you").outcome, "same");
   assert.deepEqual([result.items, result.steps, result.same], [[], [], 4]);
@@ -56,7 +56,10 @@ test("a control that was on screen when it opened and is now 2 clicks down is go
   assert.match(you.says, /2 clicks/);
   assert.match(you.says, /checks? still pass/);
   const moved = result.items.find((item) => item.criterion === "compare-moved");
-  assert.deepEqual([moved.kind, moved.step, moved.by, moved.measured.clicks, moved.measured.at], ["worse", 1, "you", 2, 2], "visible on open on main, 2 clicks deep now, first seen at step 2");
+  assert.deepEqual([moved.kind, moved.step, moved.by, moved.measured.clicks, moved.measured.at], ["worse", 1, "you", 2, 2], "visible on open before, 2 clicks deep now, first seen at step 2");
+  assert.match(you.says, /earlier run/, "the run before is named as what it is");
+  assert.doesNotMatch(you.says, /main/, "main is named only when the run came from main's runs");
+  assert.match(outcome(compareRuns(MAIN(), MOVED(), { against: "main" }), "you").says, /On main/);
   assert.ok(result.items.some((item) => item.criterion === "compare-more-steps" && item.step === 2 && item.kind === "worse"), "the extra clicks are their own measured cost");
   assert.deepEqual(result.steps.map((s) => s.n), [1, 2], "only the changed steps are listed");
   assert.equal(result.same, 2);
@@ -98,7 +101,7 @@ test("a failed check is broke, whatever was measured, and a check that was not d
   assert.deepEqual(broke.users.map((u) => u.outcome), ["broke", "not_compared"], "the worst is first");
 });
 
-test("with no main run, a changed journey, or nothing measured, a user is not compared, never same", () => {
+test("with no run before, a changed journey, or nothing measured, a user is not compared, never same", () => {
   assert.deepEqual(compareRuns(null, MOVED()).users.map((u) => u.outcome), ["not_compared", "not_compared"]);
   const reworded = compareRuns(side([...MAIN().measures], { journey: { name: "review-a-claim", version: "v0", case: null } }), MOVED());
   assert.deepEqual(reworded.users.map((u) => u.outcome), ["not_compared", "not_compared"]);
@@ -142,7 +145,33 @@ function folderOf(dir, { run: raw, measures }, files = {}) {
   return folder;
 }
 
-test("the baseline is main's newest run of the same journey version, until a person accepts a run of the change", () => {
+test("with no main's runs, the baseline is the newest earlier run from a different commit, never the run itself", () => {
+  const runs = join(mkdtempSync(join(tmpdir(), "jf-compare-")), "runs");
+  const at = (id, hour, commit) => ({ id, started_at: `2026-11-26T${hour}:00:00Z`, repos: [{ repo: "acme/claims", commit }] });
+  const only = folderOf(runs, side([...MAIN().measures], at("r1", "09", "aaa1111")));
+  assert.deepEqual([baselineFor(only).folder, compareFolder(only).users.map((u) => u.outcome)], [null, ["not_compared", "not_compared"]], "a run alone has nothing before it");
+  assert.match(compareFolder(only).why, /earlier run/);
+  const second = folderOf(runs, MOVED(at("r2", "10", "bbb2222")));
+  const rerun = folderOf(runs, MOVED(at("r3", "11", "bbb2222")));
+  assert.equal(baselineFor(second).folder, only);
+  assert.deepEqual([baselineFor(rerun).folder, baselineFor(rerun).against], [only, "the earlier run"], "a rerun of the same commit is not what the change is measured against");
+  assert.equal(outcome(compareFolder(rerun), "you").outcome, "worse");
+  const same = folderOf(join(runs, "..", "one-commit"), side([...MAIN().measures], at("s1", "09", "aaa1111")));
+  const again = folderOf(join(runs, "..", "one-commit"), side([...MAIN().measures], at("s2", "10", "aaa1111")));
+  assert.equal(baselineFor(again).folder, same, "with no other commit, the newest earlier run");
+  const reworded = folderOf(runs, MOVED({ ...at("r4", "12", "ccc3333"), journey: { name: "review-a-claim", version: "v2", case: null } }));
+  assert.match(compareFolder(reworded).why, /journey/, "earlier runs of a different journey version are not compared");
+  const text = compareReport(compareAll(join(runs, "..", "one-commit")));
+  assert.match(text, /earlier run/);
+  assert.doesNotMatch(text + compareReport(compareAll(join(runs, "..", "one-commit")), { markdown: true }), /main/);
+  const out = join(runs, "..", "out");
+  exportReview(runs, out);
+  const page = readFileSync(join(out, "runs", "review-a-claim", "r3", "compare.html"), "utf8");
+  assert.match(page, /earlier run/);
+  assert.doesNotMatch(page.replace(/<\/?main>/g, ""), /main/, "a page never says main when the run before did not come from main's runs");
+});
+
+test("with main's runs, the baseline is main's newest run of the same journey version, until a person accepts a run of the change", () => {
   const dir = mkdtempSync(join(tmpdir(), "jf-compare-"));
   const mainDir = join(dir, "main");
   const runs = join(dir, "runs");
@@ -150,7 +179,6 @@ test("the baseline is main's newest run of the same journey version, until a per
   const first = folderOf(runs, MOVED(), { "step-1.png": PNG });
   assert.equal(baselineFor(first, mainDir).folder, mainFolder);
   assert.match(baselineFor(first, join(dir, "nowhere")).why, /main/);
-  assert.equal(compareFolder(first, {}).why !== null, true, "with no main folder nothing is compared");
 
   const found = compareFolder(first, { mainDir });
   assert.equal(outcome(found, "you").outcome, "worse");
@@ -190,10 +218,10 @@ test("the baseline is main's newest run of the same journey version, until a per
   exportReview(runs, out, { mainDir });
   const page = readFileSync(join(out, "runs", "review-a-claim", "pr-1", "compare.html"), "utf8");
   assert.match(page, /Got worse/);
-  assert.match(page, /src="assets\/main-step-1\.png"/, "main's screen is in the page with the change's, from a file in the export");
-  assert.ok(page.indexOf('data-side="main"') < page.indexOf('data-side="change"'), "with scripts off both screens show, main first");
+  assert.match(page, /src="assets\/before-step-1\.png"/, "main's screen is in the page with the change's, from a file in the export");
+  assert.ok(page.indexOf('data-side="before"') < page.indexOf('data-side="change"'), "with scripts off both screens show, main first");
   assert.doesNotMatch(page, /<script[^>]+src=/, "the switch needs nothing but the page");
-  assert.deepEqual([...page.matchAll(/data-tab="(\w+)"/g)].slice(0, 3).map((m) => m[1]), ["change", "main", "both"], "the change first, then main, then side by side");
+  assert.deepEqual([...page.matchAll(/data-tab="(\w+)"/g)].slice(0, 3).map((m) => m[1]), ["change", "before", "both"], "the change first, then main, then side by side");
   assert.doesNotMatch(page, /(?:href|src)="\//, "the export opens from a folder, with no server");
   assert.match(readFileSync(join(out, "compare.html"), "utf8"), /runs\/review-a-claim\/pr-2\/compare\.html/);
 });

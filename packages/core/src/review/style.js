@@ -47,7 +47,7 @@ a.row:hover{background:var(--chalk)}
 .cmp-actions{margin:var(--s-xs) 0;padding-left:var(--s-lg);font:var(--label);line-height:1.75;overflow-wrap:anywhere}
 .cmp-flip{margin-top:var(--s-md)}.cmp-flip:not(.on) .tabs{display:none}.cmp-flip .tabs{padding:0}.cmp-frame figure{margin:0 0 var(--s-md)}
 .cmp-flip.on .cmp-frame{display:grid}.cmp-flip.on figure{margin:0}.cmp-flip.on:not(.both) figure{grid-area:1/1;visibility:hidden}.cmp-flip.on:not(.both) figure.shown{visibility:visible}.cmp-flip.on:not(.both) figcaption{display:none}
-.cmp-all{display:flex;align-items:center;gap:var(--s-lg);margin-top:var(--s-md)}.cmp-all:not(.on){display:none}.cmp-all .tabs{flex:1;padding:0}
+.cmp-all{display:flex;flex-wrap:wrap;align-items:center;gap:0 var(--s-lg);margin-top:var(--s-md)}.cmp-all:not(.on){display:none}.cmp-all .tabs{flex:1 1 auto;min-width:0;padding:0}
 @media(max-width:54em){.cmp-cols{grid-template-columns:minmax(0,1fr)}}
 .cmp-step .findings{list-style:none;padding:0;margin:var(--s-md) 0 0}
 /* A window no wider than the frame has no room for its side rules or corner marks. */

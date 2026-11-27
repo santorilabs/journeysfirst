@@ -66,10 +66,10 @@ export type Comparison = {
     against: string;
 };
 /**
- * @param {Side|null} main main's run of the journey, or null when there is none
+ * @param {Side|null} main the run to compare with, or null when there is none
  * @param {Side} change the run of the change
- * @param {{head?: string, why?: string, against?: string, replies?: boolean}} [options] head: the commit the change is at now. why: why there is no main run.
- *   against: what the first run is called, when it is not main's. replies: false leaves a tool's reply text out, for a page shared without transcripts.
+ * @param {{head?: string, why?: string, against?: string, replies?: boolean}} [options] head: the commit the change is at now. why: why there is no run to compare with.
+ *   against: what the first run is called. replies: false leaves a tool's reply text out, for a page shared without transcripts.
  * @returns {Comparison}
  */
 export declare function compareRuns(main: Side | null, change: Side, { head, why: noMain, against, replies }?: {
@@ -79,17 +79,21 @@ export declare function compareRuns(main: Side | null, change: Side, { head, why
     replies?: boolean;
 }): Comparison;
 /**
- * The run a run of a change is compared with: the newest of main's runs of the
- * same journey, case and journey version, and the earlier runs of the change a
- * person accepted. Merging is how a run gets to main, so a main run needs no call.
+ * The run a run of a change is compared with, and what to call it. It is of
+ * the same journey, case and journey version, and never the run itself.
+ *   With main's runs given: main's newest run. Merging is how a run gets to main, so it needs no call.
+ *   Without: the newest earlier run in the same folder from a different commit, so a rerun of the
+ *   same code is not what a change is measured against. When every earlier run is from the same
+ *   commit, or none says its commit, the newest earlier run.
+ *   Either way, a newer earlier run that a person accepted wins.
  * @param {string} folder the run folder of the change
  * @param {string} [mainDir] main's runs folder
- * @returns {{folder: string|null, why?: string, accepted?: true}}
+ * @returns {{folder: string|null, against: string, why?: string}}
  */
 export declare function baselineFor(folder: string, mainDir?: string): {
     folder: string | null;
+    against: string;
     why?: string;
-    accepted?: true;
 };
 /**
  * Compare a run folder with its baseline.
@@ -104,6 +108,7 @@ export declare function compareFolder(folder: string, { mainDir, head, replies }
 }): Comparison;
 /**
  * The newest run of each journey and case in a runs folder, each compared with its baseline.
+ * With no folder of main's runs, that is the earlier run in the same folder.
  * @param {string} runsDir
  * @param {{mainDir?: string, head?: string, replies?: boolean}} [options]
  * @returns {Comparison[]}
@@ -113,6 +118,11 @@ export declare function compareAll(runsDir: string, options?: {
     head?: string;
     replies?: boolean;
 }): Comparison[];
+/**
+ * What every comparison here was made against, like "main". "earlier runs" when they differ.
+ * @param {Comparison[]} all
+ */
+export declare const againstOf: (all: Comparison[]) => string;
 /**
  * What `journeysfirst compare` prints: each journey, then one line for each user.
  * @param {Comparison[]} all

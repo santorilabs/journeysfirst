@@ -7,7 +7,7 @@ const moved = Boolean(process.env.DEMO_MOVED_FIELD);
 
 export default defineConfig({
   testDir: "tests",
-  reporter: [["list"], ["journeysfirst/reporter", { outputDir: process.env.JOURNEYSFIRST_RUNS_DIR ?? (moved ? "journey-runs" : "main-runs") }]],
+  reporter: [["list"], ["journeysfirst/reporter", { outputDir: process.env.JOURNEYSFIRST_RUNS_DIR ?? "journey-runs" }]],
   use: { trace: "retain-on-failure", viewport: { width: 1280, height: 800 }, baseURL: `http://localhost:${process.env.DEMO_PORT}` },
   webServer: {
     command: "node app/server.mjs",

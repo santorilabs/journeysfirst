@@ -1,5 +1,6 @@
-// A run of a change compared with main's run of the same journey: what each
-// user lost or now pays for. Code decides, from what both runs measured. A
+// A run of a change compared with a run from before it, of the same journey:
+// what each user lost or now pays for. The run from before is the earlier run
+// in the same folder, or main's run when main's runs are given. Code decides, from what both runs measured. A
 // model's view of a screenshot is never used.
 //   worse: a control gone from a screen the user walks, or further away; a line
 //     that takes more clicks or fields; a click or a tool call that crosses 1
@@ -7,7 +8,7 @@
 //   changed: something new on a screen, new words or a new look, fewer clicks,
 //     a different number of tool calls.
 // A failed check is "broke" and a check nobody decided is "not verified",
-// whatever was measured. With no main run, a changed journey, or nothing
+// whatever was measured. With no run from before, a changed journey, or nothing
 // measured, a user is "not compared", never "same". Each item has the shape of
 // a finding, so it never changes a verdict and a person answers it with add-review.
 import { createHash } from "node:crypto";
@@ -39,7 +40,8 @@ const ORDER = Object.keys(OUTCOMES);
  *   main: {actions: import("../runner/measure.js").ActionTime[]}, change: {actions: import("../runner/measure.js").ActionTime[]}}} StepPair a line that differs, with each side's actions
  * @typedef {{why: string|null, stale: string|null, users: UserLine[], items: Item[], questions: Item[], steps: StepPair[], same: number,
  *   main: Side|null, change: Side, against: string}} Comparison why: why nothing was compared. same: how many lines do not differ.
- *   main: the run compared with. against: what a page calls it, "main" or "the accepted run".
+ *   main: the run compared with, whichever it is. against: what a page calls it: "main" only when it came from main's runs,
+ *   else "the earlier run" or "the accepted run".
  */
 
 /** @param {Measure|undefined} measure */
@@ -54,20 +56,21 @@ const byOf = (step) => step.by || "you";
 const sameCase = (a, b) => (a?.journey?.case ?? null) === (b?.journey?.case ?? null);
 /** A draft 0 run has no users to compare. @param {any} raw a stored run.json */
 const isLegacy = (raw) => Array.isArray(raw?.outcomes);
+const CHANGED_JOURNEY = "The journey's lines changed since the run before, so the two runs are not the same journey.";
 
 /**
- * @param {Side|null} main main's run of the journey, or null when there is none
+ * @param {Side|null} main the run to compare with, or null when there is none
  * @param {Side} change the run of the change
- * @param {{head?: string, why?: string, against?: string, replies?: boolean}} [options] head: the commit the change is at now. why: why there is no main run.
- *   against: what the first run is called, when it is not main's. replies: false leaves a tool's reply text out, for a page shared without transcripts.
+ * @param {{head?: string, why?: string, against?: string, replies?: boolean}} [options] head: the commit the change is at now. why: why there is no run to compare with.
+ *   against: what the first run is called. replies: false leaves a tool's reply text out, for a page shared without transcripts.
  * @returns {Comparison}
  */
-export function compareRuns(main, change, { head, why: noMain, against = "main", replies = true } = {}) {
+export function compareRuns(main, change, { head, why: noMain, against = "the earlier run", replies = true } = {}) {
   const steps = change.run.steps;
   const users = [...new Set(steps.map(byOf))];
   const on = against === "main" ? "On main" : `In ${against}`;
   const versions = [main?.run.journey?.version, change.run.journey?.version];
-  const why = !main ? noMain ?? "There is no run from main to compare with." : versions[0] !== versions[1] ? "The journey's lines changed since main's run, so the two runs are not the same journey." : null;
+  const why = !main ? noMain ?? "There is no run to compare with." : versions[0] !== versions[1] ? CHANGED_JOURNEY : null;
   /** @type {Item[]} */
   const items = [];
   /** @type {Set<string>} */
@@ -188,23 +191,33 @@ function accepted(raw) {
 }
 
 /**
- * The run a run of a change is compared with: the newest of main's runs of the
- * same journey, case and journey version, and the earlier runs of the change a
- * person accepted. Merging is how a run gets to main, so a main run needs no call.
+ * The run a run of a change is compared with, and what to call it. It is of
+ * the same journey, case and journey version, and never the run itself.
+ *   With main's runs given: main's newest run. Merging is how a run gets to main, so it needs no call.
+ *   Without: the newest earlier run in the same folder from a different commit, so a rerun of the
+ *   same code is not what a change is measured against. When every earlier run is from the same
+ *   commit, or none says its commit, the newest earlier run.
+ *   Either way, a newer earlier run that a person accepted wins.
  * @param {string} folder the run folder of the change
  * @param {string} [mainDir] main's runs folder
- * @returns {{folder: string|null, why?: string, accepted?: true}}
+ * @returns {{folder: string|null, against: string, why?: string}}
  */
 export function baselineFor(folder, mainDir) {
   const raw = readRunJson(folder);
-  const journey = join(mainDir ?? "", String(raw.journey?.name));
   const same = (/** @type {any} */ other) => sameCase(other, raw) && !isLegacy(other) && other?.journey?.version === raw.journey?.version;
+  const commit = (/** @type {any} */ other) => other?.repos?.[0]?.commit;
+  const earlier = earlierRuns(folder).filter((run) => !isLegacy(run.raw));
+  const mine = earlier.filter((run) => same(run.raw));
+  const journey = join(mainDir ?? "", String(raw.journey?.name));
   const fromMain = mainDir ? newestRunFolder(journey, same) : null;
-  const own = earlierRuns(folder).find((run) => same(run.raw) && accepted(run.raw));
-  if (own && (!fromMain || Date.parse(own.raw.started_at) > Date.parse(readRunJson(fromMain).started_at))) return { folder: own.folder, accepted: true };
-  if (fromMain) return { folder: fromMain };
-  if (!mainDir) return { folder: null, why: "No folder of main's runs was given. Pass --main <runs folder>." };
-  return { folder: null, why: newestRunFolder(journey, (other) => sameCase(other, raw)) ? "The journey's lines changed since main's run, so the two runs are not the same journey." : `There is no run of this journey from main in ${mainDir}.` };
+  const before = mainDir ? null : mine.find((run) => commit(run.raw) !== commit(raw)) ?? mine[0];
+  const base = fromMain ? { folder: fromMain, against: "main", at: readRunJson(fromMain).started_at } : before ? { folder: before.folder, against: "the earlier run", at: before.raw.started_at } : null;
+  const own = mine.find((run) => accepted(run.raw));
+  if (own && (!base || Date.parse(own.raw.started_at) > Date.parse(base.at))) return { folder: own.folder, against: "the accepted run" };
+  if (base) return { folder: base.folder, against: base.against };
+  const against = mainDir ? "main" : "the earlier run";
+  if (mainDir ? newestRunFolder(journey, (other) => sameCase(other, raw) && !isLegacy(other)) : earlier.length) return { folder: null, against, why: CHANGED_JOURNEY };
+  return { folder: null, against, why: mainDir ? `There is no run of this journey from main in ${mainDir}.` : "There is no earlier run of this journey in the same folder to compare with." };
 }
 
 /**
@@ -217,13 +230,14 @@ export function compareFolder(folder, { mainDir, head, replies } = {}) {
   const raw = readRunJson(folder);
   if (isLegacy(raw)) throw new Error(`${folder} is a draft 0 run. Run the journey again to write a v1 run, then compare.`);
   const baseline = baselineFor(folder, mainDir);
-  const result = compareRuns(baseline.folder ? readSide(baseline.folder) : null, readSide(folder), { head, replies, why: baseline.why, against: baseline.accepted ? "the accepted run" : "main" });
+  const result = compareRuns(baseline.folder ? readSide(baseline.folder) : null, readSide(folder), { head, replies, why: baseline.why, against: baseline.against });
   const newer = newestRunFolder(dirname(resolve(folder)), (other) => sameCase(other, raw));
   return { ...result, stale: result.stale ?? (newer && newer !== resolve(folder) ? "A newer run of this journey is in the same folder. This one is not the current run." : null) };
 }
 
 /**
  * The newest run of each journey and case in a runs folder, each compared with its baseline.
+ * With no folder of main's runs, that is the earlier run in the same folder.
  * @param {string} runsDir
  * @param {{mainDir?: string, head?: string, replies?: boolean}} [options]
  * @returns {Comparison[]}
@@ -243,6 +257,12 @@ export function compareAll(runsDir, options = {}) {
 }
 
 /**
+ * What every comparison here was made against, like "main". "earlier runs" when they differ.
+ * @param {Comparison[]} all
+ */
+export const againstOf = (all) => (new Set(all.map((c) => c.against)).size === 1 ? all[0].against : "earlier runs");
+
+/**
  * What `journeysfirst compare` prints: each journey, then one line for each user.
  * @param {Comparison[]} all
  * @param {{markdown?: boolean}} [options] markdown: a table for a pull request
@@ -253,7 +273,7 @@ export function compareReport(all, { markdown = false } = {}) {
   if (markdown) {
     const cell = (/** @type {string} */ text) => text.replace(/\r?\n/g, " ").replace(/\|/g, "\\|");
     const rows = all.flatMap((c) => c.users.map((u) => `| ${cell(name(c))} | ${cell(u.user)} | ${OUTCOMES[u.outcome]} | ${cell(u.says)}${c.stale ? " Stale." : ""} |`));
-    return `| Journey | User | Against main | What changed |\n| --- | --- | --- | --- |\n${rows.join("\n")}\n`;
+    return `| Journey | User | Against ${againstOf(all)} | What changed |\n| --- | --- | --- | --- |\n${rows.join("\n")}\n`;
   }
   const wide = Math.max(...all.flatMap((c) => c.users.map((u) => u.user.length)));
   return all.flatMap((c) => [`${name(c)}  ${c.change.folder ?? ""}`, ...(c.main?.folder ? [`  Compared with ${c.against}, ${c.main.folder}.`] : []), ...(c.stale ? [`  Stale: ${c.stale}`] : []),

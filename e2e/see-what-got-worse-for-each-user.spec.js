@@ -17,36 +17,36 @@ test.journey("journeys/see-what-got-worse-for-each-user.journey.yaml", { measure
     const agent = await journey.page("agent");
     const you = await journey.page("you");
     const dir = mkdtempSync(join(tmpdir(), "jf-compare-"));
-    const [mainRuns, runs] = [join(dir, "main-runs"), join(dir, "journey-runs")];
-    /** @param {string} out @param {Record<string, string>} env */
-    const play = (out, env) => run(EXAMPLE, process.execPath, [playwrightOf(EXAMPLE), "test", "--output", join(out, "test-results")], { ...env, JOURNEYSFIRST_RUNS_DIR: out });
-    /** @param {string} out */
-    const newest = (out) => {
-      const made = /wrote (.+)\/run\.json/.exec(played[out]?.output ?? "")?.[1];
+    const runs = join(dir, "journey-runs");
+    /** Both runs go to one folder, so the change's run is compared with the earlier run there. @param {Record<string, string>} env */
+    const play = (env) => run(EXAMPLE, process.execPath, [playwrightOf(EXAMPLE), "test", "--output", join(dir, "test-results")], { ...env, JOURNEYSFIRST_RUNS_DIR: runs });
+    /** @param {{output: string} | undefined} played */
+    const written = (played) => {
+      const made = /wrote (.+)\/run\.json/.exec(played?.output ?? "")?.[1];
       return made ? { folder: made, run: JSON.parse(readFileSync(join(made, "run.json"), "utf8")) } : null;
     };
-    /** @type {Record<string, {status: number | null, output: string}>} */
+    /** @type {{before?: {status: number | null, output: string}, after?: {status: number | null, output: string}}} */
     const played = {};
 
-    await journey.step("The agent runs the journey on main and on the change.", { by: "agent", caption: "The agent runs the journey on main and on the change." }, async () => {
-      played[mainRuns] = play(mainRuns, {});
+    await journey.step("The agent runs the journey before the change and with the change.", { by: "agent", caption: "The agent runs the journey before the change and with the change." }, async () => {
+      played.before = play({});
       // The planted change: the billing code is under Details, then Billing.
-      played[runs] = play(runs, { DEMO_MOVED_FIELD: "1" });
-      sayIfFailed("main", played[mainRuns]);
-      sayIfFailed("the change", played[runs]);
-      await show(agent, "The agent runs the journey on main and on the change", `${played[mainRuns].output}\n${played[runs].output}`);
+      played.after = play({ DEMO_MOVED_FIELD: "1" });
+      sayIfFailed("before the change", played.before);
+      sayIfFailed("the change", played.after);
+      await show(agent, "The agent runs the journey before the change and with the change", `${played.before.output}\n${played.after.output}`);
     });
 
-    const [onMain, onChange] = [newest(mainRuns), newest(runs)];
+    const [onEarlier, onChange] = [written(played.before), written(played.after)];
     await journey.check("both-runs-pass", { by: "agent", caption: "Checking that every check passed in both runs." }, async () => {
-      const results = [onMain?.run.result, onChange?.run.result];
+      const results = [onEarlier?.run.result, onChange?.run.result];
       const passed = results.every((result) => result === "passed");
-      return { passed, proof: "Read the result of each run.", evidence: [{ source: "page", url: "http://127.0.0.1:9/", login: "agent", saw: `main ${results[0]}, the change ${results[1]}` }], reason: "A run did not pass, so there is nothing to compare.", caption: passed ? "every check passed in both runs." : "a run did not pass." };
+      return { passed, proof: "Read the result of each run.", evidence: [{ source: "page", url: "http://127.0.0.1:9/", login: "agent", saw: `the earlier run ${results[0]}, the change ${results[1]}` }], reason: "A run did not pass, so there is nothing to compare.", caption: passed ? "every check passed in both runs." : "a run did not pass." };
     });
 
     let printed = "";
-    await journey.step("The agent compares the change's run with main's.", { by: "agent", caption: "The agent compares the change's run with main's." }, async () => {
-      printed = run(REPO, process.execPath, [CLI, "compare", runs, "--main", mainRuns]).output;
+    await journey.step("The agent compares the change's run with the earlier run.", { by: "agent", caption: "The agent compares the change's run with the earlier run." }, async () => {
+      printed = run(REPO, process.execPath, [CLI, "compare", runs]).output;
       await show(agent, "journeysfirst compare", printed);
     });
 
@@ -58,7 +58,7 @@ test.journey("journeys/see-what-got-worse-for-each-user.journey.yaml", { measure
 
     const port = freePort();
     await journey.step("You open the compare page.", { by: "you", caption: "You open the compare page." }, async () => {
-      review = spawn(process.execPath, [CLI, "review", runs, "--main", mainRuns, "--port", port], { cwd: REPO, stdio: "pipe" });
+      review = spawn(process.execPath, [CLI, "review", runs, "--port", port], { cwd: REPO, stdio: "pipe" });
       await new Promise((done, fail) => {
         review?.stdout?.on("data", (chunk) => String(chunk).includes("journeysfirst review:") && done(undefined));
         review?.on("exit", () => fail(new Error("The review page did not start.")));
@@ -86,25 +86,25 @@ test.journey("journeys/see-what-got-worse-for-each-user.journey.yaml", { measure
       const clicks = await step.locator(".cmp-side").evaluateAll((list) => list.map((side) => side.querySelectorAll(".cmp-actions li").length));
       const shown = await showing();
       const wide = shown.length === 1 && shown[0].side === "change" && shown[0].box[2] > (await step.evaluate((e) => e.getBoundingClientRect().width)) * 0.9;
-      const passed = wide && clicks.length === 2 && clicks[1] - clicks[0] === 2 && /same/i.test(await you.locator("main").innerText());
+      const passed = wide && clicks.length === 2 && clicks[0] - clicks[1] === 2 && /same/i.test(await you.locator("main").innerText());
       if (passed) await step.scrollIntoViewIfNeeded();
-      return { passed, proof: "Read the clicks on each side of the line where you see the billing code, and the screen under them.", evidence: seen(`main ${clicks[0] ?? "no"} clicks, the change ${clicks[1] ?? "no"} clicks, ${wide ? "the change's screen at full width" : "no full-width screen of the change"}`), reason: "The page does not show the extra clicks and the change's screen.", caption: passed ? "the change took 2 more clicks, and its screen is under them." : "the clicks or the screen are not there." };
+      return { passed, proof: "Read the clicks on each side of the line where you see the billing code, and the screen under them.", evidence: seen(`the change ${clicks[0] ?? "no"} clicks, the earlier run ${clicks[1] ?? "no"} clicks, ${wide ? "the change's screen at full width" : "no full-width screen of the change"}`), reason: "The page does not show the extra clicks and the change's screen.", caption: passed ? "the change took 2 more clicks, and its screen is under them." : "the clicks or the screen are not there." };
     });
 
     const before = (await showing())[0];
     /** @type {Awaited<ReturnType<typeof showing>>} */
     let flipped = [];
-    await journey.step("Flip that line's screen to main.", { by: "you", caption: "You flip the screen to main." }, async () => {
-      await step.locator('.tab[data-tab="main"]').click();
+    await journey.step("Flip that line's screen to the earlier run.", { by: "you", caption: "You flip the screen to the earlier run." }, async () => {
+      await step.locator('.tab[data-tab="before"]').click();
       flipped = await showing();
     });
 
-    await journey.check("you-flip-to-main", { by: "you", caption: "Checking that the screen flips in place." }, async () => {
+    await journey.check("you-flip-to-earlier", { by: "you", caption: "Checking that the screen flips in place." }, async () => {
       await step.getByRole("tab", { selected: true }).press("ArrowLeft");
       const back = await showing();
-      const inPlace = flipped.length === 1 && flipped[0].side === "main" && flipped[0].src !== before?.src && String(flipped[0].box) === String(before?.box);
+      const inPlace = flipped.length === 1 && flipped[0].side === "before" && flipped[0].src !== before?.src && String(flipped[0].box) === String(before?.box);
       const passed = inPlace && back.length === 1 && back[0].src === before?.src;
-      return { passed, proof: "Flipped the line's screen to main with a click, and back with an arrow key.", evidence: seen(`main's screen ${inPlace ? "in the same place" : "not in the same place"}, then ${back[0]?.side === "change" ? "the change's again" : "no change screen"}`), reason: "The screen does not flip to main in place and back.", caption: passed ? "main's screen shows in the same place, then the change's again." : "the screen does not flip in place." };
+      return { passed, proof: "Flipped the line's screen to the earlier run with a click, and back with an arrow key.", evidence: seen(`the earlier run's screen ${inPlace ? "in the same place" : "not in the same place"}, then ${back[0]?.side === "change" ? "the change's again" : "no change screen"}`), reason: "The screen does not flip to the earlier run in place and back.", caption: passed ? "the earlier run's screen shows in the same place, then the change's again." : "the screen does not flip in place." };
     });
 
     await journey.step("Choose side by side for that line's screen.", { by: "you", caption: "You choose side by side." }, async () => {
@@ -113,8 +113,8 @@ test.journey("journeys/see-what-got-worse-for-each-user.journey.yaml", { measure
 
     await journey.check("you-see-side-by-side", { by: "you", caption: "Checking that both screens show at once." }, async () => {
       const shown = await showing();
-      const passed = shown.length === 2 && shown[0].side === "main" && shown[1].side === "change" && shown[0].src !== shown[1].src && shown[0].box[2] === shown[1].box[2];
-      return { passed, proof: "Chose side by side on the line's switch and looked at its frame.", evidence: seen(`${shown.length} screens showing: ${shown.map((s) => s.side).join(", ") || "none"}`), reason: "The page does not show main's screen and the change's at once.", caption: passed ? "main's screen and the change's show at once, at the same size." : "the two screens do not show at once." };
+      const passed = shown.length === 2 && shown[0].side === "before" && shown[1].side === "change" && shown[0].src !== shown[1].src && shown[0].box[2] === shown[1].box[2];
+      return { passed, proof: "Chose side by side on the line's switch and looked at its frame.", evidence: seen(`${shown.length} screens showing: ${shown.map((s) => s.side).join(", ") || "none"}`), reason: "The page does not show the earlier run's screen and the change's at once.", caption: passed ? "the earlier run's screen and the change's show at once, at the same size." : "the two screens do not show at once." };
     });
 
     await journey.check("you-see-it-was-planted", { by: "you", caption: "Checking that the page says the change was planted." }, async () => {

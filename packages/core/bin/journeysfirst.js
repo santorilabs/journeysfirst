@@ -4,7 +4,7 @@
 // journeysfirst measured <run folder>                             what the run's measure files say, for a review
 // journeysfirst add-findings <run folder> <findings file>        write a review's findings into a run
 // journeysfirst add-review <run folder> --on <id> --by <who> --says <words>   record a person's call on a check or a finding
-// journeysfirst compare [runs or run folder] --main <runs folder> what each user lost or pays for, against main's run
+// journeysfirst compare [runs or run folder] [--main <runs folder>]   what each user lost or pays for, against the earlier run or main's
 // journeysfirst review [dir] [--port n] [--host h] [--out dir]   browse or export the review UI
 // journeysfirst run <journey> --agent "<command>"                  run your own agent on a fresh project copy and save a run
 // journeysfirst publish <run folder> [--to url] [--journey file]   publish a run (token from JOURNEYSFIRST_TOKEN)
@@ -53,15 +53,16 @@ const USAGE = `Usage:
       Nothing else in the run changes: a finding never changes a verdict or the result. Do it before publish.
   journeysfirst add-review <run folder> --on <check or finding id> --by <person> --says "<their words>"
       Records a person's call in the run's reviews. It never changes a verdict or the result. Do it before publish.
-  journeysfirst compare [runs folder or run folder] --main <main's runs folder> [--head <commit>] [--markdown] [--add-findings]
-      Compares the newest run of each journey with main's newest run of the same journey, case and journey version.
+  journeysfirst compare [runs folder or run folder] [--main <main's runs folder>] [--head <commit>] [--markdown] [--add-findings]
+      Compares the newest run of each journey with the earlier run of the same journey, case and journey version in the same folder.
+      It takes the newest earlier run from a different commit, or the newest earlier run when there is none. With --main, it compares with main's newest run.
       Prints one line for each user: broke, got worse, not verified, not compared, changed or same. Only measurements decide it.
       Got worse is a control gone from a screen or further away, more clicks or fields, a click or tool call that crosses 1 second, or a new tool error.
       It never changes a verdict. --markdown prints a table for a pull request. --head marks a run from an older commit as stale.
       --add-findings writes what it found into one run as findings. A person answers each with add-review.
       When a person's call on every question among them starts with "Accepted", that run is what later runs of the change are compared with.
   journeysfirst review [runs folder] [--port <n>] [--host <address>] [--main <main's runs folder>] [--head <commit>]   (default port 4400, or PORT; host 127.0.0.1)
-      With --main, /compare shows each user against main, and each line that differs with a switch between main's screen and the change's.
+      /compare shows each user against the earlier run, or against main's run with --main. Each line that differs has a switch between the two screens.
   journeysfirst review [runs folder] --out <new folder> [--include-transcripts] [--main <main's runs folder>] [--head <commit>]
       Export a static review. Check the pages and recordings for private data before hosting the folder.
       Include attached transcripts only with --include-transcripts, after checking them for private data.
@@ -207,8 +208,7 @@ if (command === "run") {
 } else if (command === "compare" && positional.length <= 1) {
   try {
     const given = positional[0] ?? "journey-runs";
-    if (typeof flags.main !== "string") throw new Error("compare needs --main <main's runs folder>. Like: journeysfirst compare journey-runs --main main-runs");
-    const options = { mainDir: flags.main, head: typeof flags.head === "string" ? flags.head : undefined };
+    const options = { mainDir: typeof flags.main === "string" ? flags.main : undefined, head: typeof flags.head === "string" ? flags.head : undefined };
     const one = existsSync(join(given, "run.json"));
     if (flags["add-findings"] && !one) throw new Error("--add-findings writes into one run. Name its run folder.");
     const all = one ? [compareFolder(given, options)] : compareAll(given, options);
